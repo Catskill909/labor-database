@@ -1,0 +1,53 @@
+{
+  "name": "labor-database",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "server": "tsx server/index.ts",
+    "dev:fullstack": "./dev.sh",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "import:history": "tsx scripts/import-history.ts",
+    "import:quotes": "tsx scripts/import-quotes.ts",
+    "import:music": "tsx scripts/import-music.ts",
+    "import:all": "tsx scripts/import-history.ts && tsx scripts/import-quotes.ts && tsx scripts/import-music.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.2",
+    "@tailwindcss/vite": "^4.1.18",
+    "cors": "^2.8.6",
+    "csv-parse": "^5.6.0",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "lucide-react": "^0.563.0",
+    "multer": "^2.0.2",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.13.0",
+    "sharp": "^0.34.5",
+    "tailwindcss": "^4.1.18"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^24.10.9",
+    "@types/react": "^19.2.5",
+    "@types/react-dom": "^19.2.3",
+    "@types/sharp": "^0.31.1",
+    "@vitejs/plugin-react": "^5.1.1",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "prisma": "^6.19.2",
+    "tsx": "^4.21.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.46.4",
+    "vite": "^7.2.4"
+  }
+}

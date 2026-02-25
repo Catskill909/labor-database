@@ -1,0 +1,20 @@
+services:
+  app:
+    build: .
+    image: labor-database:latest
+    container_name: labor-database
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      # DATABASE_URL is set in Dockerfile to /app/data/dev.db
+    volumes:
+      # BOTH volumes are REQUIRED — without them, data is lost on every deploy
+      - labor_db_data:/app/data        # SQLite database
+      - labor_db_uploads:/app/uploads  # Uploaded images (film posters, etc.)
+
+volumes:
+  labor_db_data:
+  labor_db_uploads:

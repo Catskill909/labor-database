@@ -1,0 +1,145 @@
+import { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Header from './components/Header.tsx';
+import CategoryNav from './components/CategoryNav.tsx';
+import EntryGrid from './components/EntryGrid.tsx';
+import EntryDetail from './components/EntryDetail.tsx';
+import SubmissionWizard from './components/SubmissionWizard.tsx';
+import AdminDashboard from './components/AdminDashboard.tsx';
+import AdminLogin from './components/AdminLogin.tsx';
+import type { Entry, Category } from './types.ts';
+
+function HomePage() {
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
+  const [showSubmissionWizard, setShowSubmissionWizard] = useState(false);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+
+  // Fetch categories
+  useEffect(() => {
+    fetch('/api/categories')
+      .then(r => r.json())
+      .then(data => setCategories(data))
+      .catch(err => console.error('Failed to fetch categories:', err));
+
+    fetch('/api/entries/counts')
+      .then(r => r.json())
+      .then(data => setCounts(data))
+      .catch(err => console.error('Failed to fetch counts:', err));
+  }, []);
+
+  // Fetch entries when category or search changes
+  useEffect(() => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (selectedCategory) params.set('category', selectedCategory);
+    if (searchQuery.trim()) params.set('search', searchQuery.trim());
+
+    fetch(`/api/entries?${params}`)
+      .then(r => r.json())
+      .then(data => {
+        setEntries(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Failed to fetch entries:', err);
+        setLoading(false);
+      });
+  }, [selectedCategory, searchQuery]);
+
+  const totalCount = Object.values(counts).reduce((a, b) => a + b, 0);
+
+  return (
+    <div className="min-h-screen flex flex-col bg-[var(--background)] text-[var(--foreground)]">
+      <Header
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        onAddClick={() => setShowSubmissionWizard(true)}
+      />
+
+      <CategoryNav
+        categories={categories}
+        selectedCategory={selectedCategory}
+        setSelectedCategory={setSelectedCategory}
+        counts={counts}
+      />
+
+      <main className="flex-1 px-4 sm:px-6 py-6 max-w-7xl mx-auto w-full">
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="w-10 h-10 rounded-full border-4 border-white/5 border-t-blue-500 animate-spin"></div>
+          </div>
+        ) : entries.length === 0 ? (
+          <div className="text-center py-20 text-gray-500">
+            <p className="text-lg">No entries found</p>
+            {searchQuery && <p className="text-sm mt-2">Try adjusting your search terms</p>}
+          </div>
+        ) : (
+          <EntryGrid
+            entries={entries}
+            onSelectEntry={setSelectedEntry}
+          />
+        )}
+      </main>
+
+      <footer className="border-t border-white/5 px-6 py-4 text-center text-xs text-gray-500">
+        <span>Showing {entries.length} of {totalCount} entries</span>
+        <span className="mx-2">&middot;</span>
+        <a href="https://laborheritage.org" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+          &copy; 2026 The Labor Heritage Foundation
+        </a>
+      </footer>
+
+      {selectedEntry && (
+        <EntryDetail
+          entry={selectedEntry}
+          onClose={() => setSelectedEntry(null)}
+        />
+      )}
+
+      {showSubmissionWizard && (
+        <SubmissionWizard
+          categories={categories}
+          onClose={() => setShowSubmissionWizard(false)}
+          onSubmitted={() => {
+            setShowSubmissionWizard(false);
+            // Refresh entries
+            setSearchQuery(q => q + '');
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function AdminRoute() {
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return true;
+    }
+    return sessionStorage.getItem('isAdminAuthenticated') === 'true';
+  });
+
+  if (!isAuthenticated) {
+    return <AdminLogin onLoginSuccess={() => setIsAuthenticated(true)} />;
+  }
+
+  return <AdminDashboard />;
+}
+
+function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/admin" element={<AdminRoute />} />
+      </Routes>
+    </Router>
+  );
+}
+
+export default App;

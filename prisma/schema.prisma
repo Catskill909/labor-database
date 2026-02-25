@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Entry {
+  id          Int      @id @default(autoincrement())
+  category    String   // "history", "quote", "music", "film", "play", "poetry", ...
+  title       String   // Display title (event name, quote snippet, song title, film title)
+  description String   // Main content body
+
+  // Date fields (shared — every type can have a date)
+  month       Int?
+  day         Int?
+  year        Int?
+
+  // Attribution (shared — author, performer, director all map to "creator")
+  creator     String?  // Primary creator: author, performer, director, poet, playwright
+
+  // Extended fields as JSON (type-specific)
+  // Music: { writer, performer, genre, runTime, locationUrl, lyrics }
+  // Film: { director, writers, cast, runtime, country, trailerUrl }
+  // Quote: { author, source }
+  // Play: { playwright, company, venue }
+  metadata    String?  // JSON string — parsed by frontend based on category
+
+  // Tags for cross-linking and filtering
+  tags        String?  // Comma-separated: "mining, 1930s, women, documentary"
+
+  // External links
+  sourceUrl   String?  // Original source, YouTube link, etc.
+
+  // Submission workflow (same pattern as landmarks)
+  isPublished    Boolean  @default(false)
+  submitterName  String?
+  submitterEmail String?
+  submitterComment String?
+
+  // Images (optional — used for film posters, etc.)
+  images      EntryImage[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model EntryImage {
+  id          Int      @id @default(autoincrement())
+  entryId     Int
+  entry       Entry    @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  filename    String
+  caption     String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+}
+
+// Registry of available categories (admin-managed)
+model Category {
+  id          Int      @id @default(autoincrement())
+  slug        String   @unique  // "history", "music", "film", etc.
+  label       String             // "Labor History", "Labor Music", etc.
+  icon        String?            // Lucide icon name for UI
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+}
