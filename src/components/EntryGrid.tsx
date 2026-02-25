@@ -97,19 +97,21 @@ function MusicCard({ entry, onClick }: { entry: Entry; onClick: () => void }) {
             </p>
           )}
 
-          {/* Action buttons like original site */}
-          <div className="flex items-center gap-2 mt-3">
-            {entry.sourceUrl && (
-              <span className="px-2.5 py-1 bg-blue-600/20 text-blue-400 text-[10px] font-medium rounded">
-                View Location
-              </span>
-            )}
-            {meta.lyrics && (
-              <span className="px-2.5 py-1 bg-blue-600/20 text-blue-400 text-[10px] font-medium rounded">
-                View Lyrics
-              </span>
-            )}
-          </div>
+          {/* Action buttons — only show if data exists, like original site */}
+          {(entry.sourceUrl || meta.lyrics) && (
+            <div className="flex items-center gap-2 mt-3">
+              {entry.sourceUrl && (
+                <span className="px-2.5 py-1 bg-blue-600/20 text-blue-400 text-[10px] font-medium rounded">
+                  Listen
+                </span>
+              )}
+              {meta.lyrics && (
+                <span className="px-2.5 py-1 bg-blue-600/20 text-blue-400 text-[10px] font-medium rounded">
+                  View Lyrics
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </button>

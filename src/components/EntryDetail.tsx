@@ -140,7 +140,7 @@ export default function EntryDetail({ entry, onClose }: EntryDetailProps) {
               className="inline-flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition-colors"
             >
               <ExternalLink size={14} />
-              View source
+              {entry.category === 'music' ? 'Listen' : 'View source'}
             </a>
           )}
         </div>
