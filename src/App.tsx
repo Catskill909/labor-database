@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Header from './components/Header.tsx';
 import CategoryNav from './components/CategoryNav.tsx';
+import FilterBar from './components/FilterBar.tsx';
 import EntryGrid from './components/EntryGrid.tsx';
 import EntryDetail from './components/EntryDetail.tsx';
 import SubmissionWizard from './components/SubmissionWizard.tsx';
@@ -14,6 +15,7 @@ function HomePage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [filters, setFilters] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
   const [showSubmissionWizard, setShowSubmissionWizard] = useState(false);
@@ -32,12 +34,21 @@ function HomePage() {
       .catch(err => console.error('Failed to fetch counts:', err));
   }, []);
 
-  // Fetch entries when category or search changes
+  // Reset filters when category changes
+  useEffect(() => {
+    setFilters({});
+  }, [selectedCategory]);
+
+  // Fetch entries when category, search, or filters change
   useEffect(() => {
     setLoading(true);
     const params = new URLSearchParams();
     if (selectedCategory) params.set('category', selectedCategory);
     if (searchQuery.trim()) params.set('search', searchQuery.trim());
+    // Add category-specific filters
+    for (const [key, value] of Object.entries(filters)) {
+      if (value) params.set(key, value);
+    }
 
     fetch(`/api/entries?${params}`)
       .then(r => r.json())
@@ -49,7 +60,7 @@ function HomePage() {
         console.error('Failed to fetch entries:', err);
         setLoading(false);
       });
-  }, [selectedCategory, searchQuery]);
+  }, [selectedCategory, searchQuery, filters]);
 
   const totalCount = Object.values(counts).reduce((a, b) => a + b, 0);
 
@@ -66,6 +77,12 @@ function HomePage() {
         selectedCategory={selectedCategory}
         setSelectedCategory={setSelectedCategory}
         counts={counts}
+      />
+
+      <FilterBar
+        category={selectedCategory}
+        filters={filters}
+        setFilters={setFilters}
       />
 
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-6">

@@ -141,7 +141,7 @@ app.put('/api/admin/categories/:id', adminAuth, async (req, res) => {
 app.get('/api/entries', async (req, res) => {
     res.set('Cache-Control', 'no-store');
     try {
-        const { category, search, month, day, year, limit, offset } = req.query;
+        const { category, search, month, day, year, creator, genre, limit, offset } = req.query;
 
         const where: Prisma.EntryWhereInput = { isPublished: true };
 
@@ -157,6 +157,39 @@ app.get('/api/entries', async (req, res) => {
         }
         if (year && typeof year === 'string') {
             where.year = parseInt(year);
+        }
+
+        // Creator filter (case-insensitive via raw SQL)
+        // Combined with other raw SQL filters below
+        let filterIds: number[] | null = null;
+
+        if (creator && typeof creator === 'string') {
+            const q = `%${creator.trim()}%`;
+            const results: { id: number }[] = await prisma.$queryRaw`
+                SELECT id FROM Entry
+                WHERE creator LIKE ${q}
+            `;
+            filterIds = results.map(r => r.id);
+        }
+
+        // Genre filter (searches within metadata JSON, case-insensitive)
+        if (genre && typeof genre === 'string') {
+            const q = `%${genre.trim()}%`;
+            const results: { id: number }[] = await prisma.$queryRaw`
+                SELECT id FROM Entry
+                WHERE metadata LIKE ${q}
+            `;
+            const genreIds = results.map(r => r.id);
+            // Intersect with existing filterIds if set
+            if (filterIds !== null) {
+                filterIds = filterIds.filter(id => genreIds.includes(id));
+            } else {
+                filterIds = genreIds;
+            }
+        }
+
+        if (filterIds !== null) {
+            where.id = { in: filterIds };
         }
 
         // For search: use raw SQL with LIKE (case-insensitive in SQLite)
@@ -176,7 +209,13 @@ app.get('/api/entries', async (req, res) => {
         }
 
         if (searchIds !== null) {
-            where.id = { in: searchIds };
+            // If we already have filterIds, intersect with search results
+            if (where.id) {
+                const existing = (where.id as { in: number[] }).in;
+                where.id = { in: existing.filter(id => searchIds!.includes(id)) };
+            } else {
+                where.id = { in: searchIds };
+            }
         }
 
         const entries = await prisma.entry.findMany({
@@ -208,6 +247,55 @@ app.get('/api/entries', async (req, res) => {
     } catch (error) {
         console.error('Fetch entries error:', error);
         res.status(500).json({ error: 'Failed to fetch entries' });
+    }
+});
+
+// GET distinct filter options for a category (Public)
+app.get('/api/entries/filter-options', async (req, res) => {
+    try {
+        const { category } = req.query;
+        if (!category || typeof category !== 'string') {
+            return res.json({});
+        }
+
+        const options: Record<string, string[]> = {};
+
+        if (category === 'music') {
+            // Get distinct genres from metadata JSON
+            const entries = await prisma.entry.findMany({
+                where: { category: 'music', isPublished: true, metadata: { not: null } },
+                select: { metadata: true }
+            });
+            const genres = new Set<string>();
+            for (const e of entries) {
+                try {
+                    const meta = JSON.parse(e.metadata!);
+                    if (meta.genre) {
+                        // Some entries have comma-separated genres
+                        meta.genre.split(',').forEach((g: string) => {
+                            const trimmed = g.trim();
+                            if (trimmed) genres.add(trimmed);
+                        });
+                    }
+                } catch { /* skip bad JSON */ }
+            }
+            options.genres = [...genres].sort();
+        }
+
+        if (category === 'history') {
+            // Get distinct years that have history entries
+            const years: { year: number }[] = await prisma.$queryRaw`
+                SELECT DISTINCT year FROM Entry
+                WHERE category = 'history' AND isPublished = 1 AND year IS NOT NULL
+                ORDER BY year DESC
+            `;
+            options.years = years.map(y => String(y.year));
+        }
+
+        res.json(options);
+    } catch (error) {
+        console.error('Filter options error:', error);
+        res.status(500).json({ error: 'Failed to fetch filter options' });
     }
 });
 

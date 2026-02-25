@@ -112,6 +112,12 @@ export default function AdminDashboard() {
 
   const unpublishedCount = entries.filter(e => !e.isPublished).length;
 
+  // Sort unpublished to top so pending reviews are immediately visible
+  const sortedEntries = [...entries].sort((a, b) => {
+    if (a.isPublished === b.isPublished) return 0;
+    return a.isPublished ? 1 : -1;
+  });
+
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       {/* Top bar */}
@@ -121,9 +127,6 @@ export default function AdminDashboard() {
             <h1 className="text-xl font-bold">Admin Dashboard</h1>
             <p className="text-xs text-gray-500 mt-0.5">
               {entries.length} entries
-              {unpublishedCount > 0 && (
-                <span className="text-amber-400 ml-2">({unpublishedCount} pending review)</span>
-              )}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -162,16 +165,25 @@ export default function AdminDashboard() {
 
           <div className="w-px h-5 bg-white/10 mx-1" />
 
-          {/* Published filter */}
-          <select
-            value={filterPublished}
-            onChange={e => setFilterPublished(e.target.value)}
-            className="px-2 py-1.5 bg-white/5 border border-white/10 rounded text-xs"
+          {/* Published filter buttons */}
+          <button
+            onClick={() => setFilterPublished(filterPublished === '' ? '' : '')}
+            className={`px-3 py-1.5 rounded text-xs font-medium ${filterPublished === '' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
           >
-            <option value="">All Status</option>
-            <option value="true">Published</option>
-            <option value="false">Pending Review</option>
-          </select>
+            All Status
+          </button>
+          <button
+            onClick={() => setFilterPublished(filterPublished === 'false' ? '' : 'false')}
+            className={`px-3 py-1.5 rounded text-xs font-medium ${filterPublished === 'false' ? 'bg-amber-600 text-white' : 'text-amber-400 hover:text-amber-300'}`}
+          >
+            Pending Review {unpublishedCount > 0 && `(${unpublishedCount})`}
+          </button>
+          <button
+            onClick={() => setFilterPublished(filterPublished === 'true' ? '' : 'true')}
+            className={`px-3 py-1.5 rounded text-xs font-medium ${filterPublished === 'true' ? 'bg-green-600 text-white' : 'text-gray-400 hover:text-white'}`}
+          >
+            Published
+          </button>
 
           {/* Search */}
           <div className="relative flex-1 min-w-[200px]">
@@ -195,7 +207,7 @@ export default function AdminDashboard() {
           <div className="text-center py-10 text-gray-500">No entries found</div>
         ) : (
           <div className="space-y-2">
-            {entries.map(entry => (
+            {sortedEntries.map(entry => (
               <div
                 key={entry.id}
                 className="flex items-center gap-3 p-3 bg-[var(--card)] border border-[var(--border)] rounded-lg"
