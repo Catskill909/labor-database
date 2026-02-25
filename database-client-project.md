@@ -2,7 +2,9 @@
 
 **Client:** Chris Garlock & Harold Phillips / Labor Heritage Foundation
 **Date:** February 23, 2026
-**Status:** CSVs received for History, Quotes, Music. Films WordPress export pending. Client confirmed: wants extensible platform for future categories (plays, poetry, etc.). Images confirmed needed (at minimum for films — movie posters). Architecture explained to client and approved.
+**Status:** Phase 1 COMPLETE. App running locally with 3,762 entries imported. Pushed to GitHub. Films WordPress export still pending from client.
+**Repo:** https://github.com/Catskill909/labor-database
+**Next:** Deploy to Coolify, import Films when WordPress export received.
 
 ---
 
@@ -297,43 +299,48 @@ This is faster and more reliable than a dynamic form generator, and produces bet
 
 ## Feature Roadmap
 
-### Phase 1: Foundation — Data Import & Core Platform
-- [ ] New repo + project scaffolding (clone landmarks pattern)
-- [ ] Prisma schema with unified Entry model + EntryImage model + Category registry
-- [ ] CSV import scripts for History, Quotes, Music
-- [ ] WordPress import script for Films (parse RSS/export)
-- [ ] Express API: CRUD endpoints for entries (generic, category-filtered)
-- [ ] Image upload API (multer + sharp, same as landmarks)
-- [ ] Admin panel with category tabs
-- [ ] Admin auth (same pattern as landmarks)
-- [ ] Basic search per category
+### Phase 1: Foundation — Data Import & Core Platform ✅ COMPLETE
+- [x] New repo + project scaffolding (clone landmarks pattern)
+- [x] Prisma schema with unified Entry model + EntryImage model + Category registry
+- [x] CSV import scripts for History, Quotes, Music
+- [ ] WordPress import script for Films (parse RSS/export) — **BLOCKED: waiting on client export**
+- [x] Express API: CRUD endpoints for entries (generic, category-filtered)
+- [x] Image upload API (multer + sharp, same as landmarks)
+- [x] Admin panel with category tabs
+- [x] Admin auth (same pattern as landmarks)
+- [x] Basic search per category (case-insensitive via raw SQL LIKE)
+- [x] Public-facing UI with category navigation
+- [x] Unified search bar — cross-category search
+- [x] Category-specific card designs (History, Quote, Music, Generic)
+- [x] Submission wizard (3-step: pick category → category form → contact info)
+- [x] Pushed to GitHub: https://github.com/Catskill909/labor-database
 
-### Phase 2: Unified Search & Public UI
-- [ ] Public-facing landing page with category navigation
-- [ ] **Unified search bar** — one query, results grouped by category
+### Phase 2: Enhanced Search & Filters
 - [ ] Individual browse views per category with type-specific filters:
   - History: Month/Day/Year dropdowns
   - Quotes: Author, keyword
   - Music: Artist, genre, title
   - Films: Director, year, genre/tags
-- [ ] Card-based grid layout with category-appropriate card designs
-- [ ] **Submission wizard** — step 1: pick type, step 2: dynamic form, step 3: contact info
 - [ ] Review queue in admin (same isPublished pattern as landmarks)
 
-### Phase 3: "On This Day" — The Killer Feature
+### Phase 3: Films Import
+- [ ] Import Films from WordPress export (when received)
+- [ ] Film-specific card and detail view
+
+### Phase 4: "On This Day" — The Killer Feature
 - [ ] **Landing page "On This Day" view** — today's date across all categories:
   - History entries matching today's month + day
   - Quotes, songs, films tied to today's date
 - [ ] "On This Day" for any arbitrary date (date picker)
 - [ ] Shareable URL per date (e.g., `/on-this-day/03-05` for March 5)
 
-### Phase 4: Timeline, Tags & Cross-Linking
+### Phase 5: Timeline, Tags & Cross-Linking
 - [ ] **Timeline view** — browse by decade or year across all categories
 - [ ] **Tag system** — shared tags across all categories for cross-filtering
 - [ ] **Auto-linking** — surface connections across categories by date + keyword matching
 - [ ] Visual timeline component
 
-### Phase 5+: New Categories (Plays, Poetry, etc.)
+### Phase 6+: New Categories (Plays, Poetry, etc.)
 As the client requests new content types:
 - [ ] Build category-specific submission form and admin edit form
 - [ ] Add admin tab and any unique display logic (e.g., embedded video for plays)
@@ -413,6 +420,40 @@ When the client wants to add "Labor Plays":
 
 ---
 
+## Session 1 Work Log (Feb 25, 2026)
+
+### What Was Built
+Full project scaffolded from scratch, mirroring the Labor Landmarks architecture:
+- **18+ files created** — package.json, Dockerfile, docker-compose.yml, Prisma schema, Express API server, React frontend with 7 components, 3 CSV import scripts, dev.sh, CLAUDE.md, all config files
+- **Express API** (~500 lines) — full CRUD, admin auth, image upload, backup/import, case-insensitive search
+- **React Frontend** — Header, CategoryNav, EntryGrid (with category-specific cards), EntryDetail modal, SubmissionWizard, AdminLogin, AdminDashboard
+- **3 CSV import scripts** — one per data source, with BOM handling, deduplication, and data cleanup
+
+### Data Import Results
+| Category | Imported | Skipped | Notes |
+|----------|----------|---------|-------|
+| History  | 1,411    | 13      | 13 had no description |
+| Quotes   | 1,916    | 465     | 465 had no quote text |
+| Music    | 435      | 657     | 657 had no song title |
+| **Total**| **3,762**| **1,135** | |
+
+### Issues Found & Fixed During Build
+1. **BOM in CSVs** — `CsvError: Invalid Opening Quote: utf8 bom` → Added `bom: true` to csv-parse options
+2. **Express 5 req.params typing** — `string | string[]` type error → Cast with `as string`
+3. **Case-sensitive search** — SQLite Prisma `contains` is case-sensitive → Switched to raw SQL `$queryRaw` with `LIKE`
+4. **Duplicate title/description on history cards** — Title was just truncated description → Created category-specific card components (HistoryCard shows only date + description)
+5. **Music "View Location" label** → Renamed to "Listen"
+6. **Music buttons showing on all entries** — 358/435 entries had non-URL text ("Labor History Today collection...") as sourceUrl → Fixed import script to only store URLs starting with "http", ran cleanup on existing data
+7. **Footer disappearing behind content** — Changed from `min-h-screen` to `h-screen` with `overflow-y-auto` on main content area
+
+### Key Technical Decisions
+- **Case-insensitive search**: Uses raw SQL `LIKE` queries via `prisma.$queryRaw` because SQLite's Prisma `contains` mode is case-sensitive
+- **Music sourceUrl filtering**: Only values starting with "http" are stored as sourceUrl; non-URL location text is discarded
+- **History cards**: No title displayed (title is just a truncated copy of description); shows date header + full description
+- **Quote cards**: Italic text + author attribution; metadata.source shown as detail line
+
+---
+
 ## Open Questions
 
 1. ~~**CSV exports**~~ — **RECEIVED** for History, Quotes, Music.
@@ -453,3 +494,39 @@ Cross-referencing (e.g., Pittston strike ↔ Trumka quote ↔ related song) work
 - Client provides data in any format (CSV, spreadsheet, text)
 - We write a one-time import script per batch
 - Ongoing additions via admin panel or public submissions
+
+---
+
+## Handoff Notes for Next Session
+
+### Current State
+- App runs locally on port 3001 (`./dev.sh`)
+- SQLite database at `data/labor.db` with 3,762 entries
+- All code pushed to https://github.com/Catskill909/labor-database
+- NOT yet deployed to Coolify
+
+### To Start Working
+```bash
+cd ~/Desktop/labor-database
+./dev.sh          # starts server at http://localhost:3001
+```
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `server/index.ts` | Express API (~500 lines) — all routes, admin auth, search |
+| `src/App.tsx` | Main React app — layout, state, API calls |
+| `src/components/EntryGrid.tsx` | Category-specific card components |
+| `src/components/EntryDetail.tsx` | Modal detail view |
+| `src/components/SubmissionWizard.tsx` | Public submission form (3-step) |
+| `src/components/AdminDashboard.tsx` | Admin panel |
+| `prisma/schema.prisma` | Database schema |
+| `scripts/import-*.ts` | CSV import scripts |
+| `CLAUDE.md` | AI session guardrails |
+
+### Immediate Next Steps
+1. **Deploy to Coolify** — create new app, configure TWO persistent volumes (`/app/data`, `/app/uploads`), set `ADMIN_PASSWORD` env var
+2. **Import Films** — waiting on WordPress XML export from client (Chris Garlock)
+3. **Category-specific filters** — add Month/Day/Year dropdowns for History, author filter for Quotes, etc.
+4. **"On This Day" feature** — the client's killer feature for daily podcast prep
+5. **Review queue polish** — admin review of public submissions

@@ -43,7 +43,7 @@ function parseDateField(dateStr: string): { month: number | null; day: number | 
 }
 
 async function main() {
-    const csvPath = path.join(__dirname, '../Quotes.csv');
+    const csvPath = path.join(__dirname, '../docs/csv/Quotes.csv');
     if (!fs.existsSync(csvPath)) {
         console.error(`CSV file not found: ${csvPath}`);
         process.exit(1);

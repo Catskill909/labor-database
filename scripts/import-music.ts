@@ -28,7 +28,7 @@ const __dirname = path.dirname(__filename);
 const prisma = new PrismaClient();
 
 async function main() {
-    const csvPath = path.join(__dirname, '../Labor+Music.csv');
+    const csvPath = path.join(__dirname, '../docs/csv/Labor+Music.csv');
     if (!fs.existsSync(csvPath)) {
         console.error(`CSV file not found: ${csvPath}`);
         process.exit(1);
