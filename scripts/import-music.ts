@@ -57,7 +57,9 @@ async function main() {
         const performer = (row['Performer'] || '').trim() || null;
         const songwriter = (row['Songwriter '] || row['Songwriter'] || '').trim() || null;
         const runtime = (row['Runtime'] || '').trim() || null;
-        const location = (row['Location'] || '').trim() || null;
+        // Only treat as URL if it's actually a link (not "Labor History Today collection...")
+        const rawLocation = (row['Location'] || '').trim();
+        const location = rawLocation.startsWith('http') ? rawLocation : null;
         const lyrics = (row['Snippet(s) of relevant lyrics'] || '').trim() || null;
         const dateWritten = (row['date written'] || '').trim() || null;
         const genre = (row['genre'] || '').trim() || null;
