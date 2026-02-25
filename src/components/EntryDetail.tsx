@@ -7,9 +7,23 @@ interface EntryDetailProps {
   onClose: () => void;
 }
 
+// Full month name version for the detail modal
+function formatFullDate(entry: Pick<Entry, 'month' | 'day' | 'year'>): string {
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
+  const parts: string[] = [];
+  if (entry.month) parts.push(monthNames[entry.month - 1] || String(entry.month));
+  if (entry.day) parts.push(String(entry.day) + ',');
+  if (entry.year) parts.push(String(entry.year));
+  return parts.join(' ');
+}
+
+// History: title is just a truncated description, so don't show it separately
+const isHistoryOrQuote = (cat: string) => cat === 'history' || cat === 'quote';
+
 export default function EntryDetail({ entry, onClose }: EntryDetailProps) {
   const meta = parseMetadata(entry);
-  const dateStr = formatEntryDate(entry);
+  const dateStr = entry.category === 'history' ? formatFullDate(entry) : formatEntryDate(entry);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -24,7 +38,14 @@ export default function EntryDetail({ entry, onClose }: EntryDetailProps) {
             <span className="text-[10px] uppercase tracking-wider font-semibold text-blue-400">
               {entry.category}
             </span>
-            <h2 className="text-lg font-bold mt-1 leading-snug">{entry.title}</h2>
+            {/* History/Quote: show date as header, not the truncated title */}
+            {entry.category === 'history' && dateStr ? (
+              <h2 className="text-lg font-bold mt-1 leading-snug">{dateStr}</h2>
+            ) : entry.category === 'quote' && entry.creator ? (
+              <h2 className="text-lg font-bold mt-1 leading-snug">{entry.creator}</h2>
+            ) : (
+              <h2 className="text-lg font-bold mt-1 leading-snug">{entry.title}</h2>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -36,15 +57,15 @@ export default function EntryDetail({ entry, onClose }: EntryDetailProps) {
 
         {/* Body */}
         <div className="p-6 space-y-4">
-          {/* Date + Creator */}
+          {/* Date + Creator (skip for history since date is in header, skip creator for quote since it's in header) */}
           <div className="flex flex-wrap gap-4 text-sm text-gray-400">
-            {dateStr && (
+            {!isHistoryOrQuote(entry.category) && dateStr && (
               <div className="flex items-center gap-1.5">
                 <Calendar size={14} />
                 <span>{dateStr}</span>
               </div>
             )}
-            {entry.creator && (
+            {entry.category !== 'quote' && entry.creator && (
               <div className="flex items-center gap-1.5">
                 <User size={14} />
                 <span>{entry.creator}</span>
@@ -53,9 +74,19 @@ export default function EntryDetail({ entry, onClose }: EntryDetailProps) {
           </div>
 
           {/* Description */}
-          <div className="text-sm leading-relaxed whitespace-pre-wrap">
+          <div className={`text-sm leading-relaxed whitespace-pre-wrap ${entry.category === 'quote' ? 'italic' : ''}`}>
             {entry.description}
           </div>
+
+          {/* Quote: show author attribution below if not already in header */}
+          {entry.category === 'quote' && entry.creator && (
+            <p className="text-sm text-gray-400 font-medium">&mdash; {entry.creator}</p>
+          )}
+
+          {/* Quote source/detail */}
+          {entry.category === 'quote' && meta.source && (
+            <p className="text-sm text-gray-500">{meta.source}</p>
+          )}
 
           {/* Music metadata */}
           {entry.category === 'music' && (
@@ -73,11 +104,6 @@ export default function EntryDetail({ entry, onClose }: EntryDetailProps) {
                 </div>
               )}
             </div>
-          )}
-
-          {/* Quote metadata */}
-          {entry.category === 'quote' && meta.source && (
-            <p className="text-sm text-gray-400">Source: {meta.source}</p>
           )}
 
           {/* Tags */}
