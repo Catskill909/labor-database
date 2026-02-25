@@ -159,15 +159,24 @@ app.get('/api/entries', async (req, res) => {
             where.year = parseInt(year);
         }
 
+        // For search: use raw SQL with LIKE (case-insensitive in SQLite)
+        // then apply other filters via Prisma
+        let searchIds: number[] | null = null;
         if (search && typeof search === 'string') {
-            const q = search.trim();
-            where.OR = [
-                { title: { contains: q } },
-                { description: { contains: q } },
-                { creator: { contains: q } },
-                { tags: { contains: q } },
-                { metadata: { contains: q } }
-            ];
+            const q = `%${search.trim()}%`;
+            const results: { id: number }[] = await prisma.$queryRaw`
+                SELECT id FROM Entry
+                WHERE title LIKE ${q}
+                   OR description LIKE ${q}
+                   OR creator LIKE ${q}
+                   OR tags LIKE ${q}
+                   OR metadata LIKE ${q}
+            `;
+            searchIds = results.map(r => r.id);
+        }
+
+        if (searchIds !== null) {
+            where.id = { in: searchIds };
         }
 
         const entries = await prisma.entry.findMany({
@@ -287,13 +296,15 @@ app.get('/api/admin/entries', adminAuth, async (req, res) => {
             where.isPublished = isPublished === 'true';
         }
         if (search && typeof search === 'string') {
-            const q = search.trim();
-            where.OR = [
-                { title: { contains: q } },
-                { description: { contains: q } },
-                { creator: { contains: q } },
-                { tags: { contains: q } },
-            ];
+            const q = `%${search.trim()}%`;
+            const results: { id: number }[] = await prisma.$queryRaw`
+                SELECT id FROM Entry
+                WHERE title LIKE ${q}
+                   OR description LIKE ${q}
+                   OR creator LIKE ${q}
+                   OR tags LIKE ${q}
+            `;
+            where.id = { in: results.map(r => r.id) };
         }
 
         const entries = await prisma.entry.findMany({
