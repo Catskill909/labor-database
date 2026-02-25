@@ -54,7 +54,7 @@ function HomePage() {
   const totalCount = Object.values(counts).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="min-h-screen flex flex-col bg-[var(--background)] text-[var(--foreground)]">
+    <div className="h-screen flex flex-col bg-[var(--background)] text-[var(--foreground)]">
       <Header
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
@@ -68,25 +68,27 @@ function HomePage() {
         counts={counts}
       />
 
-      <main className="flex-1 px-4 sm:px-6 py-6 max-w-7xl mx-auto w-full">
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="w-10 h-10 rounded-full border-4 border-white/5 border-t-blue-500 animate-spin"></div>
-          </div>
-        ) : entries.length === 0 ? (
-          <div className="text-center py-20 text-gray-500">
-            <p className="text-lg">No entries found</p>
-            {searchQuery && <p className="text-sm mt-2">Try adjusting your search terms</p>}
-          </div>
-        ) : (
-          <EntryGrid
-            entries={entries}
-            onSelectEntry={setSelectedEntry}
-          />
-        )}
+      <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-6">
+        <div className="max-w-7xl mx-auto w-full">
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-10 h-10 rounded-full border-4 border-white/5 border-t-blue-500 animate-spin"></div>
+            </div>
+          ) : entries.length === 0 ? (
+            <div className="text-center py-20 text-gray-500">
+              <p className="text-lg">No entries found</p>
+              {searchQuery && <p className="text-sm mt-2">Try adjusting your search terms</p>}
+            </div>
+          ) : (
+            <EntryGrid
+              entries={entries}
+              onSelectEntry={setSelectedEntry}
+            />
+          )}
+        </div>
       </main>
 
-      <footer className="border-t border-white/5 px-6 py-4 text-center text-xs text-gray-500">
+      <footer className="shrink-0 border-t border-white/5 px-6 py-3 text-center text-xs text-gray-500">
         <span>Showing {entries.length} of {totalCount} entries</span>
         <span className="mx-2">&middot;</span>
         <a href="https://laborheritage.org" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
