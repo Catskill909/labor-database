@@ -43,6 +43,7 @@ Same architecture as the [Labor Landmarks Map](https://github.com/Catskill909/la
 │   └── components/
 │       ├── EntryGrid.tsx    # Category-specific card layouts
 │       ├── EntryDetail.tsx  # Modal detail view
+│       ├── FilterBar.tsx    # Category-specific filter controls
 │       ├── SubmissionWizard.tsx  # Public submission form
 │       └── AdminDashboard.tsx   # Admin panel
 ├── prisma/
@@ -127,7 +128,8 @@ In local dev, admin auth is skipped if no `ADMIN_PASSWORD` is set.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/entries` | GET | List entries (filter by `category`, `search`, pagination) |
+| `/api/entries` | GET | List entries (filter by `category`, `search`, `month`, `day`, `year`, `creator`, `genre`) |
+| `/api/entries/filter-options` | GET | Distinct filter values for dropdowns (genres, years) |
 | `/api/entries/:id` | GET | Single entry with images |
 | `/api/entries` | POST | Public submission (unpublished) |
 | `/api/categories` | GET | List active categories |

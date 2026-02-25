@@ -4,7 +4,7 @@
 **Date:** February 23, 2026
 **Status:** Phase 1 COMPLETE. App running locally with 3,762 entries imported. Pushed to GitHub. Films WordPress export still pending from client.
 **Repo:** https://github.com/Catskill909/labor-database
-**Next:** Deploy to Coolify, import Films when WordPress export received.
+**Next:** Deploy to Coolify, import Films when WordPress export received, build "On This Day" feature.
 
 ---
 
@@ -315,13 +315,17 @@ This is faster and more reliable than a dynamic form generator, and produces bet
 - [x] Submission wizard (3-step: pick category → category form → contact info)
 - [x] Pushed to GitHub: https://github.com/Catskill909/labor-database
 
-### Phase 2: Enhanced Search & Filters
-- [ ] Individual browse views per category with type-specific filters:
+### Phase 2: Enhanced Search & Filters ✅ COMPLETE
+- [x] Category-specific filter bar (FilterBar component):
   - History: Month/Day/Year dropdowns
-  - Quotes: Author, keyword
-  - Music: Artist, genre, title
-  - Films: Director, year, genre/tags
-- [ ] Review queue in admin (same isPublished pattern as landmarks)
+  - Quotes: Author text filter (debounced)
+  - Music: Artist text filter + Genre dropdown (populated from actual data — 39 genres)
+  - Films: Director text filter + Year input
+- [x] Filters combine with text search and reset on category change
+- [x] New API endpoint: `GET /api/entries/filter-options` for dropdown data
+- [x] New API params: `creator` (case-insensitive LIKE), `genre` (metadata search)
+- [x] Admin review queue polished: Pending Review / Published / All Status toggle buttons with count
+- [x] Unpublished entries sorted to top in admin view
 
 ### Phase 3: Films Import
 - [ ] Import Films from WordPress export (when received)
