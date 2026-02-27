@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Search, Plus, Database, Menu, Building2, Info, ExternalLink, Shield } from 'lucide-react';
+import { Search, Plus, Database, Menu, Building2, Landmark, Info, ExternalLink, Shield } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import AboutModal from './AboutModal';
 import PrivacyModal from './PrivacyModal';
@@ -34,7 +34,7 @@ export default function Header({ searchQuery, setSearchQuery, onAddClick }: Head
       <header className="border-b border-white/5 px-4 sm:px-6 py-4">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center gap-4">
           <div className="flex items-center gap-3 shrink-0">
-            <Database size={28} className="text-blue-400" />
+            <Database size={28} className="text-red-400" />
             <h1 className="text-xl font-bold tracking-tight">Labor Arts &amp; Culture Database</h1>
           </div>
 
@@ -46,15 +46,15 @@ export default function Header({ searchQuery, setSearchQuery, onAddClick }: Head
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Search all categories..."
-                className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm placeholder:text-gray-500 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/25 transition-colors"
+                className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm placeholder:text-gray-500 focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/25 transition-colors"
               />
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4 ml-auto">
             <button
               onClick={onAddClick}
-              className="hidden sm:flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors shrink-0"
+              className="hidden sm:flex items-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors shrink-0"
             >
               <Plus size={16} />
               Add to Database
@@ -89,10 +89,24 @@ export default function Header({ searchQuery, setSearchQuery, onAddClick }: Head
                       className="w-full text-left px-4 py-3 hover:bg-zinc-800 flex items-center gap-3 text-sm text-gray-200 transition-colors group"
                       onClick={() => setIsMenuOpen(false)}
                     >
-                      <div className="p-1.5 bg-blue-500/10 rounded-md text-blue-400 group-hover:bg-blue-500/20 transition-colors">
+                      <div className="p-1.5 bg-red-500/10 rounded-md text-red-400 group-hover:bg-red-500/20 transition-colors">
                         <Building2 size={16} />
                       </div>
                       <span>Labor Heritage Foundation</span>
+                      <ExternalLink size={12} className="ml-auto text-gray-600 group-hover:text-gray-400" />
+                    </a>
+
+                    <a
+                      href="https://labor-landmarks.supersoul.top/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full text-left px-4 py-3 hover:bg-zinc-800 flex items-center gap-3 text-sm text-gray-200 transition-colors group"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <div className="p-1.5 bg-red-500/10 rounded-md text-red-400 group-hover:bg-red-500/20 transition-colors">
+                        <Landmark size={16} />
+                      </div>
+                      <span>Labor Landmarks</span>
                       <ExternalLink size={12} className="ml-auto text-gray-600 group-hover:text-gray-400" />
                     </a>
 
@@ -131,7 +145,7 @@ export default function Header({ searchQuery, setSearchQuery, onAddClick }: Head
                         }}
                         className="w-full text-left px-4 py-3 hover:bg-zinc-800 flex items-center gap-3 text-sm text-gray-200 transition-colors"
                       >
-                        <div className="p-1.5 bg-blue-500/10 rounded-md text-blue-400">
+                        <div className="p-1.5 bg-red-500/10 rounded-md text-red-400">
                           <Plus size={16} />
                         </div>
                         <span>Add to Database</span>

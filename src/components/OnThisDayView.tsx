@@ -64,11 +64,11 @@ function formatDayOfWeek(month: number, day: number): string {
 // Category icon helper
 function CategoryIcon({ category }: { category: string }) {
   switch (category) {
-    case 'history': return <ScrollText size={14} className="text-blue-400/60" />;
-    case 'quote': return <QuoteIcon size={14} className="text-blue-400/60" />;
-    case 'film': return <Film size={14} className="text-blue-400/60" />;
-    case 'music': return <Music size={14} className="text-blue-400/60" />;
-    default: return <Database size={14} className="text-blue-400/60" />;
+    case 'history': return <ScrollText size={14} className="text-red-400/60" />;
+    case 'quote': return <QuoteIcon size={14} className="text-red-400/60" />;
+    case 'film': return <Film size={14} className="text-red-400/60" />;
+    case 'music': return <Music size={14} className="text-red-400/60" />;
+    default: return <Database size={14} className="text-red-400/60" />;
   }
 }
 
@@ -167,7 +167,7 @@ export default function OnThisDayView({ onSelectEntry, onAddClick }: OnThisDayVi
       {/* Date Hero — compact, inline */}
       <div className="text-center mb-6">
         <div className="mb-3">
-          <p className="text-xs text-blue-400 font-medium tracking-widest uppercase mb-1">
+          <p className="text-xs text-amber-400 font-medium tracking-widest uppercase mb-1">
             {isToday ? 'Today' : dayOfWeek}
           </p>
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
@@ -198,7 +198,7 @@ export default function OnThisDayView({ onSelectEntry, onAddClick }: OnThisDayVi
             onClick={() => setShowCalendar(!showCalendar)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border transition-colors ${
               showCalendar
-                ? 'bg-blue-600/20 border-blue-500/30 text-blue-400'
+                ? 'bg-amber-600/20 border-amber-500/30 text-amber-400'
                 : 'bg-white/5 border-white/10 hover:bg-white/10'
             }`}
             title="Pick a date"
@@ -273,7 +273,7 @@ export default function OnThisDayView({ onSelectEntry, onAddClick }: OnThisDayVi
       {/* Loading state */}
       {loading && (
         <div className="flex items-center justify-center py-20">
-          <div className="w-10 h-10 rounded-full border-4 border-white/5 border-t-blue-500 animate-spin"></div>
+          <div className="w-10 h-10 rounded-full border-4 border-white/5 border-t-red-500 animate-spin"></div>
         </div>
       )}
 
@@ -395,7 +395,7 @@ export default function OnThisDayView({ onSelectEntry, onAddClick }: OnThisDayVi
           </p>
           <button
             onClick={onAddClick}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors"
           >
             <Plus size={16} />
             Submit an Entry
@@ -416,7 +416,7 @@ function SectionHeader({ icon, title, count, label, subtitle }: {
 }) {
   return (
     <div className="flex items-center gap-3 mb-4 pb-3 border-b border-white/10">
-      <div className="text-blue-400">{icon}</div>
+      <div className="text-red-400">{icon}</div>
       <div className="flex-1 min-w-0">
         <h3 className="text-base font-semibold tracking-tight">{title}</h3>
         {subtitle && (
@@ -462,16 +462,16 @@ function HistoryOTDCard({ entry, onClick }: { entry: Entry; onClick: () => void 
   return (
     <button
       onClick={onClick}
-      className="text-left w-full p-5 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-blue-500/30 transition-colors group flex flex-col items-start"
+      className="text-left w-full p-5 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-red-500/30 transition-colors group flex flex-col items-start"
     >
       {dateStr && (
-        <p className="text-sm text-blue-400 mb-3 font-medium">{dateStr}</p>
+        <p className="text-sm text-white mb-3 font-bold">{dateStr}</p>
       )}
       <p className="text-sm leading-relaxed text-gray-200 group-hover:text-white transition-colors line-clamp-12">
         {entry.description}
       </p>
       {isLong && (
-        <span className="text-xs text-blue-400/70 mt-1.5 block">More...</span>
+        <span className="text-xs text-red-400/70 mt-1.5 block">More...</span>
       )}
     </button>
   );
@@ -483,13 +483,13 @@ function QuoteOTDCard({ entry, onClick }: { entry: Entry; onClick: () => void })
   return (
     <button
       onClick={onClick}
-      className="text-left w-full p-4 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-blue-500/30 transition-colors group flex flex-col items-start"
+      className="text-left w-full p-4 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-red-500/30 transition-colors group flex flex-col items-start"
     >
       <p className="text-sm leading-relaxed italic text-gray-200 group-hover:text-white transition-colors line-clamp-12">
         &ldquo;{entry.description}&rdquo;
       </p>
       {isLong && (
-        <span className="text-xs text-blue-400/70 mt-1.5">More...</span>
+        <span className="text-xs text-red-400/70 mt-1.5">More...</span>
       )}
       {entry.creator && (
         <p className="text-xs text-gray-400 mt-2 font-medium">
@@ -508,7 +508,7 @@ function FilmOTDCard({ entry, onClick }: { entry: Entry; onClick: () => void }) 
   return (
     <button
       onClick={onClick}
-      className="text-left w-full bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-blue-500/30 transition-colors group overflow-hidden"
+      className="text-left w-full bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-red-500/30 transition-colors group overflow-hidden"
     >
       {posterUrl ? (
         <div className="relative w-full aspect-[2/3] overflow-hidden bg-black/20">
@@ -535,7 +535,7 @@ function FilmOTDCard({ entry, onClick }: { entry: Entry; onClick: () => void }) 
             <Film size={28} className="text-gray-600" />
           </div>
           <div className="p-3">
-            <h3 className="text-sm font-semibold group-hover:text-blue-300 transition-colors line-clamp-2">
+            <h3 className="text-sm font-semibold group-hover:text-red-300 transition-colors line-clamp-2">
               {entry.title}
               {entry.year && <span className="text-gray-500 font-normal ml-1">({entry.year})</span>}
             </h3>
@@ -549,7 +549,7 @@ function FilmOTDCard({ entry, onClick }: { entry: Entry; onClick: () => void }) 
       {meta.genre && (
         <div className="px-3 pb-3 pt-1 flex flex-wrap gap-1">
           {meta.genre.split(',').slice(0, 2).map((g: string, i: number) => (
-            <span key={i} className="px-1.5 py-0.5 bg-blue-600/15 text-blue-400 text-[10px] rounded">
+            <span key={i} className="px-1.5 py-0.5 bg-red-600/15 text-red-400 text-[10px] rounded">
               {g.trim()}
             </span>
           ))}
@@ -565,11 +565,11 @@ function MusicOTDCard({ entry, onClick }: { entry: Entry; onClick: () => void })
   return (
     <button
       onClick={onClick}
-      className="text-left w-full p-4 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-blue-500/30 transition-colors group flex items-center gap-3"
+      className="text-left w-full p-4 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-red-500/30 transition-colors group flex items-center gap-3"
     >
-      <Music size={18} className="text-blue-400/40 shrink-0" />
+      <Music size={18} className="text-red-400/40 shrink-0" />
       <div className="min-w-0">
-        <h3 className="text-sm font-semibold group-hover:text-blue-300 transition-colors truncate">
+        <h3 className="text-sm font-semibold group-hover:text-red-300 transition-colors truncate">
           {entry.title}
         </h3>
         <p className="text-xs text-gray-400 mt-0.5 truncate">
@@ -585,7 +585,7 @@ function GenericOTDCard({ entry, onClick }: { entry: Entry; onClick: () => void 
   return (
     <button
       onClick={onClick}
-      className="text-left w-full p-4 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-blue-500/30 transition-colors group"
+      className="text-left w-full p-4 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-red-500/30 transition-colors group"
     >
       <div className="flex items-center gap-2 mb-2">
         <CategoryIcon category={entry.category} />
@@ -594,7 +594,7 @@ function GenericOTDCard({ entry, onClick }: { entry: Entry; onClick: () => void 
           <span className="ml-auto text-xs text-gray-600">{entry.year}</span>
         )}
       </div>
-      <p className="text-sm font-medium group-hover:text-blue-300 transition-colors">{entry.title}</p>
+      <p className="text-sm font-medium group-hover:text-red-300 transition-colors">{entry.title}</p>
       {entry.creator && <p className="text-xs text-gray-400 mt-1">{entry.creator}</p>}
     </button>
   );

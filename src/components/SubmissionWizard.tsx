@@ -201,7 +201,7 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted }: S
                   onClick={() => { setSelectedCategory(cat.slug); setStep(2); }}
                   className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
                     selectedCategory === cat.slug
-                      ? 'border-blue-500 bg-blue-500/10'
+                      ? 'border-red-500 bg-red-500/10'
                       : 'border-[var(--border)] hover:border-white/20'
                   }`}
                 >
@@ -377,7 +377,7 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted }: S
           {step === 2 && (
             <button
               onClick={() => setStep(3)}
-              className="flex items-center gap-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+              className="flex items-center gap-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors"
             >
               Next
               <ChevronRight size={16} />
@@ -388,7 +388,7 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted }: S
             <button
               onClick={handleSubmit}
               disabled={submitting}
-              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+              className="px-6 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
             >
               {submitting ? 'Submitting...' : 'Submit'}
             </button>

@@ -245,7 +245,7 @@ export default function AdminDashboard() {
           {/* Category tabs */}
           <button
             onClick={() => setSelectedCategory('')}
-            className={`px-3 py-1.5 rounded text-xs font-medium ${!selectedCategory ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+            className={`px-3 py-1.5 rounded text-xs font-medium ${!selectedCategory ? 'bg-red-600 text-white' : 'text-gray-400 hover:text-white'}`}
           >
             All
           </button>
@@ -253,7 +253,7 @@ export default function AdminDashboard() {
             <button
               key={cat.slug}
               onClick={() => setSelectedCategory(cat.slug === selectedCategory ? '' : cat.slug)}
-              className={`px-3 py-1.5 rounded text-xs font-medium ${selectedCategory === cat.slug ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+              className={`px-3 py-1.5 rounded text-xs font-medium ${selectedCategory === cat.slug ? 'bg-red-600 text-white' : 'text-gray-400 hover:text-white'}`}
             >
               {cat.label}
             </button>
@@ -289,7 +289,7 @@ export default function AdminDashboard() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search entries..."
-              className="w-full pl-8 pr-3 py-1.5 bg-white/5 border border-white/10 rounded text-xs focus:outline-none focus:border-blue-500/50"
+              className="w-full pl-8 pr-3 py-1.5 bg-white/5 border border-white/10 rounded text-xs focus:outline-none focus:border-red-500/50"
             />
           </div>
         </div>
@@ -300,7 +300,7 @@ export default function AdminDashboard() {
         <div className="max-w-7xl mx-auto">
           {loading ? (
             <div className="flex items-center justify-center py-20">
-              <div className="w-10 h-10 rounded-full border-4 border-white/5 border-t-blue-500 animate-spin"></div>
+              <div className="w-10 h-10 rounded-full border-4 border-white/5 border-t-red-500 animate-spin"></div>
             </div>
           ) : entries.length === 0 ? (
             <div className="text-center py-10 text-gray-500">No entries found</div>
@@ -316,7 +316,7 @@ export default function AdminDashboard() {
                       {/* Entry info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] uppercase tracking-wider font-semibold text-blue-400">
+                          <span className="text-[10px] uppercase tracking-wider font-semibold text-red-400">
                             {entry.category}
                           </span>
                           <span className="text-sm font-medium truncate">{entry.title}</span>
@@ -356,7 +356,7 @@ export default function AdminDashboard() {
               {/* Load more indicator */}
               {loadingMore && (
                 <div className="flex items-center justify-center py-8 gap-3">
-                  <div className="w-5 h-5 rounded-full border-2 border-white/5 border-t-blue-500 animate-spin"></div>
+                  <div className="w-5 h-5 rounded-full border-2 border-white/5 border-t-red-500 animate-spin"></div>
                   <span className="text-sm text-gray-500">Loading more...</span>
                 </div>
               )}
@@ -508,7 +508,7 @@ function EditEntryModal({ entry, categories, onClose, onSaved }: {
           <h3 className="text-lg font-bold">Edit Entry</h3>
           <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg"><X size={18} /></button>
         </div>
-        <p className="text-xs uppercase tracking-wider font-semibold text-blue-400 mb-4">
+        <p className="text-xs uppercase tracking-wider font-semibold text-red-400 mb-4">
           {categories.find(c => c.slug === category)?.label || category}
         </p>
 
@@ -620,7 +620,7 @@ function EditEntryModal({ entry, categories, onClose, onSaved }: {
 
         <div className="flex justify-end gap-2 mt-6">
           <button onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
-          <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg">
+          <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg">
             {saving ? 'Saving...' : 'Save'}
           </button>
         </div>

@@ -40,8 +40,8 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
     <div className="min-h-screen flex items-center justify-center bg-[var(--background)] p-4">
       <form onSubmit={handleSubmit} className="w-full max-w-sm bg-[var(--card)] border border-[var(--border)] rounded-xl p-8">
         <div className="flex items-center justify-center mb-6">
-          <div className="w-12 h-12 bg-blue-600/20 rounded-full flex items-center justify-center">
-            <Lock size={24} className="text-blue-400" />
+          <div className="w-12 h-12 bg-red-600/20 rounded-full flex items-center justify-center">
+            <Lock size={24} className="text-red-400" />
           </div>
         </div>
         <h2 className="text-lg font-bold text-center mb-6">Admin Login</h2>
@@ -57,14 +57,14 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
           value={password}
           onChange={e => setPassword(e.target.value)}
           placeholder="Enter admin password"
-          className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm placeholder:text-gray-500 focus:outline-none focus:border-blue-500/50 mb-4"
+          className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm placeholder:text-gray-500 focus:outline-none focus:border-red-500/50 mb-4"
           autoFocus
         />
 
         <button
           type="submit"
           disabled={loading || !password}
-          className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+          className="w-full py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
         >
           {loading ? 'Verifying...' : 'Login'}
         </button>

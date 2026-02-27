@@ -25,7 +25,7 @@ function HistoryCard({ entry, onClick }: { entry: Entry; onClick: () => void }) 
   return (
     <button
       onClick={onClick}
-      className="text-left w-full p-5 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-blue-500/30 transition-colors group"
+      className="text-left w-full p-5 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-red-500/30 transition-colors group"
     >
       {/* Date header — like the original Wix site */}
       {dateStr && (
@@ -44,10 +44,10 @@ function QuoteCard({ entry, onClick }: { entry: Entry; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="text-left w-full p-5 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-blue-500/30 transition-colors group"
+      className="text-left w-full p-5 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-red-500/30 transition-colors group"
     >
       {/* Quote icon */}
-      <QuoteIcon size={16} className="text-blue-400/40 mb-2" />
+      <QuoteIcon size={16} className="text-red-400/40 mb-2" />
 
       {/* Quote text */}
       <p className="text-sm leading-relaxed line-clamp-5 italic">
@@ -76,13 +76,13 @@ function MusicCard({ entry, onClick }: { entry: Entry; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="text-left w-full p-5 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-blue-500/30 transition-colors group"
+      className="text-left w-full p-5 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-red-500/30 transition-colors group"
     >
       <div className="flex items-start gap-3">
-        <Music size={16} className="text-blue-400/40 mt-0.5 shrink-0" />
+        <Music size={16} className="text-red-400/40 mt-0.5 shrink-0" />
         <div className="min-w-0">
           {/* Song title */}
-          <h3 className="text-sm font-semibold leading-snug mb-1 group-hover:text-blue-300 transition-colors">
+          <h3 className="text-sm font-semibold leading-snug mb-1 group-hover:text-red-300 transition-colors">
             {entry.title}
           </h3>
 
@@ -102,12 +102,12 @@ function MusicCard({ entry, onClick }: { entry: Entry; onClick: () => void }) {
           {(entry.sourceUrl || meta.lyrics) && (
             <div className="flex items-center gap-2 mt-3">
               {entry.sourceUrl && (
-                <span className="px-2.5 py-1 bg-blue-600/20 text-blue-400 text-[10px] font-medium rounded">
+                <span className="px-2.5 py-1 bg-red-600/20 text-red-400 text-[10px] font-medium rounded">
                   Listen
                 </span>
               )}
               {meta.lyrics && (
-                <span className="px-2.5 py-1 bg-blue-600/20 text-blue-400 text-[10px] font-medium rounded">
+                <span className="px-2.5 py-1 bg-red-600/20 text-red-400 text-[10px] font-medium rounded">
                   View Lyrics
                 </span>
               )}
@@ -126,7 +126,7 @@ function FilmCard({ entry, onClick }: { entry: Entry; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="text-left w-full bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-blue-500/30 transition-colors group overflow-hidden"
+      className="text-left w-full bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-red-500/30 transition-colors group overflow-hidden"
     >
       {/* Poster image or placeholder */}
       {posterUrl ? (
@@ -141,7 +141,7 @@ function FilmCard({ entry, onClick }: { entry: Entry; onClick: () => void }) {
           <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 to-transparent" />
           {/* Title overlay on poster */}
           <div className="absolute inset-x-0 bottom-0 p-3">
-            <h3 className="text-sm font-semibold leading-snug line-clamp-2 text-white drop-shadow-lg group-hover:text-blue-200 transition-colors">
+            <h3 className="text-sm font-semibold leading-snug line-clamp-2 text-white drop-shadow-lg group-hover:text-red-200 transition-colors">
               {entry.title}
               {entry.year && <span className="text-gray-300 font-normal ml-1">({entry.year})</span>}
             </h3>
@@ -161,7 +161,7 @@ function FilmCard({ entry, onClick }: { entry: Entry; onClick: () => void }) {
             <Film size={28} className="text-gray-600" />
           </div>
           <div className="p-3">
-            <h3 className="text-sm font-semibold leading-snug line-clamp-2 group-hover:text-blue-300 transition-colors">
+            <h3 className="text-sm font-semibold leading-snug line-clamp-2 group-hover:text-red-300 transition-colors">
               {entry.title}
               {entry.year && <span className="text-gray-500 font-normal ml-1">({entry.year})</span>}
             </h3>
@@ -178,7 +178,7 @@ function FilmCard({ entry, onClick }: { entry: Entry; onClick: () => void }) {
         {meta.genre && (
           <div className="flex flex-wrap gap-1 mb-1.5">
             {meta.genre.split(',').slice(0, 2).map((g: string, i: number) => (
-              <span key={i} className="px-1.5 py-0.5 bg-blue-600/15 text-blue-400 text-[10px] rounded">
+              <span key={i} className="px-1.5 py-0.5 bg-red-600/15 text-red-400 text-[10px] rounded">
                 {g.trim()}
               </span>
             ))}
@@ -201,10 +201,10 @@ function GenericCard({ entry, onClick }: { entry: Entry; onClick: () => void }) 
   return (
     <button
       onClick={onClick}
-      className="text-left w-full p-4 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-blue-500/30 transition-colors group"
+      className="text-left w-full p-4 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-red-500/30 transition-colors group"
     >
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] uppercase tracking-wider font-semibold text-blue-400">
+        <span className="text-[10px] uppercase tracking-wider font-semibold text-red-400">
           {entry.category}
         </span>
         {dateStr && (
@@ -212,7 +212,7 @@ function GenericCard({ entry, onClick }: { entry: Entry; onClick: () => void }) 
         )}
       </div>
 
-      <h3 className="text-sm font-semibold leading-snug mb-1.5 line-clamp-2 group-hover:text-blue-300 transition-colors">
+      <h3 className="text-sm font-semibold leading-snug mb-1.5 line-clamp-2 group-hover:text-red-300 transition-colors">
         {entry.title}
       </h3>
 
@@ -225,7 +225,7 @@ function GenericCard({ entry, onClick }: { entry: Entry; onClick: () => void }) 
       </p>
 
       {entry.sourceUrl && (
-        <div className="flex items-center gap-1 mt-2 text-[10px] text-blue-400/60">
+        <div className="flex items-center gap-1 mt-2 text-[10px] text-red-400/60">
           <ExternalLink size={10} />
           <span>View source</span>
         </div>

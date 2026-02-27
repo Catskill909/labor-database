@@ -60,14 +60,14 @@ export default function ImageDropzone({
         {...getRootProps()}
         className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all duration-200 ${
           isDragActive
-            ? 'border-blue-500 bg-blue-500/10'
+            ? 'border-red-500 bg-red-500/10'
             : files.length >= maxFiles
               ? 'border-gray-700 bg-white/2 cursor-not-allowed opacity-50'
               : 'border-white/15 hover:border-white/30 hover:bg-white/5'
         }`}
       >
         <input {...getInputProps()} />
-        <Upload size={28} className={`mx-auto mb-2 ${isDragActive ? 'text-blue-400' : 'text-gray-500'}`} />
+        <Upload size={28} className={`mx-auto mb-2 ${isDragActive ? 'text-red-400' : 'text-gray-500'}`} />
         <p className="text-sm text-gray-300">
           {isDragActive ? 'Drop images here...' : 'Drag & drop images here, or click to browse'}
         </p>

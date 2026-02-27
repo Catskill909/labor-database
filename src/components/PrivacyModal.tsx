@@ -75,7 +75,7 @@ const PrivacyModal: React.FC<PrivacyModalProps> = ({ isOpen, onClose }) => {
                             Questions about our privacy practices? Contact us at{' '}
                             <a
                                 href="mailto:info@laborheritage.org"
-                                className="text-blue-400 hover:text-blue-300 transition-colors font-medium"
+                                className="text-red-400 hover:text-red-300 transition-colors font-medium"
                             >
                                 info@laborheritage.org
                             </a>

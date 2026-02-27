@@ -24,7 +24,7 @@ export default function CategoryNav({ categories, selectedCategory, setSelectedC
           onClick={() => setSelectedCategory('on-this-day')}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
             selectedCategory === 'on-this-day'
-              ? 'bg-blue-600 text-white'
+              ? 'bg-red-600 text-white'
               : 'text-gray-400 hover:text-white hover:bg-white/5'
           }`}
         >
@@ -38,7 +38,7 @@ export default function CategoryNav({ categories, selectedCategory, setSelectedC
             onClick={() => setSelectedCategory(cat.slug)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
               selectedCategory === cat.slug
-                ? 'bg-blue-600 text-white'
+                ? 'bg-red-600 text-white'
                 : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
           >

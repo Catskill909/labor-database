@@ -3,7 +3,7 @@
 :root {
   --background: #0a0a0c;
   --foreground: #f0f0f5;
-  --primary: #1e40af;
+  --primary: #dc2626;
   --primary-foreground: #ffffff;
   --card: #15151a;
   --card-foreground: #f0f0f5;
@@ -81,8 +81,8 @@ body {
 
 /* react-day-picker dark theme overrides */
 .rdp-dark {
-  --rdp-accent-color: #2563eb;
-  --rdp-accent-background-color: rgba(37, 99, 235, 0.2);
+  --rdp-accent-color: #d97706;
+  --rdp-accent-background-color: rgba(217, 119, 6, 0.2);
   color: #f0f0f5;
 }
 
@@ -97,7 +97,7 @@ body {
 }
 
 .rdp-dark select:hover {
-  border-color: rgba(59, 130, 246, 0.4);
+  border-color: rgba(217, 119, 6, 0.4);
 }
 
 .rdp-dark select option {
@@ -115,7 +115,7 @@ body {
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: #3b82f6;
+  background: #f59e0b;
 }
 
 .has-entries .rdp-day_button {

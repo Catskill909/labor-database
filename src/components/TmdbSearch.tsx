@@ -98,10 +98,10 @@ export default function TmdbSearch({ onSelect }: TmdbSearchProps) {
           onChange={e => setQuery(e.target.value)}
           onFocus={() => results.length > 0 && setOpen(true)}
           placeholder="Search film database (TMDB)..."
-          className="w-full pl-9 pr-9 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-gray-300 focus:outline-none focus:border-blue-500/50 placeholder-gray-600"
+          className="w-full pl-9 pr-9 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-gray-300 focus:outline-none focus:border-red-500/50 placeholder-gray-600"
         />
         {(searching || loading) && (
-          <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-400 animate-spin" />
+          <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-red-400 animate-spin" />
         )}
       </div>
 

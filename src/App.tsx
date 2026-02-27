@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { Info, Shield } from 'lucide-react';
 import Header from './components/Header.tsx';
 import CategoryNav from './components/CategoryNav.tsx';
 import FilterBar from './components/FilterBar.tsx';
@@ -10,8 +9,6 @@ import SubmissionWizard from './components/SubmissionWizard.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
 import AdminLogin from './components/AdminLogin.tsx';
 import OnThisDayView from './components/OnThisDayView.tsx';
-import AboutModal from './components/AboutModal.tsx';
-import PrivacyModal from './components/PrivacyModal.tsx';
 import type { Entry, Category } from './types.ts';
 
 const PAGE_SIZE = 60;
@@ -28,8 +25,6 @@ function HomePage() {
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
   const [showSubmissionWizard, setShowSubmissionWizard] = useState(false);
   const [counts, setCounts] = useState<Record<string, number>>({});
-  const [isAboutOpen, setIsAboutOpen] = useState(false);
-  const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
   const offsetRef = useRef(0);
 
@@ -175,7 +170,7 @@ function HomePage() {
             />
           ) : loading ? (
             <div className="flex items-center justify-center py-20">
-              <div className="w-10 h-10 rounded-full border-4 border-white/5 border-t-blue-500 animate-spin"></div>
+              <div className="w-10 h-10 rounded-full border-4 border-white/5 border-t-red-500 animate-spin"></div>
             </div>
           ) : entries.length === 0 ? (
             <div className="text-center py-20 text-gray-500">
@@ -191,7 +186,7 @@ function HomePage() {
 
               {loadingMore && (
                 <div className="flex items-center justify-center py-8 gap-3">
-                  <div className="w-5 h-5 rounded-full border-2 border-white/5 border-t-blue-500 animate-spin"></div>
+                  <div className="w-5 h-5 rounded-full border-2 border-white/5 border-t-red-500 animate-spin"></div>
                   <span className="text-sm text-gray-500">Loading more...</span>
                 </div>
               )}
@@ -204,16 +199,8 @@ function HomePage() {
         </div>
       </main>
 
-      <footer className="shrink-0 border-t border-white/5 px-6 py-3 flex items-center justify-between text-[10px] text-gray-500">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => setIsAboutOpen(true)}
-            className="flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors font-medium"
-          >
-            <Info size={14} />
-            <span>About Labor Database</span>
-          </button>
-          <span>&middot;</span>
+      <footer className="shrink-0 border-t border-white/5 px-6 py-3 flex items-center justify-center text-[10px] text-gray-500">
+        <div className="flex items-center gap-3 flex-wrap justify-center">
           <a href="https://laborheritage.org" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
             &copy; 2026 The Labor Heritage Foundation
           </a>
@@ -224,19 +211,8 @@ function HomePage() {
             <span>Showing {entries.length} of {displayTotal} entries</span>
           )}
         </div>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => setIsPrivacyOpen(true)}
-            className="flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors font-medium"
-          >
-            <Shield size={14} />
-            <span>Privacy Policy</span>
-          </button>
-        </div>
       </footer>
 
-      <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
-      <PrivacyModal isOpen={isPrivacyOpen} onClose={() => setIsPrivacyOpen(false)} />
 
       {selectedEntry && (
         <EntryDetail

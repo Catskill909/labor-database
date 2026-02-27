@@ -35,7 +35,7 @@ function FilmDetail({ entry, onClose }: EntryDetailProps) {
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-start justify-between p-6 pb-4 bg-[var(--card)] border-b border-[var(--border)] rounded-t-xl">
           <div className="flex-1 min-w-0">
-            <span className="text-[10px] uppercase tracking-wider font-semibold text-blue-400">Film</span>
+            <span className="text-[10px] uppercase tracking-wider font-semibold text-red-400">Film</span>
             <h2 className="text-xl font-bold mt-1 leading-snug">
               {entry.title}
               {entry.year && <span className="text-gray-500 font-normal ml-2">({entry.year})</span>}
@@ -83,7 +83,7 @@ function FilmDetail({ entry, onClose }: EntryDetailProps) {
               {meta.genre && (
                 <div className="flex flex-wrap gap-1.5">
                   {meta.genre.split(',').map((g: string, i: number) => (
-                    <span key={i} className="px-2.5 py-1 bg-blue-600/15 text-blue-400 text-xs font-medium rounded-full">
+                    <span key={i} className="px-2.5 py-1 bg-red-600/15 text-red-400 text-xs font-medium rounded-full">
                       {g.trim()}
                     </span>
                   ))}
@@ -170,7 +170,7 @@ function FilmDetail({ entry, onClose }: EntryDetailProps) {
                 href={entry.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                className="inline-flex items-center gap-1.5 text-sm text-red-400 hover:text-red-300 transition-colors"
               >
                 <ExternalLink size={14} />
                 View on Labor Film Database
@@ -202,7 +202,7 @@ export default function EntryDetail({ entry, onClose }: EntryDetailProps) {
         {/* Header */}
         <div className="sticky top-0 flex items-start justify-between p-6 pb-4 bg-[var(--card)] border-b border-[var(--border)] rounded-t-xl">
           <div>
-            <span className="text-[10px] uppercase tracking-wider font-semibold text-blue-400">
+            <span className="text-[10px] uppercase tracking-wider font-semibold text-red-400">
               {entry.category}
             </span>
             {/* History/Quote: show date as header, not the truncated title */}
@@ -304,7 +304,7 @@ export default function EntryDetail({ entry, onClose }: EntryDetailProps) {
               href={entry.sourceUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+              className="inline-flex items-center gap-1.5 text-sm text-red-400 hover:text-red-300 transition-colors"
             >
               <ExternalLink size={14} />
               {entry.category === 'music' ? 'Listen' : 'View source'}
