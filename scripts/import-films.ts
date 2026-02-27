@@ -240,6 +240,8 @@ async function main() {
                 for (const cat of catArray) {
                     const name = String(cat['#text'] || '').trim();
                     if (!name) continue;
+                    // Skip WordPress admin labels
+                    if (name.startsWith('A: ')) continue;
                     if (GENRE_SET.has(name)) {
                         genres.push(name);
                     } else {
