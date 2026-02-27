@@ -240,6 +240,151 @@ app.post('/api/tmdb/download-poster', async (req, res) => {
     }
 });
 
+// ==================== ON THIS DAY (Public) ====================
+
+// GET entries for a specific month/day, grouped by category
+app.get('/api/on-this-day', async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    try {
+        const monthParam = req.query.month as string;
+        const dayParam = req.query.day as string;
+
+        if (!monthParam || !dayParam) {
+            return res.status(400).json({ error: 'month and day query params required' });
+        }
+
+        const month = parseInt(monthParam);
+        const day = parseInt(dayParam);
+
+        if (month < 1 || month > 12 || day < 1 || day > 31) {
+            return res.status(400).json({ error: 'Invalid month or day' });
+        }
+
+        // Get entries matching this month+day (history, quotes)
+        const dateEntries = await prisma.entry.findMany({
+            where: {
+                isPublished: true,
+                month,
+                day,
+            },
+            orderBy: [{ year: 'asc' }],
+            include: { images: { orderBy: { sortOrder: 'asc' } } },
+        });
+
+        // Build base URL for image paths
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+        const host = req.headers['x-forwarded-host'] || req.get('host');
+        const baseUrl = `${protocol}://${host}`;
+
+        const addImageUrls = (e: typeof dateEntries[number]) => {
+            const { submitterName: _sn, submitterEmail: _se, submitterComment: _sc, ...rest } = e;
+            return {
+                ...rest,
+                images: rest.images.map(img => ({
+                    ...img,
+                    url: `${baseUrl}/uploads/entries/${img.filename}`,
+                    thumbnailUrl: `${baseUrl}/uploads/entries/thumb_${img.filename}`,
+                })),
+            };
+        };
+
+        // Group by category
+        const sections: Record<string, typeof dateEntries> = {};
+        for (const entry of dateEntries) {
+            if (!sections[entry.category]) sections[entry.category] = [];
+            sections[entry.category].push(entry);
+        }
+
+        // Collect years from date-matched entries for year-based film/music matching
+        const matchedYears = [...new Set(dateEntries.map(e => e.year).filter((y): y is number => y !== null))];
+
+        // Get films and music from matching years (secondary content)
+        let yearMatches: Record<string, typeof dateEntries> = {};
+        if (matchedYears.length > 0) {
+            const yearEntries = await prisma.entry.findMany({
+                where: {
+                    isPublished: true,
+                    year: { in: matchedYears },
+                    category: { in: ['film', 'music'] },
+                },
+                orderBy: [{ year: 'asc' }],
+                include: { images: { orderBy: { sortOrder: 'asc' } } },
+                take: 20,
+            });
+
+            for (const entry of yearEntries) {
+                if (!yearMatches[entry.category]) yearMatches[entry.category] = [];
+                yearMatches[entry.category].push(entry);
+            }
+        }
+
+        // Build response with image URLs
+        const sectionResult: Record<string, ReturnType<typeof addImageUrls>[]> = {};
+        for (const [cat, entries] of Object.entries(sections)) {
+            sectionResult[cat] = entries.map(addImageUrls);
+        }
+        const yearMatchResult: Record<string, ReturnType<typeof addImageUrls>[]> = {};
+        for (const [cat, entries] of Object.entries(yearMatches)) {
+            yearMatchResult[cat] = entries.map(addImageUrls);
+        }
+
+        // Build counts
+        const counts: Record<string, number> = {};
+        for (const [cat, entries] of Object.entries(sections)) {
+            counts[cat] = entries.length;
+        }
+        for (const [cat, entries] of Object.entries(yearMatches)) {
+            counts[cat] = (counts[cat] || 0) + entries.length;
+        }
+
+        res.json({
+            date: { month, day },
+            sections: sectionResult,
+            yearMatches: yearMatchResult,
+            matchedYears,
+            counts,
+        });
+    } catch (error) {
+        console.error('On This Day error:', error);
+        res.status(500).json({ error: 'Failed to fetch On This Day data' });
+    }
+});
+
+// GET which days in a month have entries (for calendar highlighting)
+app.get('/api/on-this-day/calendar', async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    try {
+        const monthParam = req.query.month as string;
+        if (!monthParam) {
+            return res.status(400).json({ error: 'month query param required' });
+        }
+
+        const month = parseInt(monthParam);
+        if (month < 1 || month > 12) {
+            return res.status(400).json({ error: 'Invalid month' });
+        }
+
+        const results: { day: number; count: number }[] = await prisma.$queryRaw`
+            SELECT day, COUNT(*) as count
+            FROM Entry
+            WHERE isPublished = 1 AND month = ${month} AND day IS NOT NULL
+            GROUP BY day
+            ORDER BY day ASC
+        `;
+
+        const daysWithEntries = results.map(r => r.day);
+        const entryCounts: Record<number, number> = {};
+        for (const r of results) {
+            entryCounts[r.day] = Number(r.count);
+        }
+
+        res.json({ month, daysWithEntries, entryCounts });
+    } catch (error) {
+        console.error('Calendar data error:', error);
+        res.status(500).json({ error: 'Failed to fetch calendar data' });
+    }
+});
+
 // ==================== ENTRIES (Public) ====================
 
 // GET all published entries, optionally filtered by category

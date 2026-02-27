@@ -8,6 +8,7 @@ import EntryDetail from './components/EntryDetail.tsx';
 import SubmissionWizard from './components/SubmissionWizard.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
 import AdminLogin from './components/AdminLogin.tsx';
+import OnThisDayView from './components/OnThisDayView.tsx';
 import type { Entry, Category } from './types.ts';
 
 const PAGE_SIZE = 60;
@@ -15,7 +16,7 @@ const PAGE_SIZE = 60;
 function HomePage() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('on-this-day');
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -26,6 +27,8 @@ function HomePage() {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const mainRef = useRef<HTMLElement>(null);
   const offsetRef = useRef(0);
+
+  const isOnThisDay = selectedCategory === 'on-this-day';
 
   // Fetch categories
   useEffect(() => {
@@ -48,7 +51,7 @@ function HomePage() {
   // Build query params (shared between initial fetch and load-more)
   const buildParams = useCallback((offset: number) => {
     const params = new URLSearchParams();
-    if (selectedCategory) params.set('category', selectedCategory);
+    if (selectedCategory && selectedCategory !== 'on-this-day') params.set('category', selectedCategory);
     if (searchQuery.trim()) params.set('search', searchQuery.trim());
     for (const [key, value] of Object.entries(filters)) {
       if (value) params.set(key, value);
@@ -58,8 +61,13 @@ function HomePage() {
     return params;
   }, [selectedCategory, searchQuery, filters]);
 
-  // Initial fetch when category, search, or filters change
+  // Initial fetch when category, search, or filters change (skip for On This Day)
   useEffect(() => {
+    if (isOnThisDay) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setHasMore(true);
     offsetRef.current = 0;
@@ -77,11 +85,11 @@ function HomePage() {
         console.error('Failed to fetch entries:', err);
         setLoading(false);
       });
-  }, [selectedCategory, searchQuery, filters, buildParams]);
+  }, [selectedCategory, searchQuery, filters, buildParams, isOnThisDay]);
 
   // Load more entries
   const loadMore = useCallback(() => {
-    if (loadingMore || !hasMore) return;
+    if (loadingMore || !hasMore || isOnThisDay) return;
     setLoadingMore(true);
 
     const params = buildParams(offsetRef.current);
@@ -97,16 +105,16 @@ function HomePage() {
         console.error('Failed to load more:', err);
         setLoadingMore(false);
       });
-  }, [loadingMore, hasMore, buildParams]);
+  }, [loadingMore, hasMore, buildParams, isOnThisDay]);
 
   // Infinite scroll — detect when near bottom
   useEffect(() => {
+    if (isOnThisDay) return;
     const el = mainRef.current;
     if (!el) return;
 
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = el;
-      // Trigger when within 400px of bottom
       if (scrollHeight - scrollTop - clientHeight < 400) {
         loadMore();
       }
@@ -114,10 +122,19 @@ function HomePage() {
 
     el.addEventListener('scroll', handleScroll, { passive: true });
     return () => el.removeEventListener('scroll', handleScroll);
-  }, [loadMore]);
+  }, [loadMore, isOnThisDay]);
+
+  // When search is typed, switch away from On This Day to show search results
+  useEffect(() => {
+    if (searchQuery.trim() && isOnThisDay) {
+      setSelectedCategory('');
+    }
+  }, [searchQuery, isOnThisDay]);
 
   const totalCount = Object.values(counts).reduce((a, b) => a + b, 0);
-  const displayTotal = selectedCategory ? (counts[selectedCategory] || 0) : totalCount;
+  const displayTotal = selectedCategory && selectedCategory !== 'on-this-day'
+    ? (counts[selectedCategory] || 0)
+    : totalCount;
 
   return (
     <div className="h-screen flex flex-col bg-[var(--background)] text-[var(--foreground)]">
@@ -134,15 +151,24 @@ function HomePage() {
         counts={counts}
       />
 
-      <FilterBar
-        category={selectedCategory}
-        filters={filters}
-        setFilters={setFilters}
-      />
+      {/* Only show FilterBar for browse categories, not On This Day */}
+      {!isOnThisDay && (
+        <FilterBar
+          category={selectedCategory}
+          filters={filters}
+          setFilters={setFilters}
+        />
+      )}
 
       <main ref={mainRef} className="flex-1 overflow-y-auto px-4 sm:px-6 py-6">
         <div className="max-w-7xl mx-auto w-full">
-          {loading ? (
+          {isOnThisDay ? (
+            /* On This Day tab content */
+            <OnThisDayView
+              onSelectEntry={setSelectedEntry}
+              onAddClick={() => setShowSubmissionWizard(true)}
+            />
+          ) : loading ? (
             <div className="flex items-center justify-center py-20">
               <div className="w-10 h-10 rounded-full border-4 border-white/5 border-t-blue-500 animate-spin"></div>
             </div>
@@ -158,7 +184,6 @@ function HomePage() {
                 onSelectEntry={setSelectedEntry}
               />
 
-              {/* Load more indicator */}
               {loadingMore && (
                 <div className="flex items-center justify-center py-8 gap-3">
                   <div className="w-5 h-5 rounded-full border-2 border-white/5 border-t-blue-500 animate-spin"></div>
@@ -175,8 +200,14 @@ function HomePage() {
       </main>
 
       <footer className="shrink-0 border-t border-white/5 px-6 py-3 text-center text-xs text-gray-500">
-        <span>Showing {entries.length} of {displayTotal} entries</span>
-        <span className="mx-2">&middot;</span>
+        {isOnThisDay ? (
+          <span className="hidden sm:inline">Use arrow keys to navigate days &middot; </span>
+        ) : (
+          <>
+            <span>Showing {entries.length} of {displayTotal} entries</span>
+            <span className="mx-2">&middot;</span>
+          </>
+        )}
         <a href="https://laborheritage.org" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
           &copy; 2026 The Labor Heritage Foundation
         </a>
@@ -195,7 +226,6 @@ function HomePage() {
           onClose={() => setShowSubmissionWizard(false)}
           onSubmitted={() => {
             setShowSubmissionWizard(false);
-            // Refresh entries
             setSearchQuery(q => q + '');
           }}
         />

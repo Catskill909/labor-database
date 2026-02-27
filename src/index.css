@@ -66,3 +66,35 @@ body {
   opacity: 1;
   transform: translateY(0);
 }
+
+/* Line clamp utility for 12 lines */
+.line-clamp-12 {
+  display: -webkit-box;
+  -webkit-line-clamp: 12;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* react-day-picker dark theme overrides */
+.rdp-dark {
+  --rdp-accent-color: #2563eb;
+  --rdp-accent-background-color: #1e40af;
+  color: #f0f0f5;
+}
+
+/* Calendar day with entries — dot indicator */
+.has-entries .rdp-day_button::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #3b82f6;
+}
+
+.has-entries .rdp-day_button {
+  position: relative;
+}

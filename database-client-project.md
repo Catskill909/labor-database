@@ -2,9 +2,9 @@
 
 **Client:** Chris Garlock & Harold Phillips / Labor Heritage Foundation
 **Date:** February 23, 2026
-**Status:** Phase 3 COMPLETE (incl. form polish). App running locally with 5,954 entries (3,762 CSV + 2,192 films). 1,292 films enriched via TMDB with posters, cast, trailers. Admin forms aligned with labeled fields and image management. Production-audited for Coolify deployment.
+**Status:** Phase 4 COMPLETE ("On This Day"). App running locally with 5,954 entries (3,762 CSV + 2,192 films). "On This Day" is the landing tab with date navigation, calendar picker, sectioned card grid. Browse database available via category tabs.
 **Repo:** https://github.com/Catskill909/labor-database
-**Next:** Deploy to Coolify, build "On This Day" feature, add new content types (plays, poetry).
+**Next:** Deploy to Coolify, add week view, share/copy/print, presenter mode, new content types (plays, poetry).
 
 ---
 
@@ -356,12 +356,22 @@ This is faster and more reliable than a dynamic form generator, and produces bet
   - Server: admin API uses `x-forwarded-proto`/`x-forwarded-host` for correct image URLs behind Coolify reverse proxy
   - Server: single entry endpoint now returns full image URLs (was returning raw filenames)
 
-### Phase 4: "On This Day" — The Killer Feature
-- [ ] **Landing page "On This Day" view** — today's date across all categories:
-  - History entries matching today's month + day
-  - Quotes, songs, films tied to today's date
-- [ ] "On This Day" for any arbitrary date (date picker)
-- [ ] Shareable URL per date (e.g., `/on-this-day/03-05` for March 5)
+### Phase 4: "On This Day" — The Killer Feature ✅ COMPLETE
+- [x] "On This Day" is the first tab (replaces "All") — loads today's content on landing
+- [x] API endpoints: `GET /api/on-this-day?month=&day=` (grouped by category), `GET /api/on-this-day/calendar?month=` (calendar dot indicators)
+- [x] Date navigation: prev/next day arrows, "Today" button, keyboard shortcuts (←/→/t/Esc)
+- [x] Calendar picker: `react-day-picker` + `date-fns`, dark-themed, blue dots on days with entries
+- [x] Sectioned card grid: Labor History, Labor Quotes (date-matched), Films & Music (year-matched "From the Era")
+- [x] Section headers with icon, title, count, and subtitle
+- [x] History cards: year badge top-left aligned, 12-line clamp with "More..." indicator, full text in modal
+- [x] Quote cards: italic pull-quote style, 12-line clamp with "More...", author attribution
+- [x] Film cards: poster thumbnails (2:3 aspect), genre badges, gradient overlay
+- [x] Music cards: compact row with icon, title, performer
+- [x] Year-matching: films & music from years that match the day's history/quote entries
+- [x] Smart search: typing in search bar auto-switches from On This Day to browse view
+- [x] Empty state: friendly CTA to submit an entry for dates with no content
+- [x] Category tabs: History, Quotes, Music, Films still accessible for full browse with filters
+- [x] See [docs/on-this-day-dev.md](docs/on-this-day-dev.md) for full planning & design notes
 
 ### Phase 5: Timeline, Tags & Cross-Linking
 - [ ] **Timeline view** — browse by decade or year across all categories
@@ -530,7 +540,8 @@ Cross-referencing (e.g., Pittston strike ↔ Trumka quote ↔ related song) work
 
 ### Current State
 - App runs locally on port 3001 (`./dev.sh`)
-- SQLite database at `data/labor.db` with 3,762 entries
+- SQLite database at `prisma/dev.db` with 5,954 entries (3,762 CSV + 2,192 films)
+- "On This Day" is the landing tab — shows today's date with history, quotes, year-matched films/music
 - All code pushed to https://github.com/Catskill909/labor-database
 - NOT yet deployed to Coolify
 
@@ -543,13 +554,15 @@ cd ~/Desktop/labor-database
 ### Key Files
 | File | Purpose |
 |------|---------|
-| `server/index.ts` | Express API (~500 lines) — all routes, admin auth, search |
-| `src/App.tsx` | Main React app — layout, state, API calls |
-| `src/components/EntryGrid.tsx` | Category-specific card components |
+| `server/index.ts` | Express API (~980 lines) — all routes, admin auth, search, On This Day |
+| `src/App.tsx` | Main React app — layout, state, tab routing (On This Day + browse) |
+| `src/components/OnThisDayView.tsx` | On This Day tab — date hero, calendar, sectioned card grid |
+| `src/components/EntryGrid.tsx` | Category-specific card components (browse view) |
 | `src/components/EntryDetail.tsx` | Modal detail view |
 | `src/components/SubmissionWizard.tsx` | Public submission form (3-step) |
 | `src/components/AdminDashboard.tsx` | Admin panel |
 | `prisma/schema.prisma` | Database schema |
+| `docs/on-this-day-dev.md` | Phase 4 planning, design decisions, calendar package research |
 | `scripts/import-*.ts` | CSV import scripts |
 | `CLAUDE.md` | AI session guardrails |
 
