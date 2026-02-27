@@ -1,6 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, Trash2, Eye, EyeOff, Download, Upload, Search, X } from 'lucide-react';
 import type { Entry, Category } from '../types.ts';
+import TmdbSearch from './TmdbSearch.tsx';
+import type { TmdbMovieDetails } from './TmdbSearch.tsx';
+
+const PAGE_SIZE = 60;
 
 function getAdminHeaders(): HeadersInit {
   const token = sessionStorage.getItem('adminToken') || '';
@@ -10,6 +14,26 @@ function getAdminHeaders(): HeadersInit {
   };
 }
 
+function AnimatedRow({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          el.classList.add('entry-visible');
+          observer.unobserve(el);
+        }
+      },
+      { threshold: 0.1, rootMargin: '50px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  return <div ref={ref} className="entry-card">{children}</div>;
+}
+
 export default function AdminDashboard() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -17,7 +41,12 @@ export default function AdminDashboard() {
   const [filterPublished, setFilterPublished] = useState<string>('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
   const [editingEntry, setEditingEntry] = useState<Entry | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const offsetRef = useRef(0);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -29,26 +58,100 @@ export default function AdminDashboard() {
     }
   }, []);
 
-  const fetchEntries = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (selectedCategory) params.set('category', selectedCategory);
-      if (filterPublished) params.set('isPublished', filterPublished);
-      if (search.trim()) params.set('search', search.trim());
-
-      const res = await fetch(`/api/admin/entries?${params}`, { headers: getAdminHeaders() });
-      const data = await res.json();
-      setEntries(data);
-    } catch (err) {
-      console.error('Failed to fetch entries:', err);
-    } finally {
-      setLoading(false);
-    }
+  const buildParams = useCallback((offset: number) => {
+    const params = new URLSearchParams();
+    if (selectedCategory) params.set('category', selectedCategory);
+    if (filterPublished) params.set('isPublished', filterPublished);
+    if (search.trim()) params.set('search', search.trim());
+    params.set('limit', String(PAGE_SIZE));
+    params.set('offset', String(offset));
+    return params;
   }, [selectedCategory, filterPublished, search]);
 
+  // Initial fetch when filters change
+  useEffect(() => {
+    setLoading(true);
+    setHasMore(true);
+    offsetRef.current = 0;
+
+    const params = buildParams(0);
+    fetch(`/api/admin/entries?${params}`, { headers: getAdminHeaders() })
+      .then(res => {
+        const total = parseInt(res.headers.get('X-Total-Count') || '0');
+        setTotalCount(total);
+        return res.json();
+      })
+      .then(data => {
+        setEntries(data);
+        offsetRef.current = data.length;
+        setHasMore(data.length >= PAGE_SIZE);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Failed to fetch entries:', err);
+        setLoading(false);
+      });
+  }, [selectedCategory, filterPublished, search, buildParams]);
+
+  // Load more
+  const loadMore = useCallback(() => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+
+    const params = buildParams(offsetRef.current);
+    fetch(`/api/admin/entries?${params}`, { headers: getAdminHeaders() })
+      .then(res => res.json())
+      .then(data => {
+        setEntries(prev => [...prev, ...data]);
+        offsetRef.current += data.length;
+        setHasMore(data.length >= PAGE_SIZE);
+        setLoadingMore(false);
+      })
+      .catch(err => {
+        console.error('Failed to load more:', err);
+        setLoadingMore(false);
+      });
+  }, [loadingMore, hasMore, buildParams]);
+
+  // Infinite scroll listener
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = el;
+      if (scrollHeight - scrollTop - clientHeight < 400) {
+        loadMore();
+      }
+    };
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    return () => el.removeEventListener('scroll', handleScroll);
+  }, [loadMore]);
+
   useEffect(() => { fetchCategories(); }, [fetchCategories]);
-  useEffect(() => { fetchEntries(); }, [fetchEntries]);
+
+  // Helper to refetch from scratch (after mutations)
+  const refetch = useCallback(() => {
+    setLoading(true);
+    setHasMore(true);
+    offsetRef.current = 0;
+    const params = buildParams(0);
+    fetch(`/api/admin/entries?${params}`, { headers: getAdminHeaders() })
+      .then(res => {
+        const total = parseInt(res.headers.get('X-Total-Count') || '0');
+        setTotalCount(total);
+        return res.json();
+      })
+      .then(data => {
+        setEntries(data);
+        offsetRef.current = data.length;
+        setHasMore(data.length >= PAGE_SIZE);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Failed to fetch entries:', err);
+        setLoading(false);
+      });
+  }, [buildParams]);
 
   const togglePublish = async (entry: Entry) => {
     try {
@@ -57,7 +160,7 @@ export default function AdminDashboard() {
         headers: getAdminHeaders(),
         body: JSON.stringify({ isPublished: !entry.isPublished }),
       });
-      fetchEntries();
+      refetch();
     } catch (err) {
       console.error('Failed to toggle publish:', err);
     }
@@ -70,7 +173,7 @@ export default function AdminDashboard() {
         method: 'DELETE',
         headers: getAdminHeaders(),
       });
-      fetchEntries();
+      refetch();
     } catch (err) {
       console.error('Failed to delete entry:', err);
     }
@@ -101,7 +204,7 @@ export default function AdminDashboard() {
 
         const result = await res.json();
         alert(`Import complete: ${result.stats.added} added, ${result.stats.updated} updated, ${result.stats.skipped} skipped`);
-        fetchEntries();
+        refetch();
       } catch (err) {
         console.error('Import failed:', err);
         alert('Import failed. Check console for details.');
@@ -112,21 +215,15 @@ export default function AdminDashboard() {
 
   const unpublishedCount = entries.filter(e => !e.isPublished).length;
 
-  // Sort unpublished to top so pending reviews are immediately visible
-  const sortedEntries = [...entries].sort((a, b) => {
-    if (a.isPublished === b.isPublished) return 0;
-    return a.isPublished ? 1 : -1;
-  });
-
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+    <div className="h-screen flex flex-col bg-[var(--background)] text-[var(--foreground)]">
       {/* Top bar */}
-      <div className="border-b border-white/5 px-6 py-4">
+      <div className="shrink-0 border-b border-white/5 px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold">Admin Dashboard</h1>
             <p className="text-xs text-gray-500 mt-0.5">
-              {entries.length} entries
+              Showing {entries.length} of {totalCount} entries
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -144,7 +241,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Filters */}
-      <div className="border-b border-white/5 px-6 py-3">
+      <div className="shrink-0 border-b border-white/5 px-6 py-3">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center gap-2">
           {/* Category tabs */}
           <button
@@ -199,61 +296,78 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Entry list */}
-      <div className="max-w-7xl mx-auto px-6 py-4">
-        {loading ? (
-          <div className="text-center py-10 text-gray-500">Loading...</div>
-        ) : entries.length === 0 ? (
-          <div className="text-center py-10 text-gray-500">No entries found</div>
-        ) : (
-          <div className="space-y-2">
-            {sortedEntries.map(entry => (
-              <div
-                key={entry.id}
-                className="flex items-center gap-3 p-3 bg-[var(--card)] border border-[var(--border)] rounded-lg"
-              >
-                {/* Publish status indicator */}
-                <div className={`w-2 h-2 rounded-full shrink-0 ${entry.isPublished ? 'bg-green-500' : 'bg-amber-500'}`} />
+      {/* Entry list — scrollable */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-4">
+        <div className="max-w-7xl mx-auto">
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-10 h-10 rounded-full border-4 border-white/5 border-t-blue-500 animate-spin"></div>
+            </div>
+          ) : entries.length === 0 ? (
+            <div className="text-center py-10 text-gray-500">No entries found</div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                {entries.map(entry => (
+                  <AnimatedRow key={entry.id}>
+                    <div className="flex items-center gap-3 p-3 bg-[var(--card)] border border-[var(--border)] rounded-lg">
+                      {/* Publish status indicator */}
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${entry.isPublished ? 'bg-green-500' : 'bg-amber-500'}`} />
 
-                {/* Entry info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] uppercase tracking-wider font-semibold text-blue-400">
-                      {entry.category}
-                    </span>
-                    <span className="text-sm font-medium truncate">{entry.title}</span>
-                  </div>
-                  <p className="text-xs text-gray-500 truncate mt-0.5">{entry.description}</p>
-                </div>
+                      {/* Entry info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] uppercase tracking-wider font-semibold text-blue-400">
+                            {entry.category}
+                          </span>
+                          <span className="text-sm font-medium truncate">{entry.title}</span>
+                        </div>
+                        <p className="text-xs text-gray-500 truncate mt-0.5">{entry.description}</p>
+                      </div>
 
-                {/* Actions */}
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    onClick={() => setEditingEntry(entry)}
-                    className="p-2 hover:bg-white/5 rounded transition-colors text-gray-400 hover:text-white"
-                    title="Edit"
-                  >
-                    <Plus size={14} />
-                  </button>
-                  <button
-                    onClick={() => togglePublish(entry)}
-                    className={`p-2 hover:bg-white/5 rounded transition-colors ${entry.isPublished ? 'text-green-400' : 'text-amber-400'}`}
-                    title={entry.isPublished ? 'Unpublish' : 'Publish'}
-                  >
-                    {entry.isPublished ? <Eye size={14} /> : <EyeOff size={14} />}
-                  </button>
-                  <button
-                    onClick={() => deleteEntry(entry.id)}
-                    className="p-2 hover:bg-white/5 rounded transition-colors text-gray-400 hover:text-red-400"
-                    title="Delete"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
+                      {/* Actions */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => setEditingEntry(entry)}
+                          className="p-2 hover:bg-white/5 rounded transition-colors text-gray-400 hover:text-white"
+                          title="Edit"
+                        >
+                          <Plus size={14} />
+                        </button>
+                        <button
+                          onClick={() => togglePublish(entry)}
+                          className={`p-2 hover:bg-white/5 rounded transition-colors ${entry.isPublished ? 'text-green-400' : 'text-amber-400'}`}
+                          title={entry.isPublished ? 'Unpublish' : 'Publish'}
+                        >
+                          {entry.isPublished ? <Eye size={14} /> : <EyeOff size={14} />}
+                        </button>
+                        <button
+                          onClick={() => deleteEntry(entry.id)}
+                          className="p-2 hover:bg-white/5 rounded transition-colors text-gray-400 hover:text-red-400"
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </AnimatedRow>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
+
+              {/* Load more indicator */}
+              {loadingMore && (
+                <div className="flex items-center justify-center py-8 gap-3">
+                  <div className="w-5 h-5 rounded-full border-2 border-white/5 border-t-blue-500 animate-spin"></div>
+                  <span className="text-sm text-gray-500">Loading more...</span>
+                </div>
+              )}
+
+              {!hasMore && entries.length > PAGE_SIZE && (
+                <p className="text-center text-xs text-gray-600 py-6">All {entries.length} entries loaded</p>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Edit Modal (simple) */}
@@ -262,7 +376,7 @@ export default function AdminDashboard() {
           entry={editingEntry}
           categories={categories}
           onClose={() => setEditingEntry(null)}
-          onSaved={() => { setEditingEntry(null); fetchEntries(); }}
+          onSaved={() => { setEditingEntry(null); refetch(); }}
         />
       )}
     </div>
@@ -275,6 +389,9 @@ function EditEntryModal({ entry, categories, onClose, onSaved }: {
   onClose: () => void;
   onSaved: () => void;
 }) {
+  // Parse existing metadata
+  const meta = entry.metadata ? (() => { try { return JSON.parse(entry.metadata); } catch { return {}; } })() : {};
+
   const [title, setTitle] = useState(entry.title);
   const [description, setDescription] = useState(entry.description);
   const [category, setCategory] = useState(entry.category);
@@ -286,9 +403,60 @@ function EditEntryModal({ entry, categories, onClose, onSaved }: {
   const [sourceUrl, setSourceUrl] = useState(entry.sourceUrl || '');
   const [saving, setSaving] = useState(false);
 
+  // Film-specific fields (pre-filled from metadata)
+  const [filmCast, setFilmCast] = useState(meta.cast || '');
+  const [filmWriters, setFilmWriters] = useState(meta.writers || '');
+  const [filmRuntime, setFilmRuntime] = useState(meta.duration || '');
+  const [filmCountry, setFilmCountry] = useState(meta.country || '');
+  const [filmGenre, setFilmGenre] = useState(meta.genre || '');
+  const [filmComment, setFilmComment] = useState(meta.comment || '');
+
+  const isFilm = category === 'film';
+
+  const handleTmdbSelect = (movie: TmdbMovieDetails) => {
+    setTitle(movie.title);
+    setCreator(movie.directors);
+    setFilmCast(movie.cast);
+    setFilmWriters(movie.writers);
+    setFilmRuntime(movie.runtime || '');
+    setFilmCountry(movie.country);
+    setFilmGenre(movie.genres);
+    setDescription(movie.overview);
+    if (movie.year) setYear(String(movie.year));
+    if (movie.youtubeTrailerId) {
+      setSourceUrl(`https://www.youtube.com/watch?v=${movie.youtubeTrailerId}`);
+    }
+    // Download poster for existing entry
+    if (movie.posterPath) {
+      fetch('/api/tmdb/download-poster', {
+        method: 'POST',
+        headers: getAdminHeaders(),
+        body: JSON.stringify({ entryId: entry.id, posterPath: movie.posterPath }),
+      }).catch(() => {});
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
+      // Build metadata for films
+      let metadata: string | null = entry.metadata;
+      if (isFilm) {
+        const filmMeta: Record<string, string> = { ...meta };
+        if (filmCast) filmMeta.cast = filmCast; else delete filmMeta.cast;
+        if (filmWriters) filmMeta.writers = filmWriters; else delete filmMeta.writers;
+        if (filmRuntime) filmMeta.duration = filmRuntime; else delete filmMeta.duration;
+        if (filmCountry) filmMeta.country = filmCountry; else delete filmMeta.country;
+        if (filmGenre) filmMeta.genre = filmGenre; else delete filmMeta.genre;
+        if (filmComment) filmMeta.comment = filmComment; else delete filmMeta.comment;
+        // Extract YouTube ID from source URL
+        if (sourceUrl) {
+          const ytMatch = sourceUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+          if (ytMatch) filmMeta.youtubeId = ytMatch[1];
+        }
+        metadata = Object.keys(filmMeta).length > 0 ? JSON.stringify(filmMeta) : null;
+      }
+
       const res = await fetch(`/api/admin/entries/${entry.id}`, {
         method: 'PUT',
         headers: getAdminHeaders(),
@@ -296,6 +464,7 @@ function EditEntryModal({ entry, categories, onClose, onSaved }: {
           title, description, category, creator: creator || null,
           month: month || null, day: day || null, year: year || null,
           tags: tags || null, sourceUrl: sourceUrl || null,
+          metadata,
           isPublished: entry.isPublished,
         }),
       });
@@ -309,6 +478,8 @@ function EditEntryModal({ entry, categories, onClose, onSaved }: {
     }
   };
 
+  const inputClass = "w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
@@ -319,19 +490,46 @@ function EditEntryModal({ entry, categories, onClose, onSaved }: {
         </div>
 
         <div className="space-y-3">
-          <select value={category} onChange={e => setCategory(e.target.value)} className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm">
+          <select value={category} onChange={e => setCategory(e.target.value)} className={inputClass}>
             {categories.map(c => <option key={c.slug} value={c.slug}>{c.label}</option>)}
           </select>
-          <input type="text" placeholder="Title" value={title} onChange={e => setTitle(e.target.value)} className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
-          <textarea placeholder="Description" value={description} onChange={e => setDescription(e.target.value)} rows={4} className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
-          <input type="text" placeholder="Creator" value={creator} onChange={e => setCreator(e.target.value)} className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
-          <div className="grid grid-cols-3 gap-2">
-            <input type="number" placeholder="Month" value={month} onChange={e => setMonth(e.target.value)} className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
-            <input type="number" placeholder="Day" value={day} onChange={e => setDay(e.target.value)} className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
-            <input type="number" placeholder="Year" value={year} onChange={e => setYear(e.target.value)} className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
-          </div>
-          <input type="text" placeholder="Tags (comma-separated)" value={tags} onChange={e => setTags(e.target.value)} className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
-          <input type="text" placeholder="Source URL" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
+
+          {isFilm && (
+            <TmdbSearch onSelect={handleTmdbSelect} />
+          )}
+
+          <input type="text" placeholder="Title" value={title} onChange={e => setTitle(e.target.value)} className={inputClass} />
+          <input type="text" placeholder={isFilm ? "Director(s)" : "Creator"} value={creator} onChange={e => setCreator(e.target.value)} className={inputClass} />
+
+          {isFilm && (
+            <>
+              <input type="text" placeholder="Writer(s)" value={filmWriters} onChange={e => setFilmWriters(e.target.value)} className={inputClass} />
+              <input type="text" placeholder="Cast / Starring" value={filmCast} onChange={e => setFilmCast(e.target.value)} className={inputClass} />
+              <div className="grid grid-cols-3 gap-2">
+                <input type="text" placeholder="Runtime (e.g. 95m)" value={filmRuntime} onChange={e => setFilmRuntime(e.target.value)} className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
+                <input type="text" placeholder="Country" value={filmCountry} onChange={e => setFilmCountry(e.target.value)} className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
+                <input type="number" placeholder="Year" value={year} onChange={e => setYear(e.target.value)} className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
+              </div>
+              <input type="text" placeholder="Genre (e.g. Documentary, Drama)" value={filmGenre} onChange={e => setFilmGenre(e.target.value)} className={inputClass} />
+            </>
+          )}
+
+          <textarea placeholder={isFilm ? "Synopsis" : "Description"} value={description} onChange={e => setDescription(e.target.value)} rows={4} className={inputClass} />
+
+          {isFilm && (
+            <textarea placeholder="Comments / Notes (original curator notes, additional context)" value={filmComment} onChange={e => setFilmComment(e.target.value)} rows={3} className={inputClass} />
+          )}
+
+          {!isFilm && (
+            <div className="grid grid-cols-3 gap-2">
+              <input type="number" placeholder="Month" value={month} onChange={e => setMonth(e.target.value)} className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
+              <input type="number" placeholder="Day" value={day} onChange={e => setDay(e.target.value)} className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
+              <input type="number" placeholder="Year" value={year} onChange={e => setYear(e.target.value)} className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
+            </div>
+          )}
+
+          <input type="text" placeholder="Tags (comma-separated)" value={tags} onChange={e => setTags(e.target.value)} className={inputClass} />
+          <input type="text" placeholder={isFilm ? "Trailer URL (YouTube, Vimeo)" : "Source URL"} value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} className={inputClass} />
         </div>
 
         <div className="flex justify-end gap-2 mt-6">

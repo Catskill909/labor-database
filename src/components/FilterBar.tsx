@@ -18,7 +18,7 @@ const inputClass = 'bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 tex
 // Debounced text input that only fires the update after typing stops
 function DebouncedInput({ value, onChange, ...props }: { value: string; onChange: (v: string) => void } & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'>) {
   const [local, setLocal] = useState(value);
-  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => { setLocal(value); }, [value]);
 
@@ -38,13 +38,15 @@ export default function FilterBar({ category, filters, setFilters }: FilterBarPr
 
   // Fetch filter options when category changes
   useEffect(() => {
-    if (category === 'music') {
-      fetch(`/api/entries/filter-options?category=music`)
+    if (category === 'music' || category === 'film') {
+      fetch(`/api/entries/filter-options?category=${category}`)
         .then(r => r.json())
         .then(data => {
           if (data.genres) setGenres(data.genres);
         })
         .catch(() => {});
+    } else {
+      setGenres([]);
     }
   }, [category]);
 
@@ -148,6 +150,17 @@ export default function FilterBar({ category, filters, setFilters }: FilterBarPr
               placeholder="Director..."
               className={`${inputClass} w-48`}
             />
+
+            <select
+              value={filters.genre || ''}
+              onChange={e => update('genre', e.target.value)}
+              className={selectClass}
+            >
+              <option value="">Genre</option>
+              {genres.map(g => (
+                <option key={g} value={g}>{g}</option>
+              ))}
+            </select>
 
             <input
               type="number"

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Header from './components/Header.tsx';
 import CategoryNav from './components/CategoryNav.tsx';
@@ -10,6 +10,8 @@ import AdminDashboard from './components/AdminDashboard.tsx';
 import AdminLogin from './components/AdminLogin.tsx';
 import type { Entry, Category } from './types.ts';
 
+const PAGE_SIZE = 60;
+
 function HomePage() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -17,9 +19,13 @@ function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
   const [showSubmissionWizard, setShowSubmissionWizard] = useState(false);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const mainRef = useRef<HTMLElement>(null);
+  const offsetRef = useRef(0);
 
   // Fetch categories
   useEffect(() => {
@@ -39,30 +45,79 @@ function HomePage() {
     setFilters({});
   }, [selectedCategory]);
 
-  // Fetch entries when category, search, or filters change
-  useEffect(() => {
-    setLoading(true);
+  // Build query params (shared between initial fetch and load-more)
+  const buildParams = useCallback((offset: number) => {
     const params = new URLSearchParams();
     if (selectedCategory) params.set('category', selectedCategory);
     if (searchQuery.trim()) params.set('search', searchQuery.trim());
-    // Add category-specific filters
     for (const [key, value] of Object.entries(filters)) {
       if (value) params.set(key, value);
     }
+    params.set('limit', String(PAGE_SIZE));
+    params.set('offset', String(offset));
+    return params;
+  }, [selectedCategory, searchQuery, filters]);
 
+  // Initial fetch when category, search, or filters change
+  useEffect(() => {
+    setLoading(true);
+    setHasMore(true);
+    offsetRef.current = 0;
+
+    const params = buildParams(0);
     fetch(`/api/entries?${params}`)
       .then(r => r.json())
       .then(data => {
         setEntries(data);
+        offsetRef.current = data.length;
+        setHasMore(data.length >= PAGE_SIZE);
         setLoading(false);
       })
       .catch(err => {
         console.error('Failed to fetch entries:', err);
         setLoading(false);
       });
-  }, [selectedCategory, searchQuery, filters]);
+  }, [selectedCategory, searchQuery, filters, buildParams]);
+
+  // Load more entries
+  const loadMore = useCallback(() => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+
+    const params = buildParams(offsetRef.current);
+    fetch(`/api/entries?${params}`)
+      .then(r => r.json())
+      .then(data => {
+        setEntries(prev => [...prev, ...data]);
+        offsetRef.current += data.length;
+        setHasMore(data.length >= PAGE_SIZE);
+        setLoadingMore(false);
+      })
+      .catch(err => {
+        console.error('Failed to load more:', err);
+        setLoadingMore(false);
+      });
+  }, [loadingMore, hasMore, buildParams]);
+
+  // Infinite scroll — detect when near bottom
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = el;
+      // Trigger when within 400px of bottom
+      if (scrollHeight - scrollTop - clientHeight < 400) {
+        loadMore();
+      }
+    };
+
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    return () => el.removeEventListener('scroll', handleScroll);
+  }, [loadMore]);
 
   const totalCount = Object.values(counts).reduce((a, b) => a + b, 0);
+  const displayTotal = selectedCategory ? (counts[selectedCategory] || 0) : totalCount;
 
   return (
     <div className="h-screen flex flex-col bg-[var(--background)] text-[var(--foreground)]">
@@ -85,7 +140,7 @@ function HomePage() {
         setFilters={setFilters}
       />
 
-      <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-6">
+      <main ref={mainRef} className="flex-1 overflow-y-auto px-4 sm:px-6 py-6">
         <div className="max-w-7xl mx-auto w-full">
           {loading ? (
             <div className="flex items-center justify-center py-20">
@@ -97,16 +152,30 @@ function HomePage() {
               {searchQuery && <p className="text-sm mt-2">Try adjusting your search terms</p>}
             </div>
           ) : (
-            <EntryGrid
-              entries={entries}
-              onSelectEntry={setSelectedEntry}
-            />
+            <>
+              <EntryGrid
+                entries={entries}
+                onSelectEntry={setSelectedEntry}
+              />
+
+              {/* Load more indicator */}
+              {loadingMore && (
+                <div className="flex items-center justify-center py-8 gap-3">
+                  <div className="w-5 h-5 rounded-full border-2 border-white/5 border-t-blue-500 animate-spin"></div>
+                  <span className="text-sm text-gray-500">Loading more...</span>
+                </div>
+              )}
+
+              {!hasMore && entries.length > PAGE_SIZE && (
+                <p className="text-center text-xs text-gray-600 py-6">All {entries.length} entries loaded</p>
+              )}
+            </>
           )}
         </div>
       </main>
 
       <footer className="shrink-0 border-t border-white/5 px-6 py-3 text-center text-xs text-gray-500">
-        <span>Showing {entries.length} of {totalCount} entries</span>
+        <span>Showing {entries.length} of {displayTotal} entries</span>
         <span className="mx-2">&middot;</span>
         <a href="https://laborheritage.org" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
           &copy; 2026 The Labor Heritage Foundation

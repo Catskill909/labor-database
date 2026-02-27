@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { X, ChevronRight, ChevronLeft, Check } from 'lucide-react';
 import type { Category } from '../types.ts';
+import ImageDropzone from './ImageDropzone.tsx';
+import TmdbSearch from './TmdbSearch.tsx';
+import type { TmdbMovieDetails } from './TmdbSearch.tsx';
 
 interface SubmissionWizardProps {
   categories: Category[];
@@ -30,6 +33,17 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted }: S
   const [runTime, setRunTime] = useState('');
   const [lyrics, setLyrics] = useState('');
 
+  // Film-specific
+  const [filmCast, setFilmCast] = useState('');
+  const [filmWriters, setFilmWriters] = useState('');
+  const [filmRuntime, setFilmRuntime] = useState('');
+  const [filmCountry, setFilmCountry] = useState('');
+  const [filmGenre, setFilmGenre] = useState('');
+  const [filmTags, setFilmTags] = useState('');
+  const [tmdbPosterPath, setTmdbPosterPath] = useState<string | null>(null);
+  const [tmdbPosterPreview, setTmdbPosterPreview] = useState<string | null>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+
   // Quote-specific
   const [quoteDetail, setQuoteDetail] = useState('');
 
@@ -38,14 +52,48 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted }: S
   const [submitterEmail, setSubmitterEmail] = useState('');
   const [submitterComment, setSubmitterComment] = useState('');
 
+  const handleTmdbSelect = (movie: TmdbMovieDetails) => {
+    setTitle(movie.title);
+    setCreator(movie.directors);
+    setFilmCast(movie.cast);
+    setFilmWriters(movie.writers);
+    setFilmRuntime(movie.runtime || '');
+    setFilmCountry(movie.country);
+    setFilmGenre(movie.genres);
+    setDescription(movie.overview);
+    if (movie.year) setYear(String(movie.year));
+    if (movie.youtubeTrailerId) {
+      setSourceUrl(`https://www.youtube.com/watch?v=${movie.youtubeTrailerId}`);
+    }
+    if (movie.posterPath) {
+      setTmdbPosterPath(movie.posterPath);
+      setTmdbPosterPreview(movie.posterUrl);
+    }
+  };
+
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
       let metadata: Record<string, string> = {};
       let entryTitle = title;
       let entryCreator = creator;
+      let entryTags = '';
 
-      if (selectedCategory === 'music') {
+      if (selectedCategory === 'film') {
+        metadata = {};
+        if (filmCast) metadata.cast = filmCast;
+        if (filmWriters) metadata.writers = filmWriters;
+        if (filmRuntime) metadata.duration = filmRuntime;
+        if (filmCountry) metadata.country = filmCountry;
+        if (filmGenre) metadata.genre = filmGenre;
+        if (tmdbPosterPath) metadata.tmdbPosterPath = tmdbPosterPath;
+        // Extract YouTube ID from trailer URL
+        if (sourceUrl) {
+          const ytMatch = sourceUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+          if (ytMatch) metadata.youtubeId = ytMatch[1];
+        }
+        entryTags = filmTags;
+      } else if (selectedCategory === 'music') {
         metadata = { writer: songwriter, performer, genre, runTime, locationUrl: sourceUrl, lyrics };
         if (!entryCreator && performer) entryCreator = performer;
       } else if (selectedCategory === 'quote') {
@@ -69,6 +117,7 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted }: S
         year: year || null,
         creator: entryCreator || null,
         metadata: Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : null,
+        tags: entryTags || null,
         sourceUrl: sourceUrl || null,
         submitterName: submitterName || null,
         submitterEmail: submitterEmail || null,
@@ -82,6 +131,27 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted }: S
       });
 
       if (!res.ok) throw new Error('Submission failed');
+      const entryData = await res.json();
+
+      // Upload dragged images if any
+      if (imageFiles.length > 0) {
+        const formData = new FormData();
+        for (const file of imageFiles) {
+          formData.append('images', file);
+        }
+        await fetch(`/api/entries/${entryData.id}/images`, {
+          method: 'POST',
+          body: formData,
+        });
+      } else if (tmdbPosterPath && selectedCategory === 'film') {
+        // Download TMDB poster server-side (no user-uploaded images)
+        await fetch('/api/tmdb/download-poster', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entryId: entryData.id, posterPath: tmdbPosterPath }),
+        }).catch(() => {}); // Non-critical — entry still created
+      }
+
       setSubmitted(true);
       setTimeout(() => onSubmitted(), 2000);
     } catch (err) {
@@ -197,9 +267,28 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted }: S
 
           {step === 2 && selectedCategory === 'film' && (
             <div className="space-y-3">
+              <TmdbSearch onSelect={handleTmdbSelect} />
+
+              {tmdbPosterPreview && !imageFiles.length && (
+                <div className="flex items-center gap-3 p-2 bg-white/5 rounded-lg">
+                  <img src={tmdbPosterPreview} alt="Poster" className="w-12 h-18 object-cover rounded" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-green-400">TMDB poster will be downloaded automatically</p>
+                    <button type="button" onClick={() => { setTmdbPosterPath(null); setTmdbPosterPreview(null); }} className="text-xs text-gray-500 hover:text-white">Remove</button>
+                  </div>
+                </div>
+              )}
+
               <input type="text" placeholder="Film Title" value={title} onChange={e => setTitle(e.target.value)} className="input-field" />
               <input type="text" placeholder="Director(s)" value={creator} onChange={e => setCreator(e.target.value)} className="input-field" />
-              <input type="number" placeholder="Year" value={year} onChange={e => setYear(e.target.value)} className="input-field" />
+              <input type="text" placeholder="Writer(s)" value={filmWriters} onChange={e => setFilmWriters(e.target.value)} className="input-field" />
+              <input type="text" placeholder="Cast / Starring" value={filmCast} onChange={e => setFilmCast(e.target.value)} className="input-field" />
+              <div className="grid grid-cols-3 gap-2">
+                <input type="text" placeholder="Runtime (e.g. 95m)" value={filmRuntime} onChange={e => setFilmRuntime(e.target.value)} className="input-field" />
+                <input type="text" placeholder="Country" value={filmCountry} onChange={e => setFilmCountry(e.target.value)} className="input-field" />
+                <input type="number" placeholder="Year" value={year} onChange={e => setYear(e.target.value)} className="input-field" />
+              </div>
+              <input type="text" placeholder="Genre (e.g. Documentary, Drama)" value={filmGenre} onChange={e => setFilmGenre(e.target.value)} className="input-field" />
               <textarea
                 placeholder="Synopsis"
                 value={description}
@@ -207,7 +296,19 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted }: S
                 rows={4}
                 className="input-field"
               />
-              <input type="text" placeholder="Trailer URL" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} className="input-field" />
+              <input type="text" placeholder="Trailer URL (YouTube, Vimeo)" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} className="input-field" />
+              <input type="text" placeholder="Tags (e.g. Women, Strikes, Working Class)" value={filmTags} onChange={e => setFilmTags(e.target.value)} className="input-field" />
+              <textarea
+                placeholder="Comments / Notes (optional — additional context, why this film matters, etc.)"
+                value={submitterComment}
+                onChange={e => setSubmitterComment(e.target.value)}
+                rows={3}
+                className="input-field"
+              />
+              <div>
+                <label className="text-xs text-gray-400 block mb-1.5">Poster Image (or use TMDB poster above)</label>
+                <ImageDropzone files={imageFiles} setFiles={setImageFiles} maxFiles={3} />
+              </div>
             </div>
           )}
 

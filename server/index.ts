@@ -28,7 +28,7 @@ fs.mkdirSync(uploadsDir, { recursive: true });
 const storage = multer.memoryStorage();
 const upload = multer({
     storage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
     fileFilter: (_req, file, cb) => {
         const allowed = ['image/jpeg', 'image/png', 'image/webp'];
         if (allowed.includes(file.mimetype)) {
@@ -132,6 +132,111 @@ app.put('/api/admin/categories/:id', adminAuth, async (req, res) => {
     } catch (error) {
         console.error('Update category error:', error);
         res.status(500).json({ error: 'Failed to update category' });
+    }
+});
+
+// ==================== TMDB PROXY ====================
+
+const TMDB_BASE = 'https://api.themoviedb.org/3';
+const TMDB_IMG = 'https://image.tmdb.org/t/p';
+
+function tmdbHeaders(): HeadersInit {
+    const key = process.env.TMDB_API_KEY;
+    if (!key) throw new Error('TMDB_API_KEY not set');
+    return { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' };
+}
+
+// Search movies by title
+app.get('/api/tmdb/search', async (req, res) => {
+    const query = req.query.query as string;
+    if (!query || !query.trim()) return res.json([]);
+
+    try {
+        const r = await fetch(`${TMDB_BASE}/search/movie?query=${encodeURIComponent(query.trim())}&page=1`, { headers: tmdbHeaders() });
+        if (!r.ok) return res.status(r.status).json({ error: 'TMDB search failed' });
+        const data = await r.json() as { results: Array<{ id: number; title: string; release_date?: string; overview: string; poster_path: string | null; genre_ids: number[] }> };
+
+        const results = data.results.slice(0, 10).map(m => ({
+            tmdbId: m.id,
+            title: m.title,
+            year: m.release_date ? parseInt(m.release_date.substring(0, 4)) : null,
+            overview: m.overview,
+            posterUrl: m.poster_path ? `${TMDB_IMG}/w185${m.poster_path}` : null,
+        }));
+        res.json(results);
+    } catch (error) {
+        console.error('TMDB search error:', error);
+        res.status(500).json({ error: 'TMDB search failed' });
+    }
+});
+
+// Get full movie details (credits + videos in one call)
+app.get('/api/tmdb/movie/:tmdbId', async (req, res) => {
+    const tmdbId = req.params.tmdbId as string;
+    try {
+        const r = await fetch(`${TMDB_BASE}/movie/${tmdbId}?append_to_response=credits,videos`, { headers: tmdbHeaders() });
+        if (!r.ok) return res.status(r.status).json({ error: 'TMDB details failed' });
+        const d = await r.json() as {
+            id: number; title: string; release_date?: string; overview: string;
+            runtime?: number; poster_path: string | null;
+            genres: Array<{ name: string }>; production_countries: Array<{ iso_3166_1: string }>;
+            credits: { cast: Array<{ name: string }>; crew: Array<{ name: string; job: string }> };
+            videos: { results: Array<{ site: string; type: string; key: string }> };
+        };
+
+        const directors = d.credits.crew.filter(c => c.job === 'Director').map(c => c.name);
+        const writers = d.credits.crew.filter(c => c.job === 'Writer' || c.job === 'Screenplay').map(c => c.name);
+        const cast = d.credits.cast.slice(0, 10).map(c => c.name);
+        const trailer = d.videos.results.find(v => v.site === 'YouTube' && v.type === 'Trailer');
+
+        res.json({
+            tmdbId: d.id,
+            title: d.title,
+            year: d.release_date ? parseInt(d.release_date.substring(0, 4)) : null,
+            overview: d.overview,
+            runtime: d.runtime ? `${d.runtime}m` : null,
+            country: d.production_countries.map(c => c.iso_3166_1).join(', '),
+            genres: d.genres.map(g => g.name).join(', '),
+            directors: directors.join(', '),
+            writers: writers.join(', '),
+            cast: cast.join(', '),
+            youtubeTrailerId: trailer?.key || null,
+            posterUrl: d.poster_path ? `${TMDB_IMG}/w500${d.poster_path}` : null,
+            posterPath: d.poster_path,
+        });
+    } catch (error) {
+        console.error('TMDB details error:', error);
+        res.status(500).json({ error: 'TMDB details failed' });
+    }
+});
+
+// Download TMDB poster and attach to entry
+// No auth — called by both public submission and admin edit
+// Safe: only downloads from TMDB CDN and attaches to an existing entry
+app.post('/api/tmdb/download-poster', async (req, res) => {
+    const { entryId, posterPath } = req.body;
+    if (!entryId || !posterPath) return res.status(400).json({ error: 'entryId and posterPath required' });
+
+    try {
+        const imgUrl = `${TMDB_IMG}/w500${posterPath}`;
+        const imgRes = await fetch(imgUrl, { signal: AbortSignal.timeout(15000) });
+        if (!imgRes.ok) return res.status(404).json({ error: 'Poster not found' });
+
+        const buffer = Buffer.from(await imgRes.arrayBuffer());
+        const timestamp = Date.now();
+        const filename = `${entryId}_${timestamp}_tmdb.jpg`;
+        const thumbFilename = `thumb_${filename}`;
+
+        await sharp(buffer).jpeg({ quality: 90 }).toFile(path.join(uploadsDir, filename));
+        await sharp(buffer).resize(400, null, { withoutEnlargement: true }).jpeg({ quality: 80 }).toFile(path.join(uploadsDir, thumbFilename));
+
+        const image = await prisma.entryImage.create({
+            data: { entryId: parseInt(entryId), filename, caption: null, sortOrder: 0 },
+        });
+        res.json(image);
+    } catch (error) {
+        console.error('TMDB poster download error:', error);
+        res.status(500).json({ error: 'Failed to download poster' });
     }
 });
 
@@ -282,6 +387,35 @@ app.get('/api/entries/filter-options', async (req, res) => {
             options.genres = [...genres].sort();
         }
 
+        if (category === 'film') {
+            // Get distinct genres from metadata JSON
+            const filmEntries = await prisma.entry.findMany({
+                where: { category: 'film', isPublished: true, metadata: { not: null } },
+                select: { metadata: true }
+            });
+            const filmGenres = new Set<string>();
+            for (const e of filmEntries) {
+                try {
+                    const meta = JSON.parse(e.metadata!);
+                    if (meta.genre) {
+                        meta.genre.split(',').forEach((g: string) => {
+                            const trimmed = g.trim();
+                            if (trimmed) filmGenres.add(trimmed);
+                        });
+                    }
+                } catch { /* skip bad JSON */ }
+            }
+            options.genres = [...filmGenres].sort();
+
+            // Get distinct years
+            const filmYears: { year: number }[] = await prisma.$queryRaw`
+                SELECT DISTINCT year FROM Entry
+                WHERE category = 'film' AND isPublished = 1 AND year IS NOT NULL
+                ORDER BY year DESC
+            `;
+            options.years = filmYears.map(y => String(y.year));
+        }
+
         if (category === 'history') {
             // Get distinct years that have history entries
             const years: { year: number }[] = await prisma.$queryRaw`
@@ -373,7 +507,7 @@ app.post('/api/entries', async (req, res) => {
 app.get('/api/admin/entries', adminAuth, async (req, res) => {
     res.set('Cache-Control', 'no-store');
     try {
-        const { category, search, isPublished } = req.query;
+        const { category, search, isPublished, limit, offset } = req.query;
 
         const where: Prisma.EntryWhereInput = {};
 
@@ -395,11 +529,20 @@ app.get('/api/admin/entries', adminAuth, async (req, res) => {
             where.id = { in: results.map(r => r.id) };
         }
 
-        const entries = await prisma.entry.findMany({
-            where,
-            orderBy: { createdAt: 'desc' },
-            include: { images: { orderBy: { sortOrder: 'asc' } } }
-        });
+        const take = limit ? parseInt(limit as string) : undefined;
+        const skip = offset ? parseInt(offset as string) : undefined;
+
+        const [entries, total] = await Promise.all([
+            prisma.entry.findMany({
+                where,
+                orderBy: [{ isPublished: 'asc' }, { createdAt: 'desc' }],
+                include: { images: { orderBy: { sortOrder: 'asc' } } },
+                ...(take !== undefined && { take }),
+                ...(skip !== undefined && { skip }),
+            }),
+            prisma.entry.count({ where }),
+        ]);
+        res.set('X-Total-Count', String(total));
         res.json(entries);
     } catch (error) {
         console.error('Fetch admin entries error:', error);

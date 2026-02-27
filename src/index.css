@@ -55,3 +55,14 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Entry card fade-in animation */
+.entry-card {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+}
+.entry-visible {
+  opacity: 1;
+  transform: translateY(0);
+}

@@ -2,9 +2,9 @@
 
 **Client:** Chris Garlock & Harold Phillips / Labor Heritage Foundation
 **Date:** February 23, 2026
-**Status:** Phase 1 COMPLETE. App running locally with 3,762 entries imported. Pushed to GitHub. Films WordPress export still pending from client.
+**Status:** Phase 3 COMPLETE. App running locally with 5,954 entries (3,762 CSV + 2,192 films). 1,292 films enriched via TMDB with posters, cast, trailers. Pushed to GitHub.
 **Repo:** https://github.com/Catskill909/labor-database
-**Next:** Deploy to Coolify, import Films when WordPress export received, build "On This Day" feature.
+**Next:** Deploy to Coolify, build "On This Day" feature, add new content types (plays, poetry).
 
 ---
 
@@ -23,11 +23,11 @@ The client produces the **Labor Radio Podcast Daily** and uses these databases e
 2. **Labor Quotes** — CSV received
 3. **Labor Music** — CSV received
 
-### Pending
-4. **Labor Films** — WordPress site at https://laborfilms.com (export pending from client)
-   - RSS feed audited: https://laborfilms.com/feed/
-   - WordPress content, not a structured DB — fields vary per entry
-   - Data will need parsing/cleanup during import
+### Received (WordPress XML)
+4. **Labor Films** — WordPress site at https://laborfilms.com
+   - WordPress XML export received Feb 25, 2026 (6.8 MB, 2,247 published films)
+   - 2,192 imported; 1,292 enriched via TMDB API with structured metadata + posters
+   - See [docs/film-data-dev.md](docs/film-data-dev.md) for full import/enrichment notes
 
 ### Future (Client wants architecture to support these)
 5. **Labor Plays** — not yet started
@@ -303,7 +303,6 @@ This is faster and more reliable than a dynamic form generator, and produces bet
 - [x] New repo + project scaffolding (clone landmarks pattern)
 - [x] Prisma schema with unified Entry model + EntryImage model + Category registry
 - [x] CSV import scripts for History, Quotes, Music
-- [ ] WordPress import script for Films (parse RSS/export) — **BLOCKED: waiting on client export**
 - [x] Express API: CRUD endpoints for entries (generic, category-filtered)
 - [x] Image upload API (multer + sharp, same as landmarks)
 - [x] Admin panel with category tabs
@@ -327,9 +326,27 @@ This is faster and more reliable than a dynamic form generator, and produces bet
 - [x] Admin review queue polished: Pending Review / Published / All Status toggle buttons with count
 - [x] Unpublished entries sorted to top in admin view
 
-### Phase 3: Films Import
-- [ ] Import Films from WordPress export (when received)
-- [ ] Film-specific card and detail view
+### Phase 3: Films Import, Display & TMDB Enrichment ✅ COMPLETE
+- [x] WordPress XML export received from client (2,247 published films)
+- [x] Import script: `scripts/import-films.ts` — parses WordPress XML with `fast-xml-parser` + `cheerio`, extracts title, year, director, cast, duration, country, genre, YouTube ID, poster URL from embedded HTML
+- [x] 2,192 film entries imported into unified Entry table
+- [x] Film-specific card design: poster thumbnails with gradient overlay, title/director/year, genre badges, YouTube play indicator, responsive grid (2-5 columns)
+- [x] Film detail modal: wider layout (max-w-4xl), two-column poster + metadata, YouTube trailer embed via `react-player`, credits table, curator notes section, tags
+- [x] WordPress poster image download script: `scripts/download-film-images.ts` — 160 posters downloaded
+- [x] TMDB API integration (Phase 3b):
+  - Server-side proxy endpoints: `GET /api/tmdb/search`, `GET /api/tmdb/movie/:id`, `POST /api/tmdb/download-poster`
+  - `TmdbSearch.tsx` — reusable typeahead component with debounced search, poster thumbnails, two-step select
+  - Public film form: TMDB auto-populate, Writers field, Tags field, Comments field, poster preview + download
+  - Admin edit modal: category-aware (film shows TMDB search + all film-specific fields), metadata JSON parse/save
+  - Comments field added to both public and admin forms (stored as `metadata.comment`)
+- [x] TMDB batch enrichment: `scripts/enrich-films-tmdb.ts` — processed all 2,192 films:
+  - 1,292 films enriched with structured TMDB data (director, cast, writers, runtime, country, genre, trailer)
+  - 1,255 films now have poster images (up from 160)
+  - 678 films have YouTube trailer IDs (up from 336)
+  - 1,298 films have original descriptions preserved as curator notes
+  - Idempotent with `--dry-run`, `--limit N`, `--no-posters` flags
+- [x] Infinite scroll + fade-in animations on public site and admin dashboard
+- [x] `react-player` for YouTube/Vimeo embeds, `react-dropzone` for image uploads, `ImageDropzone` component
 
 ### Phase 4: "On This Day" — The Killer Feature
 - [ ] **Landing page "On This Day" view** — today's date across all categories:
