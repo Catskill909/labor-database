@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { DayPicker } from 'react-day-picker';
+import { DayPicker, getDefaultClassNames } from 'react-day-picker';
+import 'react-day-picker/style.css';
 import { format, addDays, subDays } from 'date-fns';
 import {
   ChevronLeft,
@@ -73,6 +74,7 @@ function CategoryIcon({ category }: { category: string }) {
 
 export default function OnThisDayView({ onSelectEntry, onAddClick }: OnThisDayViewProps) {
   const today = new Date();
+  const defaultClassNames = getDefaultClassNames();
   const [month, setMonth] = useState(today.getMonth() + 1);
   const [day, setDay] = useState(today.getDate());
   const [data, setData] = useState<OnThisDayData | null>(null);
@@ -194,14 +196,15 @@ export default function OnThisDayView({ onSelectEntry, onAddClick }: OnThisDayVi
 
           <button
             onClick={() => setShowCalendar(!showCalendar)}
-            className={`p-2 rounded-lg border transition-colors ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border transition-colors ${
               showCalendar
                 ? 'bg-blue-600/20 border-blue-500/30 text-blue-400'
                 : 'bg-white/5 border-white/10 hover:bg-white/10'
             }`}
             title="Pick a date"
           >
-            <Calendar size={18} />
+            <Calendar size={16} />
+            <span className="text-xs">Pick date</span>
           </button>
 
           <button
@@ -215,10 +218,13 @@ export default function OnThisDayView({ onSelectEntry, onAddClick }: OnThisDayVi
 
         {/* Calendar picker dropdown */}
         {showCalendar && (
-          <div className="mt-3 inline-block relative z-10">
+          <div className="mt-3 flex justify-center relative z-10">
             <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 shadow-2xl">
               <DayPicker
                 mode="single"
+                captionLayout="dropdown-months"
+                startMonth={new Date(2024, 0)}
+                endMonth={new Date(2024, 11)}
                 selected={new Date(2024, month - 1, day)}
                 onSelect={(date) => {
                   if (date) {
@@ -242,25 +248,12 @@ export default function OnThisDayView({ onSelectEntry, onAddClick }: OnThisDayVi
                     .catch(() => {});
                 }}
                 classNames={{
-                  root: 'rdp-dark',
-                  months: 'flex gap-4',
-                  month_caption: 'text-sm font-semibold text-center mb-3',
-                  weekdays: 'flex',
-                  weekday: 'text-xs text-gray-500 w-10 text-center',
-                  week: 'flex',
-                  day: 'w-10 h-10 text-sm flex items-center justify-center rounded-lg transition-colors',
-                  day_button: 'w-full h-full flex items-center justify-center rounded-lg hover:bg-white/10 cursor-pointer transition-colors',
-                  selected: 'bg-blue-600 text-white hover:bg-blue-700',
-                  today: 'ring-1 ring-blue-400/50',
-                  outside: 'text-gray-700',
-                  nav: 'flex items-center justify-between mb-2',
-                  button_previous: 'p-1 rounded hover:bg-white/10 transition-colors',
-                  button_next: 'p-1 rounded hover:bg-white/10 transition-colors',
-                  chevron: 'w-5 h-5 text-gray-400',
+                  root: `${defaultClassNames.root} rdp-dark`,
+                  chevron: defaultClassNames.chevron,
                 }}
               />
               <p className="text-[10px] text-gray-600 mt-2 text-center">
-                Dots indicate dates with entries
+                Pick a month or tap a date
               </p>
             </div>
           </div>
@@ -453,26 +446,33 @@ function OnThisDayCard({ entry, onClick }: { entry: Entry; onClick: () => void }
   }
 }
 
+function formatFullDate(entry: Pick<Entry, 'month' | 'day' | 'year'>): string {
+  const parts: string[] = [];
+  if (entry.month) parts.push(MONTH_NAMES[entry.month - 1] || String(entry.month));
+  if (entry.day) parts.push(String(entry.day) + ',');
+  if (entry.year) parts.push(String(entry.year));
+  return parts.join(' ');
+}
+
 function HistoryOTDCard({ entry, onClick }: { entry: Entry; onClick: () => void }) {
   // Rough check: ~80 chars per line at card width, 12 lines
   const isLong = entry.description.length > 800;
+  const dateStr = formatFullDate(entry);
 
   return (
     <button
       onClick={onClick}
-      className="text-left w-full p-4 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-blue-500/30 transition-colors group flex gap-3 items-start"
+      className="text-left w-full p-5 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-blue-500/30 transition-colors group flex flex-col items-start"
     >
-      {entry.year && (
-        <span className="text-sm font-bold text-blue-400 shrink-0 pt-0.5">{entry.year}</span>
+      {dateStr && (
+        <p className="text-sm text-blue-400 mb-3 font-medium">{dateStr}</p>
       )}
-      <div className="min-w-0 flex-1">
-        <p className="text-sm leading-relaxed text-gray-200 group-hover:text-white transition-colors line-clamp-12">
-          {entry.description}
-        </p>
-        {isLong && (
-          <span className="text-xs text-blue-400/70 mt-1.5 block">More...</span>
-        )}
-      </div>
+      <p className="text-sm leading-relaxed text-gray-200 group-hover:text-white transition-colors line-clamp-12">
+        {entry.description}
+      </p>
+      {isLong && (
+        <span className="text-xs text-blue-400/70 mt-1.5 block">More...</span>
+      )}
     </button>
   );
 }

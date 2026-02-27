@@ -2,7 +2,7 @@
 
 **Client:** Chris Garlock & Harold Phillips / Labor Heritage Foundation
 **Date:** February 23, 2026
-**Status:** Phase 4 COMPLETE ("On This Day"). App running locally with 5,954 entries (3,762 CSV + 2,192 films). "On This Day" is the landing tab with date navigation, calendar picker, sectioned card grid. Browse database available via category tabs.
+**Status:** Phase 4 COMPLETE ("On This Day") + hamburger menu, About modal, Privacy Policy modal, footer links. App running locally with 5,954 entries (3,762 CSV + 2,192 films). "On This Day" is the landing tab with date navigation, calendar picker, sectioned card grid. Browse database available via category tabs.
 **Repo:** https://github.com/Catskill909/labor-database
 **Next:** Deploy to Coolify, add week view, share/copy/print, presenter mode, new content types (plays, poetry).
 
