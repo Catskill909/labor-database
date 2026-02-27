@@ -279,32 +279,67 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted }: S
                 </div>
               )}
 
-              <input type="text" placeholder="Film Title" value={title} onChange={e => setTitle(e.target.value)} className="input-field" />
-              <input type="text" placeholder="Director(s)" value={creator} onChange={e => setCreator(e.target.value)} className="input-field" />
-              <input type="text" placeholder="Writer(s)" value={filmWriters} onChange={e => setFilmWriters(e.target.value)} className="input-field" />
-              <input type="text" placeholder="Cast / Starring" value={filmCast} onChange={e => setFilmCast(e.target.value)} className="input-field" />
-              <div className="grid grid-cols-3 gap-2">
-                <input type="text" placeholder="Runtime (e.g. 95m)" value={filmRuntime} onChange={e => setFilmRuntime(e.target.value)} className="input-field" />
-                <input type="text" placeholder="Country" value={filmCountry} onChange={e => setFilmCountry(e.target.value)} className="input-field" />
-                <input type="number" placeholder="Year" value={year} onChange={e => setYear(e.target.value)} className="input-field" />
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Film Title</label>
+                <input type="text" value={title} onChange={e => setTitle(e.target.value)} className="input-field" />
               </div>
-              <input type="text" placeholder="Genre (e.g. Documentary, Drama)" value={filmGenre} onChange={e => setFilmGenre(e.target.value)} className="input-field" />
-              <textarea
-                placeholder="Synopsis"
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                rows={4}
-                className="input-field"
-              />
-              <input type="text" placeholder="Trailer URL (YouTube, Vimeo)" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} className="input-field" />
-              <input type="text" placeholder="Tags (e.g. Women, Strikes, Working Class)" value={filmTags} onChange={e => setFilmTags(e.target.value)} className="input-field" />
-              <textarea
-                placeholder="Comments / Notes (optional — additional context, why this film matters, etc.)"
-                value={submitterComment}
-                onChange={e => setSubmitterComment(e.target.value)}
-                rows={3}
-                className="input-field"
-              />
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Director(s)</label>
+                <input type="text" value={creator} onChange={e => setCreator(e.target.value)} className="input-field" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Writer(s)</label>
+                <input type="text" value={filmWriters} onChange={e => setFilmWriters(e.target.value)} className="input-field" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Cast / Starring</label>
+                <input type="text" value={filmCast} onChange={e => setFilmCast(e.target.value)} className="input-field" />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Runtime</label>
+                  <input type="text" placeholder="e.g. 95m" value={filmRuntime} onChange={e => setFilmRuntime(e.target.value)} className="input-field" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Country</label>
+                  <input type="text" value={filmCountry} onChange={e => setFilmCountry(e.target.value)} className="input-field" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Year</label>
+                  <input type="number" value={year} onChange={e => setYear(e.target.value)} className="input-field" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Genre</label>
+                <input type="text" placeholder="e.g. Documentary, Drama" value={filmGenre} onChange={e => setFilmGenre(e.target.value)} className="input-field" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Synopsis</label>
+                <textarea
+                  value={description}
+                  onChange={e => setDescription(e.target.value)}
+                  rows={4}
+                  className="input-field"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Trailer URL (YouTube, Vimeo)</label>
+                <input type="text" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} className="input-field" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Tags</label>
+                <input type="text" placeholder="e.g. Women, Strikes, Working Class" value={filmTags} onChange={e => setFilmTags(e.target.value)} className="input-field" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Comments / Notes (optional)</label>
+                <textarea
+                  placeholder="Additional context, why this film matters, etc."
+                  value={submitterComment}
+                  onChange={e => setSubmitterComment(e.target.value)}
+                  rows={3}
+                  className="input-field"
+                />
+              </div>
               <div>
                 <label className="text-xs text-gray-400 block mb-1.5">Poster Image (or use TMDB poster above)</label>
                 <ImageDropzone files={imageFiles} setFiles={setImageFiles} maxFiles={3} />

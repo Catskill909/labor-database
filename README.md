@@ -158,10 +158,11 @@ Navigate to `/admin` and log in with the `ADMIN_PASSWORD`.
 
 Features:
 - Browse/edit/delete entries by category with infinite scroll
-- Category-aware edit forms (film entries show TMDB search, cast, writers, genre, etc.)
+- Category-aware edit forms with labeled fields (film entries show all metadata fields)
+- Image management: view existing images, upload new ones, delete with hover-to-remove
+- Category shown as read-only subheader (prevents accidental category changes)
 - Review queue for public submissions
 - JSON backup & restore
-- Image upload for entries
 
 In local dev, admin auth is skipped if no `ADMIN_PASSWORD` is set.
 
@@ -171,7 +172,7 @@ In local dev, admin auth is skipped if no `ADMIN_PASSWORD` is set.
 |----------|--------|-------------|
 | `/api/entries` | GET | List entries (filter by `category`, `search`, `month`, `day`, `year`, `creator`, `genre`) |
 | `/api/entries/filter-options` | GET | Distinct filter values for dropdowns (genres, years) |
-| `/api/entries/:id` | GET | Single entry with images |
+| `/api/entries/:id` | GET | Single entry with full image URLs |
 | `/api/entries` | POST | Public submission (unpublished) |
 | `/api/categories` | GET | List active categories |
 | `/api/tmdb/search` | GET | Search TMDB by title (server-side proxy) |

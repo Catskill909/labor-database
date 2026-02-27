@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, Trash2, Eye, EyeOff, Download, Upload, Search, X } from 'lucide-react';
 import type { Entry, Category } from '../types.ts';
-import TmdbSearch from './TmdbSearch.tsx';
-import type { TmdbMovieDetails } from './TmdbSearch.tsx';
+import ImageDropzone from './ImageDropzone.tsx';
 
 const PAGE_SIZE = 60;
 
@@ -383,6 +382,15 @@ export default function AdminDashboard() {
   );
 }
 
+function FieldLabel({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="text-xs text-gray-400 block mb-1">{label}</label>
+      {children}
+    </div>
+  );
+}
+
 function EditEntryModal({ entry, categories, onClose, onSaved }: {
   entry: Entry;
   categories: Category[];
@@ -394,7 +402,7 @@ function EditEntryModal({ entry, categories, onClose, onSaved }: {
 
   const [title, setTitle] = useState(entry.title);
   const [description, setDescription] = useState(entry.description);
-  const [category, setCategory] = useState(entry.category);
+  const category = entry.category;
   const [creator, setCreator] = useState(entry.creator || '');
   const [month, setMonth] = useState(String(entry.month || ''));
   const [day, setDay] = useState(String(entry.day || ''));
@@ -411,28 +419,27 @@ function EditEntryModal({ entry, categories, onClose, onSaved }: {
   const [filmGenre, setFilmGenre] = useState(meta.genre || '');
   const [filmComment, setFilmComment] = useState(meta.comment || '');
 
+  // Image management
+  const [existingImages, setExistingImages] = useState(entry.images || []);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [deletingImageId, setDeletingImageId] = useState<number | null>(null);
+
   const isFilm = category === 'film';
 
-  const handleTmdbSelect = (movie: TmdbMovieDetails) => {
-    setTitle(movie.title);
-    setCreator(movie.directors);
-    setFilmCast(movie.cast);
-    setFilmWriters(movie.writers);
-    setFilmRuntime(movie.runtime || '');
-    setFilmCountry(movie.country);
-    setFilmGenre(movie.genres);
-    setDescription(movie.overview);
-    if (movie.year) setYear(String(movie.year));
-    if (movie.youtubeTrailerId) {
-      setSourceUrl(`https://www.youtube.com/watch?v=${movie.youtubeTrailerId}`);
-    }
-    // Download poster for existing entry
-    if (movie.posterPath) {
-      fetch('/api/tmdb/download-poster', {
-        method: 'POST',
+  const handleDeleteImage = async (imageId: number) => {
+    setDeletingImageId(imageId);
+    try {
+      const res = await fetch(`/api/entries/${entry.id}/images/${imageId}`, {
+        method: 'DELETE',
         headers: getAdminHeaders(),
-        body: JSON.stringify({ entryId: entry.id, posterPath: movie.posterPath }),
-      }).catch(() => {});
+      });
+      if (res.ok) {
+        setExistingImages(prev => prev.filter(img => img.id !== imageId));
+      }
+    } catch (err) {
+      console.error('Failed to delete image:', err);
+    } finally {
+      setDeletingImageId(null);
     }
   };
 
@@ -469,6 +476,19 @@ function EditEntryModal({ entry, categories, onClose, onSaved }: {
         }),
       });
       if (!res.ok) throw new Error('Save failed');
+
+      // Upload new images if any
+      if (imageFiles.length > 0) {
+        const formData = new FormData();
+        for (const file of imageFiles) {
+          formData.append('images', file);
+        }
+        await fetch(`/api/entries/${entry.id}/images`, {
+          method: 'POST',
+          body: formData,
+        });
+      }
+
       onSaved();
     } catch (err) {
       console.error('Save error:', err);
@@ -484,52 +504,118 @@ function EditEntryModal({ entry, categories, onClose, onSaved }: {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-lg max-h-[85vh] overflow-y-auto bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-2xl p-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-1">
           <h3 className="text-lg font-bold">Edit Entry</h3>
           <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg"><X size={18} /></button>
         </div>
+        <p className="text-xs uppercase tracking-wider font-semibold text-blue-400 mb-4">
+          {categories.find(c => c.slug === category)?.label || category}
+        </p>
 
         <div className="space-y-3">
-          <select value={category} onChange={e => setCategory(e.target.value)} className={inputClass}>
-            {categories.map(c => <option key={c.slug} value={c.slug}>{c.label}</option>)}
-          </select>
 
-          {isFilm && (
-            <TmdbSearch onSelect={handleTmdbSelect} />
-          )}
+          <FieldLabel label="Title">
+            <input type="text" value={title} onChange={e => setTitle(e.target.value)} className={inputClass} />
+          </FieldLabel>
 
-          <input type="text" placeholder="Title" value={title} onChange={e => setTitle(e.target.value)} className={inputClass} />
-          <input type="text" placeholder={isFilm ? "Director(s)" : "Creator"} value={creator} onChange={e => setCreator(e.target.value)} className={inputClass} />
+          <FieldLabel label={isFilm ? "Director(s)" : "Creator"}>
+            <input type="text" value={creator} onChange={e => setCreator(e.target.value)} className={inputClass} />
+          </FieldLabel>
 
           {isFilm && (
             <>
-              <input type="text" placeholder="Writer(s)" value={filmWriters} onChange={e => setFilmWriters(e.target.value)} className={inputClass} />
-              <input type="text" placeholder="Cast / Starring" value={filmCast} onChange={e => setFilmCast(e.target.value)} className={inputClass} />
+              <FieldLabel label="Writer(s)">
+                <input type="text" value={filmWriters} onChange={e => setFilmWriters(e.target.value)} className={inputClass} />
+              </FieldLabel>
+              <FieldLabel label="Cast / Starring">
+                <input type="text" value={filmCast} onChange={e => setFilmCast(e.target.value)} className={inputClass} />
+              </FieldLabel>
               <div className="grid grid-cols-3 gap-2">
-                <input type="text" placeholder="Runtime (e.g. 95m)" value={filmRuntime} onChange={e => setFilmRuntime(e.target.value)} className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
-                <input type="text" placeholder="Country" value={filmCountry} onChange={e => setFilmCountry(e.target.value)} className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
-                <input type="number" placeholder="Year" value={year} onChange={e => setYear(e.target.value)} className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
+                <FieldLabel label="Runtime">
+                  <input type="text" placeholder="e.g. 95m" value={filmRuntime} onChange={e => setFilmRuntime(e.target.value)} className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
+                </FieldLabel>
+                <FieldLabel label="Country">
+                  <input type="text" value={filmCountry} onChange={e => setFilmCountry(e.target.value)} className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
+                </FieldLabel>
+                <FieldLabel label="Year">
+                  <input type="number" value={year} onChange={e => setYear(e.target.value)} className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
+                </FieldLabel>
               </div>
-              <input type="text" placeholder="Genre (e.g. Documentary, Drama)" value={filmGenre} onChange={e => setFilmGenre(e.target.value)} className={inputClass} />
+              <FieldLabel label="Genre">
+                <input type="text" placeholder="e.g. Documentary, Drama" value={filmGenre} onChange={e => setFilmGenre(e.target.value)} className={inputClass} />
+              </FieldLabel>
             </>
           )}
 
-          <textarea placeholder={isFilm ? "Synopsis" : "Description"} value={description} onChange={e => setDescription(e.target.value)} rows={4} className={inputClass} />
+          <FieldLabel label={isFilm ? "Synopsis" : "Description"}>
+            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={4} className={inputClass} />
+          </FieldLabel>
 
           {isFilm && (
-            <textarea placeholder="Comments / Notes (original curator notes, additional context)" value={filmComment} onChange={e => setFilmComment(e.target.value)} rows={3} className={inputClass} />
+            <FieldLabel label="Comments / Notes">
+              <textarea placeholder="Original curator notes, additional context" value={filmComment} onChange={e => setFilmComment(e.target.value)} rows={3} className={inputClass} />
+            </FieldLabel>
           )}
 
           {!isFilm && (
             <div className="grid grid-cols-3 gap-2">
-              <input type="number" placeholder="Month" value={month} onChange={e => setMonth(e.target.value)} className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
-              <input type="number" placeholder="Day" value={day} onChange={e => setDay(e.target.value)} className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
-              <input type="number" placeholder="Year" value={year} onChange={e => setYear(e.target.value)} className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
+              <FieldLabel label="Month">
+                <input type="number" value={month} onChange={e => setMonth(e.target.value)} className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
+              </FieldLabel>
+              <FieldLabel label="Day">
+                <input type="number" value={day} onChange={e => setDay(e.target.value)} className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
+              </FieldLabel>
+              <FieldLabel label="Year">
+                <input type="number" value={year} onChange={e => setYear(e.target.value)} className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" />
+              </FieldLabel>
             </div>
           )}
 
-          <input type="text" placeholder="Tags (comma-separated)" value={tags} onChange={e => setTags(e.target.value)} className={inputClass} />
-          <input type="text" placeholder={isFilm ? "Trailer URL (YouTube, Vimeo)" : "Source URL"} value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} className={inputClass} />
+          <FieldLabel label={isFilm ? "Trailer URL (YouTube, Vimeo)" : "Source URL"}>
+            <input type="text" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} className={inputClass} />
+          </FieldLabel>
+
+          <FieldLabel label="Tags (comma-separated)">
+            <input type="text" value={tags} onChange={e => setTags(e.target.value)} className={inputClass} />
+          </FieldLabel>
+
+          {/* Existing images */}
+          {existingImages.length > 0 && (
+            <div>
+              <label className="text-xs text-gray-400 block mb-1.5">Current Images</label>
+              <div className="grid grid-cols-3 gap-2">
+                {existingImages.map(img => (
+                  <div key={img.id} className="relative group rounded-lg overflow-hidden bg-black/20 aspect-square">
+                    <img
+                      src={img.thumbnailUrl || img.url}
+                      alt={img.caption || 'Entry image'}
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteImage(img.id)}
+                      disabled={deletingImageId === img.id}
+                      className="absolute top-1 right-1 p-1 bg-black/70 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600/80 disabled:opacity-50"
+                    >
+                      {deletingImageId === img.id ? (
+                        <div className="w-3 h-3 border border-white/50 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <X size={12} className="text-white" />
+                      )}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Upload new images */}
+          <div>
+            <label className="text-xs text-gray-400 block mb-1.5">
+              {existingImages.length > 0 ? 'Add More Images' : 'Upload Images'}
+            </label>
+            <ImageDropzone files={imageFiles} setFiles={setImageFiles} maxFiles={5} />
+          </div>
         </div>
 
         <div className="flex justify-end gap-2 mt-6">

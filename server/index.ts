@@ -462,7 +462,17 @@ app.get('/api/entries/:id', async (req, res) => {
         });
         if (entry) {
             const { submitterName: _sn, submitterEmail: _se, submitterComment: _sc, ...rest } = entry;
-            res.json(rest);
+            const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+            const host = req.headers['x-forwarded-host'] || req.get('host');
+            const baseUrl = `${protocol}://${host}`;
+            res.json({
+                ...rest,
+                images: rest.images.map(img => ({
+                    ...img,
+                    url: `${baseUrl}/uploads/entries/${img.filename}`,
+                    thumbnailUrl: `${baseUrl}/uploads/entries/thumb_${img.filename}`
+                }))
+            });
         } else {
             res.status(404).json({ error: 'Entry not found' });
         }
@@ -542,8 +552,19 @@ app.get('/api/admin/entries', adminAuth, async (req, res) => {
             }),
             prisma.entry.count({ where }),
         ]);
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+        const host = req.headers['x-forwarded-host'] || req.get('host');
+        const baseUrl = `${protocol}://${host}`;
+        const withUrls = entries.map(e => ({
+            ...e,
+            images: e.images.map(img => ({
+                ...img,
+                url: `${baseUrl}/uploads/entries/${img.filename}`,
+                thumbnailUrl: `${baseUrl}/uploads/entries/thumb_${img.filename}`
+            }))
+        }));
         res.set('X-Total-Count', String(total));
-        res.json(entries);
+        res.json(withUrls);
     } catch (error) {
         console.error('Fetch admin entries error:', error);
         res.status(500).json({ error: 'Failed to fetch admin entries' });

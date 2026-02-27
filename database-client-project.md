@@ -2,7 +2,7 @@
 
 **Client:** Chris Garlock & Harold Phillips / Labor Heritage Foundation
 **Date:** February 23, 2026
-**Status:** Phase 3 COMPLETE. App running locally with 5,954 entries (3,762 CSV + 2,192 films). 1,292 films enriched via TMDB with posters, cast, trailers. Pushed to GitHub.
+**Status:** Phase 3 COMPLETE (incl. form polish). App running locally with 5,954 entries (3,762 CSV + 2,192 films). 1,292 films enriched via TMDB with posters, cast, trailers. Admin forms aligned with labeled fields and image management. Production-audited for Coolify deployment.
 **Repo:** https://github.com/Catskill909/labor-database
 **Next:** Deploy to Coolify, build "On This Day" feature, add new content types (plays, poetry).
 
@@ -347,6 +347,14 @@ This is faster and more reliable than a dynamic form generator, and produces bet
   - Idempotent with `--dry-run`, `--limit N`, `--no-posters` flags
 - [x] Infinite scroll + fade-in animations on public site and admin dashboard
 - [x] `react-player` for YouTube/Vimeo embeds, `react-dropzone` for image uploads, `ImageDropzone` component
+- [x] Form alignment & admin polish (Phase 3c):
+  - All form fields have visible labels above inputs (not just placeholders that disappear when populated)
+  - Admin edit modal: image management — view current images, upload new ones, hover-to-delete with spinner
+  - Admin edit modal: category shown as read-only subheader (not an editable dropdown — prevents accidental category changes that would lose metadata)
+  - Admin edit modal: removed TMDB search (would overwrite existing curated data)
+  - Public submission wizard: film form labels match admin form for consistency
+  - Server: admin API uses `x-forwarded-proto`/`x-forwarded-host` for correct image URLs behind Coolify reverse proxy
+  - Server: single entry endpoint now returns full image URLs (was returning raw filenames)
 
 ### Phase 4: "On This Day" — The Killer Feature
 - [ ] **Landing page "On This Day" view** — today's date across all categories:
