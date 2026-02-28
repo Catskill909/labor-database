@@ -262,6 +262,27 @@ export default function EntryDetail({ entry, onClose }: EntryDetailProps) {
               {meta.writer && <p><span className="text-gray-500">Songwriter:</span> {meta.writer}</p>}
               {meta.genre && <p><span className="text-gray-500">Genre:</span> {meta.genre}</p>}
               {meta.runTime && <p><span className="text-gray-500">Runtime:</span> {meta.runTime}</p>}
+
+              {/* Embedded YouTube player for music */}
+              {entry.sourceUrl && /(?:youtube\.com\/|youtu\.be\/)/.test(entry.sourceUrl) && (
+                <div className="mt-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Play size={14} className="text-red-400" />
+                    <span className="text-sm font-medium text-gray-400">Listen</span>
+                  </div>
+                  <div className="aspect-video rounded-lg overflow-hidden bg-black">
+                    <ReactPlayer
+                      src={entry.sourceUrl}
+                      width="100%"
+                      height="100%"
+                      light={true}
+                      controls={true}
+                      playing={false}
+                    />
+                  </div>
+                </div>
+              )}
+
               {meta.lyrics && (
                 <div>
                   <p className="text-gray-500 mb-1">Lyrics:</p>
@@ -298,8 +319,8 @@ export default function EntryDetail({ entry, onClose }: EntryDetailProps) {
             </div>
           )}
 
-          {/* Source URL */}
-          {entry.sourceUrl && (
+          {/* Source URL — skip for music with embedded YouTube player */}
+          {entry.sourceUrl && !(entry.category === 'music' && /(?:youtube\.com\/|youtu\.be\/)/.test(entry.sourceUrl)) && (
             <a
               href={entry.sourceUrl}
               target="_blank"

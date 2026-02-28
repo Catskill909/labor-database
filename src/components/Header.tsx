@@ -34,7 +34,9 @@ export default function Header({ searchQuery, setSearchQuery, onAddClick }: Head
       <header className="border-b border-white/5 px-4 sm:px-6 py-4">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center gap-4">
           <div className="flex items-center gap-3 shrink-0">
-            <Database size={28} className="text-red-400" />
+            <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center shadow-lg">
+              <Database size={22} className="text-white" />
+            </div>
             <h1 className="text-xl font-bold tracking-tight">Labor Arts &amp; Culture Database</h1>
           </div>
 
