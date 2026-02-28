@@ -13,6 +13,36 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
+// Decode common HTML entities in text fields to prevent display issues
+function decodeHtmlEntities(text: string | null | undefined): string | null {
+    if (!text) return text as null;
+    return text
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&apos;/g, "'")
+        .replace(/&#(\d+);/g, (_m, code) => String.fromCharCode(parseInt(code)))
+        .replace(/&#x([0-9a-fA-F]+);/g, (_m, code) => String.fromCharCode(parseInt(code, 16)));
+}
+
+// Clean HTML entities from entry text fields
+function cleanEntryText<T extends Record<string, unknown>>(data: T): T {
+    const textFields = ['title', 'description', 'creator', 'tags'] as const;
+    const cleaned = { ...data };
+    for (const field of textFields) {
+        if (field in cleaned && typeof cleaned[field] === 'string') {
+            (cleaned as Record<string, unknown>)[field] = decodeHtmlEntities(cleaned[field] as string);
+        }
+    }
+    // Also clean metadata if it's a string (JSON)
+    if ('metadata' in cleaned && typeof cleaned.metadata === 'string') {
+        (cleaned as Record<string, unknown>).metadata = decodeHtmlEntities(cleaned.metadata as string);
+    }
+    return cleaned;
+}
+
 const app = express();
 const port = process.env.PORT || 3001;
 const prisma = new PrismaClient();
@@ -629,7 +659,7 @@ app.get('/api/entries/:id', async (req, res) => {
 
 // POST public submission (unpublished by default)
 app.post('/api/entries', async (req, res) => {
-    const { category, title, description, month, day, year, creator, metadata, tags, sourceUrl, submitterName, submitterEmail, submitterComment } = req.body;
+    const { category, title, description, month, day, year, creator, metadata, tags, sourceUrl, submitterName, submitterEmail, submitterComment } = cleanEntryText(req.body);
     try {
         const entry = await prisma.entry.create({
             data: {
@@ -718,7 +748,7 @@ app.get('/api/admin/entries', adminAuth, async (req, res) => {
 
 // POST admin create entry (published by default)
 app.post('/api/admin/entries', adminAuth, async (req, res) => {
-    const { category, title, description, month, day, year, creator, metadata, tags, sourceUrl, isPublished, submitterName, submitterEmail, submitterComment } = req.body;
+    const { category, title, description, month, day, year, creator, metadata, tags, sourceUrl, isPublished, submitterName, submitterEmail, submitterComment } = cleanEntryText(req.body);
     try {
         const entry = await prisma.entry.create({
             data: {
@@ -748,7 +778,7 @@ app.post('/api/admin/entries', adminAuth, async (req, res) => {
 // PUT update entry (Admin)
 app.put('/api/admin/entries/:id', adminAuth, async (req, res) => {
     const id = req.params.id as string;
-    const { category, title, description, month, day, year, creator, metadata, tags, sourceUrl, isPublished } = req.body;
+    const { category, title, description, month, day, year, creator, metadata, tags, sourceUrl, isPublished } = cleanEntryText(req.body);
     try {
         const entry = await prisma.entry.update({
             where: { id: parseInt(id) },
@@ -938,7 +968,8 @@ app.post('/api/admin/import', adminAuth, async (req, res) => {
                 }
             }
 
-            for (const item of entries) {
+            for (const rawItem of entries) {
+                const item = cleanEntryText(rawItem);
                 // Check for existing entry by title + category (dedup strategy)
                 const existing = await tx.entry.findFirst({
                     where: {
