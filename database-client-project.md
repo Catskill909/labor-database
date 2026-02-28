@@ -2,9 +2,9 @@
 
 **Client:** Chris Garlock & Harold Phillips / Labor Heritage Foundation
 **Date:** February 23, 2026
-**Status:** Phase 4 COMPLETE ("On This Day") + hamburger menu, About modal, Privacy Policy modal, footer links. App running locally with 5,954 entries (3,762 CSV + 2,192 films). "On This Day" is the landing tab with date navigation, calendar picker, sectioned card grid. Browse database available via category tabs.
+**Status:** Phase 5 COMPLETE (Admin Dashboard & Submissions). App running locally with 5,954 entries (3,762 CSV + 2,192 films). Full admin dashboard with Labor Landmarks-style UI, category-specific edit forms, preview modals, submission wizard (public + admin), custom tooltips. "On This Day" landing tab with date navigation, calendar picker, sectioned card grid. Browse database via category tabs.
 **Repo:** https://github.com/Catskill909/labor-database
-**Next:** Deploy to Coolify, add week view, share/copy/print, presenter mode, new content types (plays, poetry).
+**Next:** Deploy to Coolify, timeline/tags/cross-linking, new content types (plays, poetry).
 
 ---
 
@@ -373,13 +373,30 @@ This is faster and more reliable than a dynamic form generator, and produces bet
 - [x] Category tabs: History, Quotes, Music, Films still accessible for full browse with filters
 - [x] See [docs/on-this-day-dev.md](docs/on-this-day-dev.md) for full planning & design notes
 
-### Phase 5: Timeline, Tags & Cross-Linking
+### Phase 5: Admin Dashboard & Submissions ✅ COMPLETE
+- [x] **Admin dashboard redesign** — Labor Landmarks-inspired styling: red icon badge header, stats cards (Published/Review Queue as clickable filters with ring highlight), segmented pill category tabs, table layout with column headers (Entry/Category/Status/Actions)
+- [x] **Preview modal** — Eye icon per entry opens read-only EntryDetail component (reuses public detail views for all categories)
+- [x] **Category-specific edit forms** — EditEntryModal matches SubmissionWizard fields per category:
+  - Quote: Author, Source (book/speech/article), Quote text, Tags, Source URL
+  - Music: Song Title, Performer, Songwriter, URL, Genre/RunTime/Year grid, Keywords/Lyrics, Tags
+  - Film: Title, Director(s), Writer(s), Cast, Runtime/Country/Year, Genre, Synopsis, Comments, Trailer URL, Tags
+  - History: Title, Month/Day/Year, Description, Tags, Source URL
+- [x] **Admin entry creation** — SubmissionWizard with `isAdmin` prop (skips contact step, posts to admin API)
+- [x] **Submission improvements** — Double-click protection with spinner, disabled Back/X/backdrop during submission
+- [x] **Submitter info** — Purple UserRound icon only appears on user-submitted entries (spacer preserves alignment), modal shows name/email(mailto)/comment
+- [x] **Custom tooltips** — CSS `[data-tooltip]::after` pseudo-element, instant 100ms fade+scale, styled dark zinc background with border/shadow (no library)
+- [x] **Edit icon fix** — Changed from Plus to Edit2 pencil icon
+- [x] **sourceUrl display fixes** — Smart link text (`laborfilms.wordpress.com` → "View on Labor Film Database"), hides redundant YouTube text links when embedded player shown
+- [x] **Contact info section** — Restyled SubmissionWizard Step 3 with "YOUR CONTACT INFO" header, red subtitle, side-by-side name/email
+- [x] **Category form tweaks** — Removed Date from quotes, reordered music fields (Title/Performer first), made film fields flexible with helper text
+
+### Phase 6: Timeline, Tags & Cross-Linking
 - [ ] **Timeline view** — browse by decade or year across all categories
 - [ ] **Tag system** — shared tags across all categories for cross-filtering
 - [ ] **Auto-linking** — surface connections across categories by date + keyword matching
 - [ ] Visual timeline component
 
-### Phase 6+: New Categories (Plays, Poetry, etc.)
+### Phase 7+: New Categories (Plays, Poetry, etc.)
 As the client requests new content types:
 - [ ] Build category-specific submission form and admin edit form
 - [ ] Add admin tab and any unique display logic (e.g., embedded video for plays)
@@ -542,13 +559,15 @@ Cross-referencing (e.g., Pittston strike ↔ Trumka quote ↔ related song) work
 - App runs locally on port 3001 (`./dev.sh`)
 - SQLite database at `prisma/dev.db` with 5,954 entries (3,762 CSV + 2,192 films)
 - "On This Day" is the landing tab — shows today's date with history, quotes, year-matched films/music
+- Admin dashboard fully styled with preview, edit (category-specific), submitter info modals
+- Public + admin submission wizards with category-specific forms and double-click protection
 - All code pushed to https://github.com/Catskill909/labor-database
 - NOT yet deployed to Coolify
 
 ### To Start Working
 ```bash
 cd ~/Desktop/labor-database
-./dev.sh          # starts server at http://localhost:3001
+npm run dev:fullstack   # starts server at http://localhost:3001
 ```
 
 ### Key Files
@@ -556,19 +575,20 @@ cd ~/Desktop/labor-database
 |------|---------|
 | `server/index.ts` | Express API (~980 lines) — all routes, admin auth, search, On This Day |
 | `src/App.tsx` | Main React app — layout, state, tab routing (On This Day + browse) |
+| `src/components/AdminDashboard.tsx` | Admin: stats cards, segmented tabs, table layout, preview/edit/submitter modals |
+| `src/components/SubmissionWizard.tsx` | Public + admin entry wizard (`isAdmin` prop skips contact step) |
+| `src/components/EntryDetail.tsx` | Entry detail modal (category-aware: film, quote, music, history) |
 | `src/components/OnThisDayView.tsx` | On This Day tab — date hero, calendar, sectioned card grid |
 | `src/components/EntryGrid.tsx` | Category-specific card components (browse view) |
-| `src/components/EntryDetail.tsx` | Modal detail view |
-| `src/components/SubmissionWizard.tsx` | Public submission form (3-step) |
-| `src/components/AdminDashboard.tsx` | Admin panel |
+| `src/components/Header.tsx` | Header with search, Add button, hamburger menu |
 | `prisma/schema.prisma` | Database schema |
-| `docs/on-this-day-dev.md` | Phase 4 planning, design decisions, calendar package research |
+| `src/index.css` | Custom CSS: tooltips (`[data-tooltip]`), glass effect, animations |
 | `scripts/import-*.ts` | CSV import scripts |
 | `CLAUDE.md` | AI session guardrails |
 
 ### Immediate Next Steps
 1. **Deploy to Coolify** — create new app, configure TWO persistent volumes (`/app/data`, `/app/uploads`), set `ADMIN_PASSWORD` env var
-2. **Import Films** — waiting on WordPress XML export from client (Chris Garlock)
-3. **Category-specific filters** — add Month/Day/Year dropdowns for History, author filter for Quotes, etc.
-4. **"On This Day" feature** — the client's killer feature for daily podcast prep
-5. **Review queue polish** — admin review of public submissions
+2. **Timeline/Tags** — Phase 6: decade browser, shared tag system, auto cross-linking
+3. **New content types** — Phase 7: plays, poetry (client to define fields)
+4. **Week view** — browse a full week of On This Day content
+5. **Share/print** — copy/share/print individual entries or daily digest

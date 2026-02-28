@@ -51,8 +51,8 @@ Same architecture as the [Labor Landmarks Map](https://github.com/Catskill909/la
 │       ├── FilterBar.tsx    # Category-specific filter controls
 │       ├── TmdbSearch.tsx   # TMDB typeahead search component
 │       ├── ImageDropzone.tsx # Drag-and-drop image upload
-│       ├── SubmissionWizard.tsx  # Public submission form
-│       └── AdminDashboard.tsx   # Admin panel
+│       ├── SubmissionWizard.tsx  # Submission wizard (public + admin mode)
+│       └── AdminDashboard.tsx   # Admin dashboard (stats, table, preview/edit/submitter modals)
 ├── prisma/
 │   ├── schema.prisma        # Database schema
 │   └── seed.ts              # Default categories
@@ -157,12 +157,15 @@ The SQLite database lives on a persistent volume, so deploys update code without
 Navigate to `/admin` and log in with the `ADMIN_PASSWORD`.
 
 Features:
-- Browse/edit/delete entries by category with infinite scroll
-- Category-aware edit forms with labeled fields (film entries show all metadata fields)
-- Image management: view existing images, upload new ones, delete with hover-to-remove
-- Category shown as read-only subheader (prevents accidental category changes)
-- Review queue for public submissions
-- JSON backup & restore
+- **Dashboard** — Labor Landmarks-style UI with stats cards (Published / Review Queue), segmented category tabs, table layout with column headers
+- **Stats cards as filters** — click Published or Review Queue cards to filter entries by status (ring highlight when active)
+- **Preview modal** — eye icon opens a read-only detail view (reuses public EntryDetail component for all categories)
+- **Category-specific edit forms** — edit fields match the submission wizard per category (Quote: Author/Source/Quote, Music: Title/Performer/Songwriter/URL/Genre/RunTime/Lyrics, Film: all TMDB fields, History: Title/Date/Description)
+- **Admin entry creation** — "Add to Database" button opens the submission wizard in admin mode (skips contact info step)
+- **Submitter info** — purple icon appears only on user-submitted entries, shows name/email/comment in modal
+- **Image management** — view existing images, upload new ones, delete with hover-to-remove
+- **Custom tooltips** — instant-appearing styled tooltips on all action buttons
+- **JSON backup & restore**
 
 In local dev, admin auth is skipped if no `ADMIN_PASSWORD` is set.
 
@@ -174,21 +177,35 @@ In local dev, admin auth is skipped if no `ADMIN_PASSWORD` is set.
 | `/api/entries/filter-options` | GET | Distinct filter values for dropdowns (genres, years) |
 | `/api/entries/:id` | GET | Single entry with full image URLs |
 | `/api/entries` | POST | Public submission (unpublished) |
+| `/api/on-this-day` | GET | Entries for a date, grouped by category (`?month=&day=`) |
+| `/api/on-this-day/calendar` | GET | Calendar dot data for a month (`?month=`) |
 | `/api/categories` | GET | List active categories |
 | `/api/tmdb/search` | GET | Search TMDB by title (server-side proxy) |
 | `/api/tmdb/movie/:tmdbId` | GET | Full TMDB movie details + credits + videos |
 | `/api/tmdb/download-poster` | POST | Download TMDB poster and attach to entry |
 | `/api/admin/entries` | GET | Admin: list with submitter info + pagination |
+| `/api/admin/entries` | POST | Admin: create entry (published, no submitter info) |
 | `/api/admin/entries/:id` | PUT | Admin: update entry |
+| `/api/admin/entries/:id/publish` | PATCH | Admin: toggle publish status |
 | `/api/admin/entries/:id` | DELETE | Admin: delete entry |
 | `/api/admin/backup` | GET | Admin: JSON export of all data |
 | `/api/admin/import` | POST | Admin: JSON import with smart merge |
 
+## Features
+
+- **On This Day** — Landing tab shows today's labor history, quotes, and year-matched films/music. Calendar picker, date navigation (arrows/keyboard), sectioned card grid
+- **Unified Search** — One search bar across all categories. Search "Lawrence" and get the 1912 strike, songs, quotes, and films
+- **Category Browse** — Filter by History, Quotes, Music, Films with category-specific filter bars
+- **Public Submissions** — 3-step wizard (pick category → category-specific form → contact info). Double-click protected with spinner
+- **Admin Dashboard** — Stats cards, preview modal, category-specific edit forms, submitter info, custom tooltips, table layout
+- **Film Enrichment** — TMDB API integration for posters, cast, trailers. YouTube embed via react-player
+
 ## Documentation
 
-- [**database-client-project.md**](database-client-project.md) — Full project planning doc: vision, architecture, schema, roadmap, client Q&A, session work logs
+- [**database-client-project.md**](database-client-project.md) — Full project planning doc: vision, architecture, schema, phased roadmap, client Q&A, session work logs
 - [**CLAUDE.md**](CLAUDE.md) — AI coding session guardrails and pre-push checklist
 - [**docs/film-data-dev.md**](docs/film-data-dev.md) — Film import, TMDB integration, and enrichment notes
+- [**docs/on-this-day-dev.md**](docs/on-this-day-dev.md) — Phase 4 planning, design decisions, calendar package research
 
 ## License
 
