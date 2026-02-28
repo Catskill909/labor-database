@@ -120,37 +120,72 @@ Idempotent — safe to re-run (skips entries already enriched with `tmdbId`).
 
 ## Deployment (Coolify)
 
-Docker-based deployment with two persistent volumes:
+Docker-based deployment with two persistent volumes. **Without both volumes, ALL DATA AND IMAGES ARE LOST on every deploy.**
 
-| Volume | Mount | Purpose |
-|--------|-------|---------|
-| `labor_db_data` | `/app/data` | SQLite database — survives redeploys |
-| `labor_db_uploads` | `/app/uploads` | Uploaded images (~153 MB posters) — survives redeploys |
+### Persistent Volumes (CRITICAL)
 
-### Setup
+| Volume | Mount Path | Purpose | Without it... |
+|--------|-----------|---------|---------------|
+| `labor_db_data` | `/app/data` | SQLite database | ALL entries wiped every deploy |
+| `labor_db_uploads` | `/app/uploads` | Uploaded images (~153 MB posters) | All images lost every deploy |
 
-1. Create new Coolify app pointing to this repo
-2. Add persistent storage:
-   - Volume 1: mount at `/app/data`
-   - Volume 2: mount at `/app/uploads`
+### Environment Variables
+
+| Variable | Required | Set Where | Notes |
+|----------|----------|-----------|-------|
+| `ADMIN_PASSWORD` | **Yes** | Coolify env vars | Protects `/admin` dashboard and all `/api/admin/*` endpoints |
+| `TMDB_API_KEY` | No | Coolify env vars | Enables TMDB film search/enrichment in forms |
+| `DATABASE_URL` | No | Pre-set in Dockerfile | Default: `file:/app/data/dev.db` — do NOT override |
+| `PORT` | No | Pre-set in Dockerfile | Default: `3001` — do NOT override |
+| `NODE_ENV` | No | Pre-set in Dockerfile | Default: `production` |
+
+**Never put secrets in the Dockerfile `ARG` or `ENV`** — always use Coolify environment variables.
+
+### Setup Checklist
+
+1. Create new Coolify app pointing to this repo (`main` branch)
+2. **Add TWO persistent storage volumes** (Configuration → Persistent Storage):
+   - Volume 1: name `labor_db_data`, mount at `/app/data`
+   - Volume 2: name `labor_db_uploads`, mount at `/app/uploads`
+   - **Verify both volumes have DIFFERENT names** (Coolify silently fails if names collide)
 3. Set environment variables:
-   - `ADMIN_PASSWORD=<your-password>`
-   - `TMDB_API_KEY=<your-tmdb-bearer-token>` (for TMDB search in submission/admin forms)
-4. Deploy — Coolify auto-deploys on push to `main`
+   - `ADMIN_PASSWORD=<strong-password>`
+   - `TMDB_API_KEY=<your-tmdb-bearer-token>` (optional)
+4. Set exposed port to `3001`
+5. Deploy — Coolify auto-deploys on push to `main`
+6. Verify: visit `https://your-domain` — should see the app
+7. Verify: visit `https://your-domain/admin` — should prompt for password
+
+### Container Startup Sequence
+
+On every deploy, the container runs:
+1. `prisma migrate deploy` — applies any pending database migrations
+2. `prisma/seed.ts` — seeds default categories (idempotent — skips if categories exist)
+3. `tsx server/index.ts` — starts the Express server on port 3001
+
+If no database exists at `/app/data/dev.db`, the container logs a **WARNING** about missing persistent volume.
 
 ### Production Data Migration
 
-After first Coolify deploy:
-1. Run import scripts on production OR use admin JSON backup/import
-2. Run `npm run enrich:films` on production (or import pre-enriched backup)
-3. Upload `uploads/entries/` poster images to production volume
+After first Coolify deploy (empty database):
+1. Go to `/admin`, log in with your `ADMIN_PASSWORD`
+2. Use Import to upload a JSON backup (exported from local dev via Admin → Backup)
+3. For images: either import pre-enriched data with poster URLs, or upload the `uploads/entries/` directory contents to the production volume
 
 ### CODE vs DATA
 
-- **Code changes** → `git push` → Coolify auto-deploys
-- **Data changes** → Admin panel (add/edit/delete entries, backup/restore)
+- **Code changes** → `git push` → Coolify auto-deploys (database untouched)
+- **Data changes** → Admin panel (add/edit/delete entries, JSON backup/restore)
+- Always ask: "Is this a CODE problem or a DATA problem?"
 
-The SQLite database lives on a persistent volume, so deploys update code without touching data.
+### Known Pre-Launch Issues
+
+These should be addressed before going fully public:
+- **No health check endpoint** — no `/api/health` route exists; Coolify health checks will fail if enabled
+- **CORS wide open** — `app.use(cors())` allows all origins; restrict to production domain
+- **Image upload has no auth** — `POST /api/entries/:id/images` is public; needs `adminAuth` middleware
+- **No rate limiting** — public submission, search, and upload endpoints have no rate limits
+- **Large JS bundles** — `react-player` produces ~1.5MB of chunks (dash.all.min + hls); consider lazy loading
 
 ## Admin Panel
 

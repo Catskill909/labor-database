@@ -2,9 +2,9 @@
 
 **Client:** Chris Garlock & Harold Phillips / Labor Heritage Foundation
 **Date:** February 23, 2026
-**Status:** Phase 5 COMPLETE (Admin Dashboard & Submissions). App running locally with 5,954 entries (3,762 CSV + 2,192 films). Full admin dashboard with Labor Landmarks-style UI, category-specific edit forms, preview modals, submission wizard (public + admin), custom tooltips. "On This Day" landing tab with date navigation, calendar picker, sectioned card grid. Browse database via category tabs.
+**Status:** Phase 5 COMPLETE. Deployment audit COMPLETE. App running locally with 5,954 entries. Pushed to GitHub. Ready for Coolify deployment — see Coolify Setup section below for step-by-step instructions.
 **Repo:** https://github.com/Catskill909/labor-database
-**Next:** Deploy to Coolify, timeline/tags/cross-linking, new content types (plays, poetry).
+**Next:** Deploy to Coolify (setup checklist below), fix pre-launch security issues, then timeline/tags/cross-linking, new content types (plays, poetry).
 
 ---
 
@@ -149,11 +149,44 @@ Everything lives in **one database, one search, one platform**. The unified Entr
 - Separate git repo, separate Coolify app on Paul's Coolify instance
 - Same Dockerfile pattern (multi-stage build: Vite frontend + Express server)
 - **TWO persistent volumes** (same as landmarks):
-  1. `/app/data` — SQLite database
-  2. `/app/uploads` — uploaded images (movie posters, etc.)
+  1. `/app/data` — SQLite database (WITHOUT THIS, ALL DATA WIPED EVERY DEPLOY)
+  2. `/app/uploads` — uploaded images/posters (WITHOUT THIS, ALL IMAGES LOST EVERY DEPLOY)
 - Same `CODE vs DATA` separation — git push updates code, admin import syncs data
 - Same backup/restore workflow
 - Subdomain via A record on Paul's domain, pointed to Coolify
+
+### Coolify Setup (Step-by-Step)
+1. Create new Coolify app → point to `https://github.com/Catskill909/labor-database`, branch `main`
+2. Configuration → Persistent Storage → add TWO volumes:
+   - Name: `labor_db_data` → Mount: `/app/data`
+   - Name: `labor_db_uploads` → Mount: `/app/uploads`
+   - **Both volumes MUST have different names** — Coolify silently fails on name collision
+3. Configuration → Environment Variables:
+   - `ADMIN_PASSWORD` = (strong password) — **REQUIRED** — protects admin dashboard & API
+   - `TMDB_API_KEY` = (TMDB bearer token) — optional, for film search/enrichment
+   - Do NOT set `DATABASE_URL`, `PORT`, or `NODE_ENV` — these are pre-configured in Dockerfile
+4. Configuration → Network → Exposed Port: `3001`
+5. Deploy
+6. After first deploy: go to `/admin` → Import → upload JSON backup from local dev
+7. Verify: public site loads, admin login works, entries display correctly
+
+### Container Startup
+On every deploy/restart:
+1. Checks for existing database at `/app/data/dev.db` — logs WARNING if missing (means volume not mounted)
+2. Runs `prisma migrate deploy` — applies pending migrations
+3. Runs `prisma/seed.ts` — seeds default categories (idempotent, skips if categories exist)
+4. Starts Express server via `tsx server/index.ts` on port 3001
+
+### Known Issues to Fix Before Public Launch
+| Issue | Severity | Details |
+|-------|----------|---------|
+| No health check endpoint | Medium | No `/api/health` route — Coolify health checks will fail if enabled |
+| CORS allows all origins | Medium | `app.use(cors())` in server/index.ts — restrict to production domain |
+| Image upload has no auth | Medium | `POST /api/entries/:id/images` is public — needs `adminAuth` middleware |
+| TMDB poster download public | Low | `POST /api/tmdb/download-poster` has no auth — could fill disk |
+| No rate limiting | Medium | Public endpoints (submission, search, upload) have no rate limits |
+| Large JS bundles | Low | react-player produces ~1.5MB chunks — consider lazy loading |
+| Admin UI visible on localhost | Low | Frontend skips login on localhost — server auth still enforced |
 
 ### Image Support
 - **Confirmed needed** — at minimum for films (movie posters when no YouTube trailer exists)
@@ -587,8 +620,14 @@ npm run dev:fullstack   # starts server at http://localhost:3001
 | `CLAUDE.md` | AI session guardrails |
 
 ### Immediate Next Steps
-1. **Deploy to Coolify** — create new app, configure TWO persistent volumes (`/app/data`, `/app/uploads`), set `ADMIN_PASSWORD` env var
-2. **Timeline/Tags** — Phase 6: decade browser, shared tag system, auto cross-linking
-3. **New content types** — Phase 7: plays, poetry (client to define fields)
-4. **Week view** — browse a full week of On This Day content
-5. **Share/print** — copy/share/print individual entries or daily digest
+1. **Deploy to Coolify** — follow the "Coolify Setup (Step-by-Step)" section above
+2. **Fix pre-launch security issues** — see "Known Issues to Fix Before Public Launch" table above:
+   - Add `/api/health` endpoint
+   - Restrict CORS to production domain
+   - Add `adminAuth` to image upload endpoint
+   - Add basic rate limiting
+3. **Import production data** — use Admin Dashboard → Import with JSON backup from local dev
+4. **Timeline/Tags** — Phase 6: decade browser, shared tag system, auto cross-linking
+5. **New content types** — Phase 7: plays, poetry (client to define fields)
+6. **Week view** — browse a full week of On This Day content
+7. **Share/print** — copy/share/print individual entries or daily digest
