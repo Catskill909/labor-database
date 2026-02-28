@@ -163,8 +163,8 @@ function FilmDetail({ entry, onClose }: EntryDetailProps) {
             </div>
           )}
 
-          {/* Source link */}
-          {entry.sourceUrl && (
+          {/* Source link — skip if it's just the same YouTube URL already shown as embedded player */}
+          {entry.sourceUrl && !(meta.youtubeId && /(?:youtube\.com\/|youtu\.be\/)/.test(entry.sourceUrl)) && (
             <div className="mt-4">
               <a
                 href={entry.sourceUrl}
@@ -173,7 +173,9 @@ function FilmDetail({ entry, onClose }: EntryDetailProps) {
                 className="inline-flex items-center gap-1.5 text-sm text-red-400 hover:text-red-300 transition-colors"
               >
                 <ExternalLink size={14} />
-                View on Labor Film Database
+                {/laborfilms\.wordpress\.com/.test(entry.sourceUrl)
+                  ? 'View on Labor Film Database'
+                  : 'View source'}
               </a>
             </div>
           )}

@@ -9,9 +9,10 @@ interface SubmissionWizardProps {
   categories: Category[];
   onClose: () => void;
   onSubmitted: () => void;
+  isAdmin?: boolean;
 }
 
-export default function SubmissionWizard({ categories, onClose, onSubmitted }: SubmissionWizardProps) {
+export default function SubmissionWizard({ categories, onClose, onSubmitted, isAdmin = false }: SubmissionWizardProps) {
   const [step, setStep] = useState(1);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -108,7 +109,7 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted }: S
         }
       }
 
-      const body = {
+      const body: Record<string, unknown> = {
         category: selectedCategory,
         title: entryTitle,
         description,
@@ -119,14 +120,22 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted }: S
         metadata: Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : null,
         tags: entryTags || null,
         sourceUrl: sourceUrl || null,
-        submitterName: submitterName || null,
-        submitterEmail: submitterEmail || null,
-        submitterComment: submitterComment || null,
       };
 
-      const res = await fetch('/api/entries', {
+      if (!isAdmin) {
+        body.submitterName = submitterName || null;
+        body.submitterEmail = submitterEmail || null;
+        body.submitterComment = submitterComment || null;
+      }
+
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (isAdmin) {
+        headers['Authorization'] = `Bearer ${sessionStorage.getItem('adminToken') || ''}`;
+      }
+
+      const res = await fetch(isAdmin ? '/api/admin/entries' : '/api/entries', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(body),
       });
 
@@ -179,14 +188,14 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted }: S
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={submitting ? undefined : onClose} />
       <div className="relative w-full max-w-lg max-h-[85vh] overflow-y-auto bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between p-6 pb-4 border-b border-[var(--border)]">
           <h2 className="text-lg font-bold">
-            {step === 1 ? 'What are you adding?' : step === 2 ? `Add ${categories.find(c => c.slug === selectedCategory)?.label || ''}` : 'Your Contact Info'}
+            {step === 1 ? 'What are you adding?' : step === 2 ? `Add ${categories.find(c => c.slug === selectedCategory)?.label || ''}` : isAdmin ? 'Confirm' : 'Your Contact Info'}
           </h2>
-          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg transition-colors">
+          <button onClick={onClose} disabled={submitting} className="p-2 hover:bg-white/5 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
             <X size={20} />
           </button>
         </div>
@@ -232,8 +241,7 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted }: S
           {step === 2 && selectedCategory === 'quote' && (
             <div className="space-y-3">
               <input type="text" placeholder="Author" value={creator} onChange={e => setCreator(e.target.value)} className="input-field" />
-              <input type="text" placeholder="Description/detail" value={quoteDetail} onChange={e => setQuoteDetail(e.target.value)} className="input-field" />
-              <input type="text" placeholder="Date(s)" value={year} onChange={e => setYear(e.target.value)} className="input-field" />
+              <input type="text" placeholder="Source — book title, speech, article, etc." value={quoteDetail} onChange={e => setQuoteDetail(e.target.value)} className="input-field" />
               <textarea
                 placeholder="Quote"
                 value={description}
@@ -247,16 +255,16 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted }: S
           {step === 2 && selectedCategory === 'music' && (
             <div className="space-y-3">
               <input type="text" placeholder="Song Title" value={title} onChange={e => setTitle(e.target.value)} className="input-field" />
-              <input type="text" placeholder="Song Writer" value={songwriter} onChange={e => setSongwriter(e.target.value)} className="input-field" />
               <input type="text" placeholder="Song Performer" value={performer} onChange={e => setPerformer(e.target.value)} className="input-field" />
-              <input type="text" placeholder="Location URL (YouTube link, etc)" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} className="input-field" />
+              <input type="text" placeholder="Song Writer (optional)" value={songwriter} onChange={e => setSongwriter(e.target.value)} className="input-field" />
+              <input type="text" placeholder="URL — YouTube, Spotify, etc. (optional)" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} className="input-field" />
               <div className="grid grid-cols-3 gap-2">
-                <input type="text" placeholder="Genre" value={genre} onChange={e => setGenre(e.target.value)} className="input-field" />
-                <input type="text" placeholder="Run Time" value={runTime} onChange={e => setRunTime(e.target.value)} className="input-field" />
-                <input type="text" placeholder="Date Written" value={year} onChange={e => setYear(e.target.value)} className="input-field" />
+                <input type="text" placeholder="Genre (optional)" value={genre} onChange={e => setGenre(e.target.value)} className="input-field" />
+                <input type="text" placeholder="Run Time (optional)" value={runTime} onChange={e => setRunTime(e.target.value)} className="input-field" />
+                <input type="text" placeholder="Date Written (optional)" value={year} onChange={e => setYear(e.target.value)} className="input-field" />
               </div>
               <textarea
-                placeholder="Please add keywords or lyrics snippet"
+                placeholder="Keywords or lyrics snippet (optional)"
                 value={lyrics}
                 onChange={e => setLyrics(e.target.value)}
                 rows={4}
@@ -279,43 +287,46 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted }: S
                 </div>
               )}
 
+              <p className="text-xs text-gray-500 italic">Adding a film, documentary, collection, or resource? Fill in what applies — only a title is needed.</p>
+
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Film Title</label>
-                <input type="text" value={title} onChange={e => setTitle(e.target.value)} className="input-field" />
+                <label className="text-xs text-gray-400 block mb-1">Title</label>
+                <input type="text" placeholder="Film, documentary, or collection name" value={title} onChange={e => setTitle(e.target.value)} className="input-field" />
               </div>
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Director(s)</label>
+                <label className="text-xs text-gray-400 block mb-1">Director(s) <span className="text-gray-600">(optional)</span></label>
                 <input type="text" value={creator} onChange={e => setCreator(e.target.value)} className="input-field" />
               </div>
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Writer(s)</label>
+                <label className="text-xs text-gray-400 block mb-1">Writer(s) <span className="text-gray-600">(optional)</span></label>
                 <input type="text" value={filmWriters} onChange={e => setFilmWriters(e.target.value)} className="input-field" />
               </div>
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Cast / Starring</label>
+                <label className="text-xs text-gray-400 block mb-1">Cast / Starring <span className="text-gray-600">(optional)</span></label>
                 <input type="text" value={filmCast} onChange={e => setFilmCast(e.target.value)} className="input-field" />
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="text-xs text-gray-400 block mb-1">Runtime</label>
+                  <label className="text-xs text-gray-400 block mb-1">Runtime <span className="text-gray-600">(opt.)</span></label>
                   <input type="text" placeholder="e.g. 95m" value={filmRuntime} onChange={e => setFilmRuntime(e.target.value)} className="input-field" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-400 block mb-1">Country</label>
+                  <label className="text-xs text-gray-400 block mb-1">Country <span className="text-gray-600">(opt.)</span></label>
                   <input type="text" value={filmCountry} onChange={e => setFilmCountry(e.target.value)} className="input-field" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-400 block mb-1">Year</label>
+                  <label className="text-xs text-gray-400 block mb-1">Year <span className="text-gray-600">(opt.)</span></label>
                   <input type="number" value={year} onChange={e => setYear(e.target.value)} className="input-field" />
                 </div>
               </div>
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Genre</label>
+                <label className="text-xs text-gray-400 block mb-1">Genre <span className="text-gray-600">(optional)</span></label>
                 <input type="text" placeholder="e.g. Documentary, Drama" value={filmGenre} onChange={e => setFilmGenre(e.target.value)} className="input-field" />
               </div>
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Synopsis</label>
+                <label className="text-xs text-gray-400 block mb-1">Synopsis / Description <span className="text-gray-600">(optional)</span></label>
                 <textarea
+                  placeholder="What is this about? For collections, describe what's included."
                   value={description}
                   onChange={e => setDescription(e.target.value)}
                   rows={4}
@@ -323,17 +334,17 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted }: S
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Trailer URL (YouTube, Vimeo)</label>
+                <label className="text-xs text-gray-400 block mb-1">Trailer or Link — YouTube, Vimeo, etc. <span className="text-gray-600">(optional)</span></label>
                 <input type="text" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} className="input-field" />
               </div>
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Tags</label>
+                <label className="text-xs text-gray-400 block mb-1">Tags <span className="text-gray-600">(optional)</span></label>
                 <input type="text" placeholder="e.g. Women, Strikes, Working Class" value={filmTags} onChange={e => setFilmTags(e.target.value)} className="input-field" />
               </div>
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Comments / Notes (optional)</label>
+                <label className="text-xs text-gray-400 block mb-1">Comments / Notes <span className="text-gray-600">(optional)</span></label>
                 <textarea
-                  placeholder="Additional context, why this film matters, etc."
+                  placeholder="Additional context, why this matters, etc."
                   value={submitterComment}
                   onChange={e => setSubmitterComment(e.target.value)}
                   rows={3}
@@ -341,7 +352,7 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted }: S
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-400 block mb-1.5">Poster Image (or use TMDB poster above)</label>
+                <label className="text-xs text-gray-400 block mb-1.5">Poster Image <span className="text-gray-600">(optional)</span></label>
                 <ImageDropzone files={imageFiles} setFiles={setImageFiles} maxFiles={3} />
               </div>
             </div>
@@ -349,17 +360,35 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted }: S
 
           {/* Step 3: Contact info */}
           {step === 3 && (
-            <div className="space-y-3">
-              <p className="text-sm text-gray-400">Your name and email address in case we need more info</p>
-              <input type="text" placeholder="Your Name" value={submitterName} onChange={e => setSubmitterName(e.target.value)} className="input-field" />
-              <input type="email" placeholder="Email Address" value={submitterEmail} onChange={e => setSubmitterEmail(e.target.value)} className="input-field" />
-              <textarea
-                placeholder="Comments (optional)"
-                value={submitterComment}
-                onChange={e => setSubmitterComment(e.target.value)}
-                rows={2}
-                className="input-field"
-              />
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-bold uppercase tracking-wider mb-1">Your Contact Info</h3>
+                <p className="text-xs text-red-400">For admin review only — will not appear on the site.</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] uppercase tracking-wider text-gray-400 block mb-1">Your Name</label>
+                  <input type="text" placeholder="Your name" value={submitterName} onChange={e => setSubmitterName(e.target.value)} className="input-field" />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase tracking-wider text-gray-400 block mb-1">Your Email</label>
+                  <input type="email" placeholder="you@example.com" value={submitterEmail} onChange={e => setSubmitterEmail(e.target.value)} className="input-field" />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-gray-400 block mb-1">
+                  Comments on this submission <span className="text-gray-500 normal-case">(optional)</span>
+                </label>
+                <textarea
+                  placeholder="Any additional notes, context, or details..."
+                  value={submitterComment}
+                  onChange={e => setSubmitterComment(e.target.value)}
+                  rows={3}
+                  className="input-field"
+                />
+              </div>
             </div>
           )}
         </div>
@@ -368,13 +397,14 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted }: S
         <div className="flex items-center justify-between p-6 pt-4 border-t border-[var(--border)]">
           <button
             onClick={() => step > 1 ? setStep(step - 1) : onClose()}
-            className="flex items-center gap-1 px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+            disabled={submitting}
+            className="flex items-center gap-1 px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <ChevronLeft size={16} />
             {step === 1 ? 'Cancel' : 'Back'}
           </button>
 
-          {step === 2 && (
+          {step === 2 && !isAdmin && (
             <button
               onClick={() => setStep(3)}
               className="flex items-center gap-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors"
@@ -384,12 +414,24 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted }: S
             </button>
           )}
 
+          {step === 2 && isAdmin && (
+            <button
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="flex items-center gap-2 px-6 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              {submitting && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+              {submitting ? 'Adding...' : 'Add Entry'}
+            </button>
+          )}
+
           {step === 3 && (
             <button
               onClick={handleSubmit}
               disabled={submitting}
-              className="px-6 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+              className="flex items-center gap-2 px-6 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
             >
+              {submitting && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
               {submitting ? 'Submitting...' : 'Submit'}
             </button>
           )}
