@@ -37,3 +37,8 @@ prisma/*.db-journal
 
 # Uploaded images (local dev only, production uses Coolify persistent storage)
 uploads/
+
+# Dev/scratch files
+prisma/dev.db.backup-pre-enrichment
+scripts/yt-enrich.mjs
+scripts/yt-test.mjs
