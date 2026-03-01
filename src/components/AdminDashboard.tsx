@@ -58,6 +58,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [showAddWizard, setShowAddWizard] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const offsetRef = useRef(0);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -102,7 +103,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         console.error('Failed to fetch entries:', err);
         setLoading(false);
       });
-  }, [selectedCategory, filterPublished, search, buildParams]);
+  }, [selectedCategory, filterPublished, search, buildParams, refreshKey]);
 
   // Load more
   const loadMore = useCallback(() => {
@@ -520,6 +521,100 @@ function FieldLabel({ label, children }: { label: string; children: React.ReactN
   );
 }
 
+// Tag autocomplete input — suggests canonical tags from the server
+function TagAutocomplete({ value, onChange, className }: { value: string; onChange: (v: string) => void; className?: string }) {
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [allTags, setAllTags] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch('/api/tags', { headers: getAdminHeaders() })
+      .then(r => r.json())
+      .then(d => setAllTags(d.canonical || []))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!showSuggestions) return;
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showSuggestions]);
+
+  const currentTags = value ? value.split(',').map(t => t.trim()).filter(Boolean) : [];
+
+  const handleInputChange = (input: string) => {
+    onChange(input);
+    // Get the last tag being typed
+    const parts = input.split(',');
+    const lastPart = parts[parts.length - 1].trim().toLowerCase();
+    if (lastPart.length > 0) {
+      const existing = new Set(parts.slice(0, -1).map(t => t.trim()));
+      const filtered = allTags.filter(t =>
+        t.toLowerCase().includes(lastPart) && !existing.has(t)
+      );
+      setSuggestions(filtered.slice(0, 8));
+      setShowSuggestions(filtered.length > 0);
+    } else {
+      setShowSuggestions(false);
+    }
+  };
+
+  const selectTag = (tag: string) => {
+    const parts = value.split(',').map(t => t.trim()).filter(Boolean);
+    parts.pop(); // Remove the partial tag being typed
+    parts.push(tag);
+    onChange(parts.join(', '));
+    setShowSuggestions(false);
+    inputRef.current?.focus();
+  };
+
+  return (
+    <div ref={containerRef} className="relative">
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={e => handleInputChange(e.target.value)}
+        onFocus={() => {
+          if (suggestions.length > 0) setShowSuggestions(true);
+        }}
+        className={className}
+        placeholder="Start typing to see suggestions..."
+      />
+      {currentTags.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-1">
+          {currentTags.map((tag, i) => (
+            <span key={i} className="px-1.5 py-0.5 bg-red-500/10 border border-red-500/20 rounded text-[10px] text-red-300">
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+      {showSuggestions && (
+        <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-gray-900 border border-white/10 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+          {suggestions.map(tag => (
+            <button
+              key={tag}
+              type="button"
+              onClick={() => selectTag(tag)}
+              className="w-full text-left px-3 py-1.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white"
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EditEntryModal({ entry, categories, onClose, onSaved }: {
   entry: Entry;
   categories: Category[];
@@ -688,8 +783,8 @@ function EditEntryModal({ entry, categories, onClose, onSaved }: {
               <FieldLabel label="Quote">
                 <textarea value={description} onChange={e => setDescription(e.target.value)} rows={5} className={inputClass} />
               </FieldLabel>
-              <FieldLabel label="Tags (comma-separated)">
-                <input type="text" value={tags} onChange={e => setTags(e.target.value)} className={inputClass} />
+              <FieldLabel label="Tags">
+                <TagAutocomplete value={tags} onChange={setTags} className={inputClass} />
               </FieldLabel>
               <FieldLabel label="Source URL">
                 <input type="text" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} className={inputClass} />
@@ -727,8 +822,8 @@ function EditEntryModal({ entry, categories, onClose, onSaved }: {
               <FieldLabel label="Keywords / Lyrics">
                 <textarea value={musicLyrics} onChange={e => setMusicLyrics(e.target.value)} rows={4} className={inputClass} />
               </FieldLabel>
-              <FieldLabel label="Tags (comma-separated)">
-                <input type="text" value={tags} onChange={e => setTags(e.target.value)} className={inputClass} />
+              <FieldLabel label="Tags">
+                <TagAutocomplete value={tags} onChange={setTags} className={inputClass} />
               </FieldLabel>
             </>
           )}
@@ -753,8 +848,8 @@ function EditEntryModal({ entry, categories, onClose, onSaved }: {
               <FieldLabel label="Description">
                 <textarea value={description} onChange={e => setDescription(e.target.value)} rows={5} className={inputClass} />
               </FieldLabel>
-              <FieldLabel label="Tags (comma-separated)">
-                <input type="text" value={tags} onChange={e => setTags(e.target.value)} className={inputClass} />
+              <FieldLabel label="Tags">
+                <TagAutocomplete value={tags} onChange={setTags} className={inputClass} />
               </FieldLabel>
               <FieldLabel label="Source URL">
                 <input type="text" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} className={inputClass} />
@@ -800,8 +895,8 @@ function EditEntryModal({ entry, categories, onClose, onSaved }: {
               <FieldLabel label="Trailer URL (YouTube, Vimeo)">
                 <input type="text" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} className={inputClass} />
               </FieldLabel>
-              <FieldLabel label="Tags (comma-separated)">
-                <input type="text" value={tags} onChange={e => setTags(e.target.value)} className={inputClass} />
+              <FieldLabel label="Tags">
+                <TagAutocomplete value={tags} onChange={setTags} className={inputClass} />
               </FieldLabel>
             </>
           )}

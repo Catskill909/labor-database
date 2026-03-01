@@ -10,6 +10,7 @@ import sharp from 'sharp';
 import archiver from 'archiver';
 import ExcelJS from 'exceljs';
 import rateLimit from 'express-rate-limit';
+import { CANONICAL_TAGS, TAG_GROUPS, normalizeTags, autoTagEntry, mergeTagsWithExisting } from './tags.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -410,6 +411,7 @@ app.get('/api/on-this-day', async (req, res) => {
     try {
         const monthParam = req.query.month as string;
         const dayParam = req.query.day as string;
+        const tagParam = req.query.tag as string | undefined;
 
         if (!monthParam || !dayParam) {
             return res.status(400).json({ error: 'month and day query params required' });
@@ -422,8 +424,19 @@ app.get('/api/on-this-day', async (req, res) => {
             return res.status(400).json({ error: 'Invalid month or day' });
         }
 
+        // Parse tag filter (AND logic — entries must have ALL specified tags)
+        const requestedTags = tagParam ? tagParam.split(',').map(t => t.trim()).filter(Boolean) : [];
+        const hasTagFilter = requestedTags.length > 0;
+
+        const matchesTagFilter = (entry: { tags: string | null }) => {
+            if (!hasTagFilter) return true;
+            if (!entry.tags) return false;
+            const entryTags = entry.tags.split(',').map(t => t.trim());
+            return requestedTags.every(rt => entryTags.includes(rt));
+        };
+
         // Get entries matching this month+day (history, quotes)
-        const dateEntries = await prisma.entry.findMany({
+        const allDateEntries = await prisma.entry.findMany({
             where: {
                 isPublished: true,
                 month,
@@ -432,6 +445,7 @@ app.get('/api/on-this-day', async (req, res) => {
             orderBy: [{ year: 'asc' }],
             include: { images: { orderBy: { sortOrder: 'asc' } } },
         });
+        const dateEntries = allDateEntries.filter(matchesTagFilter);
 
         // Build base URL for image paths
         const protocol = req.headers['x-forwarded-proto'] || req.protocol;
@@ -474,7 +488,7 @@ app.get('/api/on-this-day', async (req, res) => {
                 take: 20,
             });
 
-            for (const entry of yearEntries) {
+            for (const entry of yearEntries.filter(matchesTagFilter)) {
                 if (!yearMatches[entry.category]) yearMatches[entry.category] = [];
                 yearMatches[entry.category].push(entry);
             }
@@ -547,13 +561,61 @@ app.get('/api/on-this-day/calendar', async (req, res) => {
     }
 });
 
+// ==================== TAGS (Public) ====================
+
+// GET all tags with counts, optionally filtered by category
+app.get('/api/tags', async (req, res) => {
+    try {
+        const { category } = req.query;
+
+        let whereClause = `WHERE isPublished = 1 AND tags IS NOT NULL AND tags != ''`;
+        if (category && typeof category === 'string') {
+            whereClause += ` AND category = '${category.replace(/'/g, "''")}'`;
+        }
+
+        const entries: { tags: string }[] = await prisma.$queryRawUnsafe(
+            `SELECT tags FROM Entry ${whereClause}`
+        );
+
+        // Count each tag
+        const tagCounts: Record<string, number> = {};
+        for (const e of entries) {
+            const tags = e.tags.split(',').map(t => t.trim()).filter(Boolean);
+            for (const tag of tags) {
+                tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+            }
+        }
+
+        // Only return canonical tags (skip any legacy/unmapped tags still in DB)
+        const result: { tag: string; count: number; group: string }[] = [];
+        for (const [groupName, groupTags] of Object.entries(TAG_GROUPS)) {
+            for (const tag of groupTags) {
+                if (tagCounts[tag]) {
+                    result.push({ tag, count: tagCounts[tag], group: groupName });
+                }
+            }
+        }
+
+        // Sort by count descending within each group
+        result.sort((a, b) => {
+            if (a.group !== b.group) return a.group.localeCompare(b.group);
+            return b.count - a.count;
+        });
+
+        res.json({ tags: result, groups: Object.keys(TAG_GROUPS), canonical: CANONICAL_TAGS });
+    } catch (error) {
+        console.error('Fetch tags error:', error);
+        res.status(500).json({ error: 'Failed to fetch tags' });
+    }
+});
+
 // ==================== ENTRIES (Public) ====================
 
 // GET all published entries, optionally filtered by category
 app.get('/api/entries', async (req, res) => {
     res.set('Cache-Control', 'no-store');
     try {
-        const { category, search, month, day, year, creator, genre, limit, offset } = req.query;
+        const { category, search, month, day, year, creator, genre, tag, limit, offset } = req.query;
 
         const where: Prisma.EntryWhereInput = { isPublished: true };
 
@@ -597,6 +659,29 @@ app.get('/api/entries', async (req, res) => {
                 filterIds = filterIds.filter(id => genreIds.includes(id));
             } else {
                 filterIds = genreIds;
+            }
+        }
+
+        // Tag filter (supports multiple tags with AND logic via comma-separated param)
+        if (tag && typeof tag === 'string') {
+            const requestedTags = tag.split(',').map(t => t.trim()).filter(Boolean);
+            if (requestedTags.length > 0) {
+                // Find entries that contain ALL requested tags (AND logic)
+                const allEntryRows: { id: number; tags: string }[] = await prisma.$queryRaw`
+                    SELECT id, tags FROM Entry WHERE tags IS NOT NULL AND tags != ''
+                `;
+                const tagMatchIds = allEntryRows
+                    .filter(row => {
+                        const entryTags = row.tags.split(',').map((t: string) => t.trim());
+                        return requestedTags.every(rt => entryTags.includes(rt));
+                    })
+                    .map(row => row.id);
+
+                if (filterIds !== null) {
+                    filterIds = filterIds.filter(id => tagMatchIds.includes(id));
+                } else {
+                    filterIds = tagMatchIds;
+                }
             }
         }
 
@@ -967,6 +1052,149 @@ app.patch('/api/admin/entries/:id/publish', adminAuth, async (req, res) => {
     } catch (error) {
         console.error('Publish toggle error:', error);
         res.status(500).json({ error: 'Failed to update publish status' });
+    }
+});
+
+// ==================== TAGS (Admin) ====================
+
+// POST normalize existing tags (map WordPress tags → canonical)
+app.post('/api/admin/tags/normalize', adminAuth, async (_req, res) => {
+    try {
+        const entries = await prisma.entry.findMany({
+            where: { tags: { not: null } },
+            select: { id: true, tags: true },
+        });
+
+        let updated = 0;
+        let unchanged = 0;
+        const changes: { id: number; before: string; after: string | null }[] = [];
+
+        for (const entry of entries) {
+            if (!entry.tags) continue;
+            const normalized = normalizeTags(entry.tags);
+            if (normalized !== entry.tags) {
+                await prisma.entry.update({
+                    where: { id: entry.id },
+                    data: { tags: normalized },
+                });
+                changes.push({ id: entry.id, before: entry.tags, after: normalized });
+                updated++;
+            } else {
+                unchanged++;
+            }
+        }
+
+        res.json({
+            total: entries.length,
+            updated,
+            unchanged,
+            sample: changes.slice(0, 20),
+        });
+    } catch (error) {
+        console.error('Tag normalization error:', error);
+        res.status(500).json({ error: 'Failed to normalize tags' });
+    }
+});
+
+// POST auto-tag entries using keyword matching
+app.post('/api/admin/tags/auto-tag', adminAuth, async (req, res) => {
+    try {
+        const { dryRun = true, category } = req.body;
+
+        const where: Prisma.EntryWhereInput = {};
+        if (category && typeof category === 'string') {
+            where.category = category;
+        }
+
+        const entries = await prisma.entry.findMany({
+            where,
+            select: { id: true, title: true, description: true, creator: true, metadata: true, tags: true, category: true },
+        });
+
+        const results: { id: number; title: string | null; category: string; existingTags: string | null; newTags: string[]; mergedTags: string | null }[] = [];
+        let taggedCount = 0;
+        let skippedCount = 0;
+
+        for (const entry of entries) {
+            const newTags = autoTagEntry(entry);
+            if (newTags.length === 0) {
+                skippedCount++;
+                continue;
+            }
+
+            const merged = mergeTagsWithExisting(entry.tags, newTags);
+            // Only count if tags actually changed
+            if (merged === entry.tags) {
+                skippedCount++;
+                continue;
+            }
+
+            taggedCount++;
+            results.push({
+                id: entry.id,
+                title: entry.title,
+                category: entry.category,
+                existingTags: entry.tags,
+                newTags,
+                mergedTags: merged,
+            });
+
+            if (!dryRun) {
+                await prisma.entry.update({
+                    where: { id: entry.id },
+                    data: { tags: merged },
+                });
+            }
+        }
+
+        res.json({
+            dryRun,
+            total: entries.length,
+            tagged: taggedCount,
+            skipped: skippedCount,
+            sample: results.slice(0, 50),
+        });
+    } catch (error) {
+        console.error('Auto-tag error:', error);
+        res.status(500).json({ error: 'Failed to auto-tag entries' });
+    }
+});
+
+// GET tag statistics (Admin)
+app.get('/api/admin/tags/stats', adminAuth, async (_req, res) => {
+    try {
+        const entries: { category: string; tags: string }[] = await prisma.$queryRaw`
+            SELECT category, tags FROM Entry WHERE tags IS NOT NULL AND tags != ''
+        `;
+
+        const byCategory: Record<string, Record<string, number>> = {};
+        const overall: Record<string, number> = {};
+
+        for (const e of entries) {
+            const tags = e.tags.split(',').map(t => t.trim()).filter(Boolean);
+            if (!byCategory[e.category]) byCategory[e.category] = {};
+            for (const tag of tags) {
+                byCategory[e.category][tag] = (byCategory[e.category][tag] || 0) + 1;
+                overall[tag] = (overall[tag] || 0) + 1;
+            }
+        }
+
+        // Count entries with/without tags per category
+        const allEntries: { category: string; hasTag: number }[] = await prisma.$queryRaw`
+            SELECT category, CASE WHEN tags IS NOT NULL AND tags != '' THEN 1 ELSE 0 END as hasTag
+            FROM Entry
+        `;
+        const coverage: Record<string, { total: number; tagged: number }> = {};
+        for (const e of allEntries) {
+            if (!coverage[e.category]) coverage[e.category] = { total: 0, tagged: 0 };
+            coverage[e.category].total++;
+            if (e.hasTag) coverage[e.category].tagged++;
+        }
+
+        res.json({ overall, byCategory, coverage, canonical: CANONICAL_TAGS, groups: TAG_GROUPS });
+    } catch (error) {
+        console.error('Tag stats error:', error);
+        res.status(500).json({ error: 'Failed to fetch tag stats' });
     }
 });
 

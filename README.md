@@ -43,13 +43,14 @@ Same architecture as the [Labor Landmarks Map](https://github.com/Catskill909/la
 ## Project Structure
 
 ```
-├── server/index.ts          # Express API (CRUD, auth, search, TMDB proxy, Genius, export)
+├── server/index.ts          # Express API (CRUD, auth, search, TMDB proxy, Genius, export, tags)
+├── server/tags.ts           # Tag taxonomy, normalization map, auto-tag keyword engine
 ├── src/
 │   ├── App.tsx              # Main React app
 │   └── components/
 │       ├── EntryGrid.tsx    # Category-specific card layouts (film posters, etc.)
 │       ├── EntryDetail.tsx  # Modal detail view (film: 2-col poster+metadata layout)
-│       ├── FilterBar.tsx    # Category-specific filter controls
+│       ├── FilterBar.tsx    # Category-specific filters + tag multi-select dropdown
 │       ├── TmdbSearch.tsx   # TMDB typeahead search component
 │       ├── MusicSearch.tsx  # Genius API typeahead search component
 │       ├── ExportModal.tsx  # Multi-format export modal (JSON, XLSX, CSV, ZIP)
@@ -220,11 +221,11 @@ In local dev, admin login is always required but any password works if `ADMIN_PA
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/health` | GET | Health check — returns `{"status":"ok"}` (200) or `{"status":"error"}` (503) |
-| `/api/entries` | GET | List entries (filter by `category`, `search`, `month`, `day`, `year`, `creator`, `genre`) |
+| `/api/entries` | GET | List entries (filter by `category`, `search`, `month`, `day`, `year`, `creator`, `genre`, `tag`) |
 | `/api/entries/filter-options` | GET | Distinct filter values for dropdowns (genres, years) |
 | `/api/entries/:id` | GET | Single entry with full image URLs |
 | `/api/entries` | POST | Public submission (unpublished) |
-| `/api/on-this-day` | GET | Entries for a date, grouped by category (`?month=&day=`) |
+| `/api/on-this-day` | GET | Entries for a date, grouped by category (`?month=&day=&tag=`) |
 | `/api/on-this-day/calendar` | GET | Calendar dot data for a month (`?month=`) |
 | `/api/categories` | GET | List active categories |
 | `/api/tmdb/search` | GET | Search TMDB by title (server-side proxy) |
@@ -239,6 +240,10 @@ In local dev, admin login is always required but any password works if `ADMIN_PA
 | `/api/admin/entries/:id` | DELETE | Admin: delete entry |
 | `/api/admin/export` | GET | Admin: multi-format export (`?format=json\|xlsx\|csv\|full&category=`) |
 | `/api/admin/import` | POST | Admin: JSON import with smart merge |
+| `/api/tags` | GET | Tag list with counts, grouped by theme/industry/social (`?category=`) |
+| `/api/admin/tags/normalize` | POST | Admin: normalize tags to canonical taxonomy |
+| `/api/admin/tags/auto-tag` | POST | Admin: auto-tag entries via keyword matching (`{dryRun: true}` for preview) |
+| `/api/admin/tags/stats` | GET | Admin: tag coverage statistics by category |
 
 ## Features
 
@@ -250,6 +255,7 @@ In local dev, admin login is always required but any password works if `ADMIN_PA
 - **Film Enrichment** — TMDB API integration for posters, cast, trailers. YouTube embed via react-player
 - **Music Search** — Genius API integration for songwriter credits, lyrics, year. YouTube URL auto-discovery
 - **Multi-Format Export** — Export modal with JSON, XLSX (spreadsheet), CSV, and full ZIP (data + images) formats. Category filtering
+- **Tag System** — 34 canonical tags in 3 groups (Theme, Industry, Social Dimension) based on Library of Congress labor subject headings. Tag filter dropdown in browse and On This Day views (AND logic). Clickable tag pills navigate to filtered browse. Admin tag autocomplete in edit forms
 
 ## Documentation
 

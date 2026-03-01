@@ -220,6 +220,11 @@ function HomePage() {
           <EntryDetail
             entry={selectedEntry}
             onClose={() => setSelectedEntry(null)}
+            onTagClick={(tag) => {
+              setSelectedEntry(null);
+              setSelectedCategory(selectedEntry.category);
+              setFilters({ tag });
+            }}
           />
         )}
       </Suspense>

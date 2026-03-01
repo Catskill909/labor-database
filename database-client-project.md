@@ -2,10 +2,10 @@
 
 **Client:** Chris Garlock & Harold Phillips / Labor Heritage Foundation
 **Date:** February 23, 2026
-**Status:** Phase 7 COMPLETE. All pre-launch security fixes applied (health check, CORS, auth, rate limiting, bundle optimization). App running locally with 5,954 entries. Pushed to GitHub. Ready for Coolify deployment at `https://labor-database.supersoul.top`.
+**Status:** Phase 8 COMPLETE. Tag system fully implemented — 34 canonical tags, normalization, auto-tagging (71% coverage), tag filtering in browse + On This Day views, clickable tag navigation, admin autocomplete. App running locally with 5,954 entries. Pushed to GitHub. Ready for Coolify deployment.
 **Repo:** https://github.com/Catskill909/labor-database
 **Production URL:** https://labor-database.supersoul.top
-**Next:** Deploy to Coolify (setup checklist below), then timeline/tags/cross-linking, new content types (plays, poetry).
+**Next:** Deploy to Coolify (setup checklist below), then timeline view, auto-linking, new content types (plays, poetry).
 
 ---
 
@@ -453,11 +453,20 @@ This is faster and more reliable than a dynamic form generator, and produces bet
 - [x] **Localhost admin bypass removed** — login required everywhere
 - [x] **Bundle optimization** — `React.lazy()` for EntryDetail, SubmissionWizard, AdminDashboard. react-player chunks loaded on demand only.
 
-### Phase 8: Timeline, Tags & Cross-Linking
-- [ ] **Timeline view** — browse by decade or year across all categories
-- [ ] **Tag system** — shared tags across all categories for cross-filtering
-- [ ] **Auto-linking** — surface connections across categories by date + keyword matching
-- [ ] Visual timeline component
+### Phase 8: Tag System ✅ COMPLETE
+- [x] **Canonical tag taxonomy** — 34 historian-grade tags in 3 groups (Theme/Topic, Industry/Sector, Social Dimension), informed by Library of Congress labor subject headings, Tamiment/Wagner Archives, and Labor Film Database categories
+- [x] **Tag normalization** — mapped 200+ messy WordPress/Labor Film Database tags to canonical names, dropped meta/platform tags (festivals, streaming, recommendations). 1,892 film entries cleaned
+- [x] **Auto-tagging engine** — deterministic keyword matching (no LLM): 800+ regex patterns, 40+ notable labor figures, 25+ notable events, 30+ unions/orgs. Conservative max 5 tags per entry. 3,153 entries auto-tagged (71.4% overall coverage: 93% films, 80% history, 50% quotes, 30% music)
+- [x] **Tag filter in browse view** — `FilterBar.tsx` multi-select dropdown with grouped checkboxes, tag counts, AND logic (narrows results). Available for all categories
+- [x] **Clickable tag pills** — tags in `EntryDetail.tsx` are clickable buttons; clicking navigates to browse view filtered by that tag + category
+- [x] **Tag filter in On This Day** — `OnThisDayView.tsx` tag dropdown filters On This Day content by topic
+- [x] **Tag autocomplete in admin** — `TagAutocomplete` component in `AdminDashboard.tsx` edit modal suggests canonical tags
+- [x] **Tag API endpoints** — `GET /api/tags` (counts + groups), `GET /api/entries?tag=X` (AND filter), `GET /api/on-this-day?tag=X`, admin normalize/auto-tag/stats endpoints
+- [x] **New file: `server/tags.ts`** — taxonomy, normalization map, keyword dictionary, auto-tag engine (~1,000 lines)
+
+### Phase 8 Deferred
+- [ ] **Timeline view** — visual decade/year browser across all categories (deferred from Phase 8)
+- [ ] **Auto-linking** — surface connections across categories by date + keyword matching (deferred from Phase 8)
 
 ### Phase 9+: New Categories (Plays, Poetry, etc.)
 As the client requests new content types:
@@ -636,12 +645,14 @@ npm run dev:fullstack   # starts server at http://localhost:3001
 ### Key Files
 | File | Purpose |
 |------|---------|
-| `server/index.ts` | Express API (~1100 lines) — all routes, admin auth, search, On This Day, Genius, export |
-| `src/App.tsx` | Main React app — layout, state, tab routing (On This Day + browse) |
-| `src/components/AdminDashboard.tsx` | Admin: stats cards, segmented tabs, table layout, preview/edit/submitter modals |
+| `server/index.ts` | Express API (~1200 lines) — all routes, admin auth, search, On This Day, Genius, export, tags |
+| `server/tags.ts` | Tag taxonomy, normalization map, auto-tag keyword engine (~1000 lines) |
+| `src/App.tsx` | Main React app — layout, state, tab routing (On This Day + browse), tag click wiring |
+| `src/components/AdminDashboard.tsx` | Admin: stats cards, segmented tabs, table layout, preview/edit/submitter modals, tag autocomplete |
 | `src/components/SubmissionWizard.tsx` | Public + admin entry wizard (`isAdmin` prop skips contact step) |
-| `src/components/EntryDetail.tsx` | Entry detail modal (category-aware: film, quote, music, history) |
-| `src/components/OnThisDayView.tsx` | On This Day tab — date hero, calendar, sectioned card grid |
+| `src/components/EntryDetail.tsx` | Entry detail modal (category-aware: film, quote, music, history), clickable tag pills |
+| `src/components/OnThisDayView.tsx` | On This Day tab — date hero, calendar, sectioned card grid, tag filter |
+| `src/components/FilterBar.tsx` | Category-specific filters + tag multi-select dropdown with grouped checkboxes |
 | `src/components/EntryGrid.tsx` | Category-specific card components (browse view) |
 | `src/components/MusicSearch.tsx` | Genius API typeahead search for music forms |
 | `src/components/ExportModal.tsx` | Multi-format export modal (JSON, XLSX, CSV, ZIP) |
@@ -654,7 +665,8 @@ npm run dev:fullstack   # starts server at http://localhost:3001
 ### Immediate Next Steps
 1. **Deploy to Coolify** — follow the "Coolify Setup (Step-by-Step)" section above. Production URL: `https://labor-database.supersoul.top`
 2. **Import production data** — use Admin Dashboard → Import with JSON backup from local dev
-3. **Timeline/Tags** — Phase 8: decade browser, shared tag system, auto cross-linking
-4. **New content types** — Phase 9: plays, poetry (client to define fields)
-5. **Week view** — browse a full week of On This Day content
-6. **Share/print** — copy/share/print individual entries or daily digest
+3. **Timeline view** — visual decade/year browser across all categories (deferred from Phase 8)
+4. **Auto-linking** — surface connections across categories by date + keyword matching
+5. **New content types** — Phase 9: plays, poetry (client to define fields)
+6. **Week view** — browse a full week of On This Day content
+7. **Share/print** — copy/share/print individual entries or daily digest

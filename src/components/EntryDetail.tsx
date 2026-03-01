@@ -6,6 +6,7 @@ import { parseMetadata, formatEntryDate } from '../types.ts';
 interface EntryDetailProps {
   entry: Entry;
   onClose: () => void;
+  onTagClick?: (tag: string) => void;
 }
 
 // Full month name version for the detail modal
@@ -22,7 +23,7 @@ function formatFullDate(entry: Pick<Entry, 'month' | 'day' | 'year'>): string {
 // History: title is just a truncated description, so don't show it separately
 const isHistoryOrQuote = (cat: string) => cat === 'history' || cat === 'quote';
 
-function FilmDetail({ entry, onClose }: EntryDetailProps) {
+function FilmDetail({ entry, onClose, onTagClick }: EntryDetailProps) {
   const meta = parseMetadata(entry);
   const posterUrl = entry.images?.[0]?.url || entry.images?.[0]?.thumbnailUrl || null;
 
@@ -156,9 +157,13 @@ function FilmDetail({ entry, onClose }: EntryDetailProps) {
           {entry.tags && (
             <div className="mt-5 flex flex-wrap gap-1.5">
               {entry.tags.split(',').map((tag, i) => (
-                <span key={i} className="px-2 py-0.5 bg-white/5 border border-white/10 rounded text-[11px] text-gray-400">
+                <button
+                  key={i}
+                  onClick={() => onTagClick?.(tag.trim())}
+                  className="px-2 py-0.5 bg-white/5 border border-white/10 rounded text-[11px] text-gray-400 hover:bg-red-500/10 hover:border-red-500/20 hover:text-red-300 transition-colors cursor-pointer"
+                >
                   {tag.trim()}
-                </span>
+                </button>
               ))}
             </div>
           )}
@@ -185,10 +190,10 @@ function FilmDetail({ entry, onClose }: EntryDetailProps) {
   );
 }
 
-export default function EntryDetail({ entry, onClose }: EntryDetailProps) {
+export default function EntryDetail({ entry, onClose, onTagClick }: EntryDetailProps) {
   // Use dedicated film layout
   if (entry.category === 'film') {
-    return <FilmDetail entry={entry} onClose={onClose} />;
+    return <FilmDetail entry={entry} onClose={onClose} onTagClick={onTagClick} />;
   }
 
   const meta = parseMetadata(entry);
@@ -300,9 +305,13 @@ export default function EntryDetail({ entry, onClose }: EntryDetailProps) {
           {entry.tags && (
             <div className="flex flex-wrap gap-1.5">
               {entry.tags.split(',').map((tag, i) => (
-                <span key={i} className="px-2 py-0.5 bg-white/5 border border-white/10 rounded text-[10px] text-gray-400">
+                <button
+                  key={i}
+                  onClick={() => onTagClick?.(tag.trim())}
+                  className="px-2 py-0.5 bg-white/5 border border-white/10 rounded text-[10px] text-gray-400 hover:bg-red-500/10 hover:border-red-500/20 hover:text-red-300 transition-colors cursor-pointer"
+                >
                   {tag.trim()}
-                </span>
+                </button>
               ))}
             </div>
           )}
