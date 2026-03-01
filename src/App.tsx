@@ -1,14 +1,15 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Header from './components/Header.tsx';
 import CategoryNav from './components/CategoryNav.tsx';
 import FilterBar from './components/FilterBar.tsx';
 import EntryGrid from './components/EntryGrid.tsx';
-import EntryDetail from './components/EntryDetail.tsx';
-import SubmissionWizard from './components/SubmissionWizard.tsx';
-import AdminDashboard from './components/AdminDashboard.tsx';
 import AdminLogin from './components/AdminLogin.tsx';
 import OnThisDayView from './components/OnThisDayView.tsx';
+
+const EntryDetail = lazy(() => import('./components/EntryDetail.tsx'));
+const SubmissionWizard = lazy(() => import('./components/SubmissionWizard.tsx'));
+const AdminDashboard = lazy(() => import('./components/AdminDashboard.tsx'));
 import type { Entry, Category } from './types.ts';
 
 const PAGE_SIZE = 60;
@@ -214,40 +215,49 @@ function HomePage() {
       </footer>
 
 
-      {selectedEntry && (
-        <EntryDetail
-          entry={selectedEntry}
-          onClose={() => setSelectedEntry(null)}
-        />
-      )}
+      <Suspense fallback={null}>
+        {selectedEntry && (
+          <EntryDetail
+            entry={selectedEntry}
+            onClose={() => setSelectedEntry(null)}
+          />
+        )}
+      </Suspense>
 
-      {showSubmissionWizard && (
-        <SubmissionWizard
-          categories={categories}
-          onClose={() => setShowSubmissionWizard(false)}
-          onSubmitted={() => {
-            setShowSubmissionWizard(false);
-            setSearchQuery(q => q + '');
-          }}
-        />
-      )}
+      <Suspense fallback={null}>
+        {showSubmissionWizard && (
+          <SubmissionWizard
+            categories={categories}
+            onClose={() => setShowSubmissionWizard(false)}
+            onSubmitted={() => {
+              setShowSubmissionWizard(false);
+              setSearchQuery(q => q + '');
+            }}
+          />
+        )}
+      </Suspense>
     </div>
   );
 }
 
 function AdminRoute() {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      return true;
-    }
-    return sessionStorage.getItem('isAdminAuthenticated') === 'true';
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    () => sessionStorage.getItem('isAdminAuthenticated') === 'true'
+  );
 
   if (!isAuthenticated) {
     return <AdminLogin onLoginSuccess={() => setIsAuthenticated(true)} />;
   }
 
-  return <AdminDashboard />;
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen bg-[var(--background)]">
+        <div className="w-10 h-10 rounded-full border-4 border-white/5 border-t-red-500 animate-spin"></div>
+      </div>
+    }>
+      <AdminDashboard />
+    </Suspense>
+  );
 }
 
 function App() {

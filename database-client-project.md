@@ -2,9 +2,10 @@
 
 **Client:** Chris Garlock & Harold Phillips / Labor Heritage Foundation
 **Date:** February 23, 2026
-**Status:** Phase 6 IN PROGRESS. Music search & export features complete. App running locally with 5,954 entries. Pushed to GitHub. Ready for Coolify deployment — see Coolify Setup section below for step-by-step instructions.
+**Status:** Phase 7 COMPLETE. All pre-launch security fixes applied (health check, CORS, auth, rate limiting, bundle optimization). App running locally with 5,954 entries. Pushed to GitHub. Ready for Coolify deployment at `https://labor-database.supersoul.top`.
 **Repo:** https://github.com/Catskill909/labor-database
-**Next:** Deploy to Coolify (setup checklist below), fix pre-launch security issues, then timeline/tags/cross-linking, new content types (plays, poetry).
+**Production URL:** https://labor-database.supersoul.top
+**Next:** Deploy to Coolify (setup checklist below), then timeline/tags/cross-linking, new content types (plays, poetry).
 
 ---
 
@@ -165,11 +166,14 @@ Everything lives in **one database, one search, one platform**. The unified Entr
    - `ADMIN_PASSWORD` = (strong password) — **REQUIRED** — protects admin dashboard & API
    - `TMDB_API_KEY` = (TMDB bearer token) — optional, for film search/enrichment
    - `GENIUS_API_KEY` = (Genius client access token) — optional, for music search/enrichment
+   - `CORS_ORIGIN` = `https://labor-database.supersoul.top` — recommended, restricts CORS to production domain
    - Do NOT set `DATABASE_URL`, `PORT`, or `NODE_ENV` — these are pre-configured in Dockerfile
 4. Configuration → Network → Exposed Port: `3001`
-5. Deploy
-6. After first deploy: go to `/admin` → Import → upload JSON backup from local dev
-7. Verify: public site loads, admin login works, entries display correctly
+5. Configure health check: `GET /api/health` on port `3001`
+6. Deploy
+7. After first deploy: go to `/admin` → Import → upload JSON backup from local dev
+8. Verify: visit `https://labor-database.supersoul.top` — public site loads
+9. Verify: visit `https://labor-database.supersoul.top/admin` — admin login works
 
 ### Container Startup
 On every deploy/restart:
@@ -178,16 +182,16 @@ On every deploy/restart:
 3. Runs `prisma/seed.ts` — seeds default categories (idempotent, skips if categories exist)
 4. Starts Express server via `tsx server/index.ts` on port 3001
 
-### Known Issues to Fix Before Public Launch
-| Issue | Severity | Details |
-|-------|----------|---------|
-| No health check endpoint | Medium | No `/api/health` route — Coolify health checks will fail if enabled |
-| CORS allows all origins | Medium | `app.use(cors())` in server/index.ts — restrict to production domain |
-| Image upload has no auth | Medium | `POST /api/entries/:id/images` is public — needs `adminAuth` middleware |
-| TMDB poster download public | Low | `POST /api/tmdb/download-poster` has no auth — could fill disk |
-| No rate limiting | Medium | Public endpoints (submission, search, upload) have no rate limits |
-| Large JS bundles | Low | react-player produces ~1.5MB chunks — consider lazy loading |
-| Admin UI visible on localhost | Low | Frontend skips login on localhost — server auth still enforced |
+### Security Hardening (All Resolved — Phase 7)
+| Issue | Resolution |
+|-------|------------|
+| Health check | `GET /api/health` — DB connectivity check, returns 200/503 |
+| CORS | Restricted via `CORS_ORIGIN` env var (`https://labor-database.supersoul.top`). Unset = allow all (dev). |
+| Image upload auth | `POST /api/entries/:id/images` protected by `adminAuth` + `uploadLimiter`. Public dropzone hidden. |
+| TMDB poster auth | `POST /api/tmdb/download-poster` protected by `adminAuth` + `uploadLimiter` |
+| Rate limiting | `express-rate-limit`: general (100/min), auth (5/min), uploads (10/min), search (30/min) |
+| Bundle optimization | EntryDetail, SubmissionWizard, AdminDashboard lazy-loaded via `React.lazy()` |
+| Admin localhost bypass | Removed — login required everywhere. Server allows all if `ADMIN_PASSWORD` unset (dev). |
 
 ### Image Support
 - **Confirmed needed** — at minimum for films (movie posters when no YouTube trailer exists)
@@ -440,13 +444,22 @@ This is faster and more reliable than a dynamic form generator, and produces bet
 - [x] **`/api/admin/export` endpoint** — unified server endpoint supporting all 4 formats with streaming response (no memory buffering)
 - [x] **Packages added**: `genius-lyrics-api`, `youtube-sr`, `exceljs`, `archiver`
 
-### Phase 6b: Timeline, Tags & Cross-Linking
+### Phase 7: Pre-Launch Security Hardening ✅ COMPLETE
+- [x] **Health check endpoint** — `GET /api/health` with DB connectivity check (200/503)
+- [x] **CORS restriction** — `CORS_ORIGIN` env var restricts to production domain
+- [x] **Image upload auth** — `adminAuth` + `uploadLimiter` on `POST /api/entries/:id/images`. Image dropzone hidden from public users.
+- [x] **TMDB poster auth** — `adminAuth` + `uploadLimiter` on `POST /api/tmdb/download-poster`
+- [x] **Rate limiting** — `express-rate-limit`: general (100/min), auth (5/min), uploads (10/min), search (30/min)
+- [x] **Localhost admin bypass removed** — login required everywhere
+- [x] **Bundle optimization** — `React.lazy()` for EntryDetail, SubmissionWizard, AdminDashboard. react-player chunks loaded on demand only.
+
+### Phase 8: Timeline, Tags & Cross-Linking
 - [ ] **Timeline view** — browse by decade or year across all categories
 - [ ] **Tag system** — shared tags across all categories for cross-filtering
 - [ ] **Auto-linking** — surface connections across categories by date + keyword matching
 - [ ] Visual timeline component
 
-### Phase 7+: New Categories (Plays, Poetry, etc.)
+### Phase 9+: New Categories (Plays, Poetry, etc.)
 As the client requests new content types:
 - [ ] Build category-specific submission form and admin edit form
 - [ ] Add admin tab and any unique display logic (e.g., embedded video for plays)
@@ -639,14 +652,9 @@ npm run dev:fullstack   # starts server at http://localhost:3001
 | `CLAUDE.md` | AI session guardrails |
 
 ### Immediate Next Steps
-1. **Deploy to Coolify** — follow the "Coolify Setup (Step-by-Step)" section above
-2. **Fix pre-launch security issues** — see "Known Issues to Fix Before Public Launch" table above:
-   - Add `/api/health` endpoint
-   - Restrict CORS to production domain
-   - Add `adminAuth` to image upload endpoint
-   - Add basic rate limiting
-3. **Import production data** — use Admin Dashboard → Import with JSON backup from local dev
-4. **Timeline/Tags** — Phase 6: decade browser, shared tag system, auto cross-linking
-5. **New content types** — Phase 7: plays, poetry (client to define fields)
-6. **Week view** — browse a full week of On This Day content
-7. **Share/print** — copy/share/print individual entries or daily digest
+1. **Deploy to Coolify** — follow the "Coolify Setup (Step-by-Step)" section above. Production URL: `https://labor-database.supersoul.top`
+2. **Import production data** — use Admin Dashboard → Import with JSON backup from local dev
+3. **Timeline/Tags** — Phase 8: decade browser, shared tag system, auto cross-linking
+4. **New content types** — Phase 9: plays, poetry (client to define fields)
+5. **Week view** — browse a full week of On This Day content
+6. **Share/print** — copy/share/print individual entries or daily digest

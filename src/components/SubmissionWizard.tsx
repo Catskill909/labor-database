@@ -153,21 +153,25 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
       if (!res.ok) throw new Error('Submission failed');
       const entryData = await res.json();
 
-      // Upload dragged images if any
-      if (imageFiles.length > 0) {
+      // Upload dragged images if any (admin only)
+      if (imageFiles.length > 0 && isAdmin) {
         const formData = new FormData();
         for (const file of imageFiles) {
           formData.append('images', file);
         }
         await fetch(`/api/entries/${entryData.id}/images`, {
           method: 'POST',
+          headers: { 'Authorization': `Bearer ${sessionStorage.getItem('adminToken') || ''}` },
           body: formData,
         });
-      } else if (tmdbPosterPath && selectedCategory === 'film') {
-        // Download TMDB poster server-side (no user-uploaded images)
+      } else if (tmdbPosterPath && selectedCategory === 'film' && isAdmin) {
+        // Download TMDB poster server-side (admin only)
         await fetch('/api/tmdb/download-poster', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${sessionStorage.getItem('adminToken') || ''}`,
+          },
           body: JSON.stringify({ entryId: entryData.id, posterPath: tmdbPosterPath }),
         }).catch(() => {}); // Non-critical — entry still created
       }
@@ -363,10 +367,12 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
                   className="input-field"
                 />
               </div>
+              {isAdmin && (
               <div>
                 <label className="text-xs text-gray-400 block mb-1.5">Poster Image <span className="text-gray-600">(optional)</span></label>
                 <ImageDropzone files={imageFiles} setFiles={setImageFiles} maxFiles={3} />
               </div>
+              )}
             </div>
           )}
 

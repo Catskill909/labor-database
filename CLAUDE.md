@@ -32,12 +32,13 @@
   - `ADMIN_PASSWORD` — required, protects admin dashboard and all `/api/admin/*` endpoints
   - `TMDB_API_KEY` — optional, enables TMDB film search/enrichment in submission forms
   - `GENIUS_API_KEY` — optional, enables Genius music search/lyrics/YouTube enrichment in submission forms
+  - `CORS_ORIGIN` — optional, restricts CORS to specified origin (e.g. `https://your-domain.com`). If unset, allows all origins.
 - **Pre-set in Dockerfile (do NOT override unless intentional):**
   - `DATABASE_URL=file:/app/data/dev.db`
   - `PORT=3001`
   - `NODE_ENV=production`
 - **Container startup sequence:** `prisma migrate deploy` → `seed.ts` (idempotent) → `tsx server/index.ts`
-- **No health check endpoint exists yet** — add one before enabling Coolify health checks
+- **Health check endpoint:** `GET /api/health` returns `{"status":"ok"}` (200) or `{"status":"error"}` (503)
 - **Port:** expose container port `3001` in Coolify
 
 ### 5. Prisma Patterns
@@ -62,12 +63,12 @@
 - `cleanEntryText()` in `server/index.ts` auto-decodes entities on all create/update/import operations
 - If importing raw data directly to SQLite, run entity cleanup manually
 
-### 9. Security Considerations
-- **CORS:** Currently wide-open (`app.use(cors())`) — restrict to production domain before launch
-- **Image upload (`POST /api/entries/:id/images`):** Currently has NO auth — anyone can upload. Needs `adminAuth` middleware
-- **TMDB poster download (`POST /api/tmdb/download-poster`):** Public endpoint, could fill disk — consider adding auth
-- **No rate limiting:** No rate limiting on any endpoint — add before public launch
-- **Admin auth on localhost:** Frontend skips login on localhost (`App.tsx:240`) — server-side auth still enforced, but admin UI shell is visible without credentials
+### 9. Security Considerations (Resolved)
+- **CORS:** Restricted via `CORS_ORIGIN` env var. If unset (dev), allows all origins.
+- **Image upload (`POST /api/entries/:id/images`):** Protected by `adminAuth` + `uploadLimiter`. Public submissions cannot upload images.
+- **TMDB poster download (`POST /api/tmdb/download-poster`):** Protected by `adminAuth` + `uploadLimiter`.
+- **Rate limiting:** `express-rate-limit` applied globally (100/min) + specific limiters for auth (5/min), uploads (10/min), search (30/min).
+- **Admin auth:** Login required everywhere (localhost bypass removed). Server-side `adminAuth` still allows all if `ADMIN_PASSWORD` unset (dev convenience).
 
 ## Architecture Quick Reference
 - **Frontend:** React + Vite (builds to `dist/`)
@@ -88,13 +89,11 @@
 3. TWO persistent volumes configured (`/app/data` and `/app/uploads`)
 4. `ADMIN_PASSWORD` set in Coolify environment variables
 5. `TMDB_API_KEY` set if film enrichment needed
-6. Port `3001` exposed
-7. First deploy: import data via Admin Dashboard (`/admin` → Import JSON backup)
-8. Verify admin login works at `https://your-domain/admin`
+6. `CORS_ORIGIN` set to `https://labor-database.supersoul.top`
+7. Port `3001` exposed
+8. Health check configured: `GET /api/health` on port `3001`
+9. First deploy: import data via Admin Dashboard (`/admin` → Import JSON backup)
+10. Verify admin login works at `https://labor-database.supersoul.top/admin`
 
-## Known Issues (Pre-Launch)
-- No `/api/health` endpoint for Coolify health checks
-- CORS allows all origins — needs domain restriction
-- Image upload endpoint missing auth middleware
-- No rate limiting on public endpoints
-- Large JS chunks from react-player (~992KB dash.all.min, ~521KB hls) — consider lazy loading
+## Known Issues
+- Large JS chunks from react-player (~992KB dash.all.min, ~521KB hls) — lazy-loaded via code splitting, only fetched when viewing entry detail with video

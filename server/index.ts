@@ -9,6 +9,7 @@ import multer from 'multer';
 import sharp from 'sharp';
 import archiver from 'archiver';
 import ExcelJS from 'exceljs';
+import rateLimit from 'express-rate-limit';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -49,8 +50,44 @@ const app = express();
 const port = process.env.PORT || 3001;
 const prisma = new PrismaClient();
 
-app.use(cors());
+const corsOrigin = process.env.CORS_ORIGIN;
+app.use(cors(corsOrigin ? { origin: corsOrigin, credentials: true } : undefined));
 app.use(express.json({ limit: '10mb' }));
+
+// Rate limiting
+const generalLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests, please try again later' },
+});
+
+const authLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many login attempts, please try again later' },
+});
+
+const uploadLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many uploads, please try again later' },
+});
+
+const searchLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many search requests, please try again later' },
+});
+
+app.use('/api', generalLimiter);
 
 // Image uploads directory — Coolify persistent storage mounts here in production
 const uploadsDir = path.join(__dirname, '../uploads/entries');
@@ -91,9 +128,21 @@ const adminAuth = (req: express.Request, res: express.Response, next: express.Ne
     }
 };
 
+// ==================== HEALTH CHECK ====================
+
+app.get('/api/health', async (_req, res) => {
+    try {
+        await prisma.$queryRaw`SELECT 1`;
+        res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    } catch (error) {
+        console.error('Health check failed:', error);
+        res.status(503).json({ status: 'error', timestamp: new Date().toISOString() });
+    }
+});
+
 // ==================== AUTH ====================
 
-app.post('/api/admin/verify-password', (req, res) => {
+app.post('/api/admin/verify-password', authLimiter, (req, res) => {
     const { password } = req.body;
     const adminPassword = process.env.ADMIN_PASSWORD;
 
@@ -179,7 +228,7 @@ function tmdbHeaders(): HeadersInit {
 }
 
 // Search movies by title
-app.get('/api/tmdb/search', async (req, res) => {
+app.get('/api/tmdb/search', searchLimiter, async (req, res) => {
     const query = req.query.query as string;
     if (!query || !query.trim()) return res.json([]);
 
@@ -245,7 +294,7 @@ app.get('/api/tmdb/movie/:tmdbId', async (req, res) => {
 // Download TMDB poster and attach to entry
 // No auth — called by both public submission and admin edit
 // Safe: only downloads from TMDB CDN and attaches to an existing entry
-app.post('/api/tmdb/download-poster', async (req, res) => {
+app.post('/api/tmdb/download-poster', adminAuth, uploadLimiter, async (req, res) => {
     const { entryId, posterPath } = req.body;
     if (!entryId || !posterPath) return res.status(400).json({ error: 'entryId and posterPath required' });
 
@@ -274,7 +323,7 @@ app.post('/api/tmdb/download-poster', async (req, res) => {
 
 // ==================== MUSIC SEARCH (Genius + YouTube) ====================
 
-app.get('/api/music/search', async (req, res) => {
+app.get('/api/music/search', searchLimiter, async (req, res) => {
     const query = req.query.query as string;
     if (!query?.trim()) return res.json([]);
     const key = process.env.GENIUS_API_KEY;
@@ -741,7 +790,7 @@ app.get('/api/entries/:id', async (req, res) => {
 });
 
 // POST public submission (unpublished by default)
-app.post('/api/entries', async (req, res) => {
+app.post('/api/entries', uploadLimiter, async (req, res) => {
     const { category, title, description, month, day, year, creator, metadata, tags, sourceUrl, submitterName, submitterEmail, submitterComment } = cleanEntryText(req.body);
     try {
         const entry = await prisma.entry.create({
@@ -924,7 +973,7 @@ app.patch('/api/admin/entries/:id/publish', adminAuth, async (req, res) => {
 // ==================== IMAGES ====================
 
 // POST upload images for an entry
-app.post('/api/entries/:id/images', upload.array('images', 10), async (req, res) => {
+app.post('/api/entries/:id/images', adminAuth, uploadLimiter, upload.array('images', 10), async (req, res) => {
     const entryId = parseInt(req.params.id as string);
     const files = req.files as Express.Multer.File[];
 

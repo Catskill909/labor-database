@@ -139,6 +139,7 @@ Docker-based deployment with two persistent volumes. **Without both volumes, ALL
 | `ADMIN_PASSWORD` | **Yes** | Coolify env vars | Protects `/admin` dashboard and all `/api/admin/*` endpoints |
 | `TMDB_API_KEY` | No | Coolify env vars | Enables TMDB film search/enrichment in forms |
 | `GENIUS_API_KEY` | No | Coolify env vars | Enables Genius music search (songwriter, lyrics, year auto-fill) |
+| `CORS_ORIGIN` | No | Coolify env vars | Restricts CORS to specified origin (e.g. `https://labor-database.supersoul.top`). If unset, allows all origins |
 | `DATABASE_URL` | No | Pre-set in Dockerfile | Default: `file:/app/data/dev.db` — do NOT override |
 | `PORT` | No | Pre-set in Dockerfile | Default: `3001` — do NOT override |
 | `NODE_ENV` | No | Pre-set in Dockerfile | Default: `production` |
@@ -156,10 +157,12 @@ Docker-based deployment with two persistent volumes. **Without both volumes, ALL
    - `ADMIN_PASSWORD=<strong-password>`
    - `TMDB_API_KEY=<your-tmdb-bearer-token>` (optional — film search)
    - `GENIUS_API_KEY=<your-genius-client-access-token>` (optional — music search)
+   - `CORS_ORIGIN=https://labor-database.supersoul.top` (recommended — restricts CORS)
 4. Set exposed port to `3001`
-5. Deploy — Coolify auto-deploys on push to `main`
-6. Verify: visit `https://your-domain` — should see the app
-7. Verify: visit `https://your-domain/admin` — should prompt for password
+5. Configure health check: `GET /api/health` on port `3001`
+6. Deploy — Coolify auto-deploys on push to `main`
+7. Verify: visit `https://labor-database.supersoul.top` — should see the app
+8. Verify: visit `https://labor-database.supersoul.top/admin` — should prompt for password
 
 ### Container Startup Sequence
 
@@ -183,14 +186,16 @@ After first Coolify deploy (empty database):
 - **Data changes** → Admin panel (add/edit/delete entries, JSON backup/restore)
 - Always ask: "Is this a CODE problem or a DATA problem?"
 
-### Known Pre-Launch Issues
+### Security Hardening (Completed)
 
-These should be addressed before going fully public:
-- **No health check endpoint** — no `/api/health` route exists; Coolify health checks will fail if enabled
-- **CORS wide open** — `app.use(cors())` allows all origins; restrict to production domain
-- **Image upload has no auth** — `POST /api/entries/:id/images` is public; needs `adminAuth` middleware
-- **No rate limiting** — public submission, search, and upload endpoints have no rate limits
-- **Large JS bundles** — `react-player` produces ~1.5MB of chunks (dash.all.min + hls); consider lazy loading
+All pre-launch security issues have been resolved:
+- **Health check** — `GET /api/health` verifies DB connectivity (200 OK / 503 error)
+- **CORS** — Restricted via `CORS_ORIGIN` env var; unset allows all (dev convenience)
+- **Image upload auth** — `POST /api/entries/:id/images` protected by `adminAuth` + rate limiting. Public submissions cannot upload images.
+- **TMDB poster auth** — `POST /api/tmdb/download-poster` protected by `adminAuth` + rate limiting
+- **Rate limiting** — `express-rate-limit` applied: general (100/min), auth (5/min), uploads (10/min), search (30/min)
+- **Admin auth** — Login required everywhere (localhost bypass removed). Server allows all if `ADMIN_PASSWORD` unset (dev).
+- **Bundle optimization** — EntryDetail, SubmissionWizard, AdminDashboard lazy-loaded via `React.lazy()`. react-player chunks only loaded on demand.
 
 ## Admin Panel
 
@@ -208,12 +213,13 @@ Features:
 - **Multi-format export** — Export modal: Full Backup (JSON + images ZIP), Data Only (JSON), Spreadsheet (XLSX with one sheet per category), CSV. Category filter for targeted exports
 - **Music search** — Genius API typeahead in music forms (submission wizard + edit modal), auto-fills songwriter, lyrics, year, and YouTube URL
 
-In local dev, admin auth is skipped if no `ADMIN_PASSWORD` is set.
+In local dev, admin login is always required but any password works if `ADMIN_PASSWORD` is not set.
 
 ## API
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
+| `/api/health` | GET | Health check — returns `{"status":"ok"}` (200) or `{"status":"error"}` (503) |
 | `/api/entries` | GET | List entries (filter by `category`, `search`, `month`, `day`, `year`, `creator`, `genre`) |
 | `/api/entries/filter-options` | GET | Distinct filter values for dropdowns (genres, years) |
 | `/api/entries/:id` | GET | Single entry with full image URLs |
@@ -223,7 +229,7 @@ In local dev, admin auth is skipped if no `ADMIN_PASSWORD` is set.
 | `/api/categories` | GET | List active categories |
 | `/api/tmdb/search` | GET | Search TMDB by title (server-side proxy) |
 | `/api/tmdb/movie/:tmdbId` | GET | Full TMDB movie details + credits + videos |
-| `/api/tmdb/download-poster` | POST | Download TMDB poster and attach to entry |
+| `/api/tmdb/download-poster` | POST | Download TMDB poster and attach to entry (admin auth required) |
 | `/api/music/search` | GET | Search Genius for songs (`?query=`) |
 | `/api/music/details/:geniusId` | GET | Fetch lyrics, songwriter, year, YouTube URL from Genius |
 | `/api/admin/entries` | GET | Admin: list with submitter info + pagination |
