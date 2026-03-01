@@ -31,6 +31,7 @@
 - **Required Coolify environment variables:**
   - `ADMIN_PASSWORD` — required, protects admin dashboard and all `/api/admin/*` endpoints
   - `TMDB_API_KEY` — optional, enables TMDB film search/enrichment in submission forms
+  - `GENIUS_API_KEY` — optional, enables Genius music search/lyrics/YouTube enrichment in submission forms
 - **Pre-set in Dockerfile (do NOT override unless intentional):**
   - `DATABASE_URL=file:/app/data/dev.db`
   - `PORT=3001`

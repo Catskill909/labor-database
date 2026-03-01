@@ -35,6 +35,7 @@ npm run enrich:films
 | Backend | Express 5 + tsx |
 | Database | SQLite + Prisma ORM |
 | Film Data | TMDB API (server-side proxy) |
+| Music Data | Genius API + YouTube search |
 | Deployment | Docker → Coolify (auto-deploy from `main`) |
 
 Same architecture as the [Labor Landmarks Map](https://github.com/Catskill909/labor-map).
@@ -42,7 +43,7 @@ Same architecture as the [Labor Landmarks Map](https://github.com/Catskill909/la
 ## Project Structure
 
 ```
-├── server/index.ts          # Express API (CRUD, auth, search, TMDB proxy, backup)
+├── server/index.ts          # Express API (CRUD, auth, search, TMDB proxy, Genius, export)
 ├── src/
 │   ├── App.tsx              # Main React app
 │   └── components/
@@ -50,6 +51,8 @@ Same architecture as the [Labor Landmarks Map](https://github.com/Catskill909/la
 │       ├── EntryDetail.tsx  # Modal detail view (film: 2-col poster+metadata layout)
 │       ├── FilterBar.tsx    # Category-specific filter controls
 │       ├── TmdbSearch.tsx   # TMDB typeahead search component
+│       ├── MusicSearch.tsx  # Genius API typeahead search component
+│       ├── ExportModal.tsx  # Multi-format export modal (JSON, XLSX, CSV, ZIP)
 │       ├── ImageDropzone.tsx # Drag-and-drop image upload
 │       ├── SubmissionWizard.tsx  # Submission wizard (public + admin mode)
 │       └── AdminDashboard.tsx   # Admin dashboard (stats, table, preview/edit/submitter modals)
@@ -81,7 +84,7 @@ All content lives in a unified `Entry` table with category-specific metadata sto
 |----------|---------|--------|------------|
 | History  | 1,411   | Wix CSV export | — |
 | Quotes   | 1,916   | Wix CSV export | — |
-| Music    | 435     | Wix CSV export | — |
+| Music    | 435     | Wix CSV export | Genius API (100 enriched with songwriter/year) + YouTube URLs (349/435) |
 | Films    | 2,192   | WordPress XML export | TMDB API (1,292 enriched, 1,255 with posters) |
 
 Future categories (plays, poetry, etc.) can be added without schema changes.
@@ -135,6 +138,7 @@ Docker-based deployment with two persistent volumes. **Without both volumes, ALL
 |----------|----------|-----------|-------|
 | `ADMIN_PASSWORD` | **Yes** | Coolify env vars | Protects `/admin` dashboard and all `/api/admin/*` endpoints |
 | `TMDB_API_KEY` | No | Coolify env vars | Enables TMDB film search/enrichment in forms |
+| `GENIUS_API_KEY` | No | Coolify env vars | Enables Genius music search (songwriter, lyrics, year auto-fill) |
 | `DATABASE_URL` | No | Pre-set in Dockerfile | Default: `file:/app/data/dev.db` — do NOT override |
 | `PORT` | No | Pre-set in Dockerfile | Default: `3001` — do NOT override |
 | `NODE_ENV` | No | Pre-set in Dockerfile | Default: `production` |
@@ -150,7 +154,8 @@ Docker-based deployment with two persistent volumes. **Without both volumes, ALL
    - **Verify both volumes have DIFFERENT names** (Coolify silently fails if names collide)
 3. Set environment variables:
    - `ADMIN_PASSWORD=<strong-password>`
-   - `TMDB_API_KEY=<your-tmdb-bearer-token>` (optional)
+   - `TMDB_API_KEY=<your-tmdb-bearer-token>` (optional — film search)
+   - `GENIUS_API_KEY=<your-genius-client-access-token>` (optional — music search)
 4. Set exposed port to `3001`
 5. Deploy — Coolify auto-deploys on push to `main`
 6. Verify: visit `https://your-domain` — should see the app
@@ -169,7 +174,7 @@ If no database exists at `/app/data/dev.db`, the container logs a **WARNING** ab
 
 After first Coolify deploy (empty database):
 1. Go to `/admin`, log in with your `ADMIN_PASSWORD`
-2. Use Import to upload a JSON backup (exported from local dev via Admin → Backup)
+2. Use Import to upload a JSON backup (exported from local dev via Admin → Export → Data Only JSON)
 3. For images: either import pre-enriched data with poster URLs, or upload the `uploads/entries/` directory contents to the production volume
 
 ### CODE vs DATA
@@ -200,7 +205,8 @@ Features:
 - **Submitter info** — purple icon appears only on user-submitted entries, shows name/email/comment in modal
 - **Image management** — view existing images, upload new ones, delete with hover-to-remove
 - **Custom tooltips** — instant-appearing styled tooltips on all action buttons
-- **JSON backup & restore**
+- **Multi-format export** — Export modal: Full Backup (JSON + images ZIP), Data Only (JSON), Spreadsheet (XLSX with one sheet per category), CSV. Category filter for targeted exports
+- **Music search** — Genius API typeahead in music forms (submission wizard + edit modal), auto-fills songwriter, lyrics, year, and YouTube URL
 
 In local dev, admin auth is skipped if no `ADMIN_PASSWORD` is set.
 
@@ -218,12 +224,14 @@ In local dev, admin auth is skipped if no `ADMIN_PASSWORD` is set.
 | `/api/tmdb/search` | GET | Search TMDB by title (server-side proxy) |
 | `/api/tmdb/movie/:tmdbId` | GET | Full TMDB movie details + credits + videos |
 | `/api/tmdb/download-poster` | POST | Download TMDB poster and attach to entry |
+| `/api/music/search` | GET | Search Genius for songs (`?query=`) |
+| `/api/music/details/:geniusId` | GET | Fetch lyrics, songwriter, year, YouTube URL from Genius |
 | `/api/admin/entries` | GET | Admin: list with submitter info + pagination |
 | `/api/admin/entries` | POST | Admin: create entry (published, no submitter info) |
 | `/api/admin/entries/:id` | PUT | Admin: update entry |
 | `/api/admin/entries/:id/publish` | PATCH | Admin: toggle publish status |
 | `/api/admin/entries/:id` | DELETE | Admin: delete entry |
-| `/api/admin/backup` | GET | Admin: JSON export of all data |
+| `/api/admin/export` | GET | Admin: multi-format export (`?format=json\|xlsx\|csv\|full&category=`) |
 | `/api/admin/import` | POST | Admin: JSON import with smart merge |
 
 ## Features
@@ -234,6 +242,8 @@ In local dev, admin auth is skipped if no `ADMIN_PASSWORD` is set.
 - **Public Submissions** — 3-step wizard (pick category → category-specific form → contact info). Double-click protected with spinner
 - **Admin Dashboard** — Stats cards, preview modal, category-specific edit forms, submitter info, custom tooltips, table layout
 - **Film Enrichment** — TMDB API integration for posters, cast, trailers. YouTube embed via react-player
+- **Music Search** — Genius API integration for songwriter credits, lyrics, year. YouTube URL auto-discovery
+- **Multi-Format Export** — Export modal with JSON, XLSX (spreadsheet), CSV, and full ZIP (data + images) formats. Category filtering
 
 ## Documentation
 
@@ -241,6 +251,8 @@ In local dev, admin auth is skipped if no `ADMIN_PASSWORD` is set.
 - [**CLAUDE.md**](CLAUDE.md) — AI coding session guardrails and pre-push checklist
 - [**docs/film-data-dev.md**](docs/film-data-dev.md) — Film import, TMDB integration, and enrichment notes
 - [**docs/on-this-day-dev.md**](docs/on-this-day-dev.md) — Phase 4 planning, design decisions, calendar package research
+- [**audio-data-update.md**](audio-data-update.md) — Music enrichment planning (Genius API + YouTube search)
+- [**export-data.dev.md**](export-data.dev.md) — Export feature brainstorming (formats, migration strategy)
 
 ## License
 

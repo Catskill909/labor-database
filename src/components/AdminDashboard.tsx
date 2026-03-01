@@ -4,6 +4,9 @@ import type { Entry, Category } from '../types.ts';
 import ImageDropzone from './ImageDropzone.tsx';
 import SubmissionWizard from './SubmissionWizard.tsx';
 import EntryDetail from './EntryDetail.tsx';
+import MusicSearch from './MusicSearch.tsx';
+import type { MusicDetails } from './MusicSearch.tsx';
+import ExportModal from './ExportModal.tsx';
 
 const PAGE_SIZE = 60;
 
@@ -183,10 +186,7 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleBackup = () => {
-    const token = sessionStorage.getItem('adminToken') || '';
-    window.open(`/api/admin/backup?token=${token}`, '_blank');
-  };
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const handleImport = async () => {
     const input = document.createElement('input');
@@ -242,8 +242,8 @@ export default function AdminDashboard() {
             >
               <Plus size={16} /> Add to Database
             </button>
-            <button onClick={handleBackup} className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-white/5 text-gray-300 font-bold rounded-xl transition-all hover:scale-105 active:scale-95">
-              <Download size={16} /> Backup
+            <button onClick={() => setShowExportModal(true)} className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-white/5 text-gray-300 font-bold rounded-xl transition-all hover:scale-105 active:scale-95">
+              <Download size={16} /> Export
             </button>
             <button onClick={handleImport} className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-white/5 text-gray-300 font-bold rounded-xl transition-all hover:scale-105 active:scale-95">
               <Upload size={16} /> Import
@@ -437,6 +437,14 @@ export default function AdminDashboard() {
       )}
 
       {/* Submitter Info Modal */}
+      {/* Export Modal */}
+      {showExportModal && (
+        <ExportModal
+          categories={categories}
+          onClose={() => setShowExportModal(false)}
+        />
+      )}
+
       {submitterInfoEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setSubmitterInfoEntry(null)} />
@@ -545,6 +553,15 @@ function EditEntryModal({ entry, categories, onClose, onSaved }: {
 
   // Quote-specific fields (pre-filled from metadata)
   const [quoteSource, setQuoteSource] = useState(meta.source || '');
+
+  const handleMusicSelect = (song: MusicDetails) => {
+    setTitle(song.title);
+    setMusicPerformer(song.artist);
+    setMusicSongwriter(song.writers);
+    if (song.year) setYear(String(song.year));
+    setMusicLyrics(song.lyrics);
+    if (song.youtubeUrl) setSourceUrl(song.youtubeUrl);
+  };
 
   const handleDeleteImage = async (imageId: number) => {
     setDeletingImageId(imageId);
@@ -670,6 +687,7 @@ function EditEntryModal({ entry, categories, onClose, onSaved }: {
           {/* ── MUSIC ── */}
           {isMusic && (
             <>
+              <MusicSearch onSelect={handleMusicSelect} />
               <FieldLabel label="Song Title">
                 <input type="text" value={title} onChange={e => setTitle(e.target.value)} className={inputClass} />
               </FieldLabel>

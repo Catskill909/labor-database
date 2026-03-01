@@ -7,6 +7,8 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import sharp from 'sharp';
+import archiver from 'archiver';
+import ExcelJS from 'exceljs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -267,6 +269,87 @@ app.post('/api/tmdb/download-poster', async (req, res) => {
     } catch (error) {
         console.error('TMDB poster download error:', error);
         res.status(500).json({ error: 'Failed to download poster' });
+    }
+});
+
+// ==================== MUSIC SEARCH (Genius + YouTube) ====================
+
+app.get('/api/music/search', async (req, res) => {
+    const query = req.query.query as string;
+    if (!query?.trim()) return res.json([]);
+    const key = process.env.GENIUS_API_KEY;
+    if (!key) return res.status(500).json({ error: 'GENIUS_API_KEY not set' });
+
+    try {
+        const r = await fetch(
+            `https://api.genius.com/search?q=${encodeURIComponent(query.trim())}`,
+            { headers: { Authorization: `Bearer ${key}` } }
+        );
+        if (!r.ok) return res.status(r.status).json({ error: 'Genius search failed' });
+        const data = await r.json() as {
+            response: { hits: Array<{ result: { id: number; title: string; primary_artist?: { name: string }; artist_names: string; song_art_image_thumbnail_url?: string } }> }
+        };
+        const hits = data.response?.hits || [];
+        const results = hits.slice(0, 10).map(h => ({
+            geniusId: h.result.id,
+            title: h.result.title,
+            artist: h.result.primary_artist?.name || h.result.artist_names,
+            thumbnailUrl: h.result.song_art_image_thumbnail_url || null,
+        }));
+        res.json(results);
+    } catch (error) {
+        console.error('Genius search error:', error);
+        res.status(500).json({ error: 'Genius search failed' });
+    }
+});
+
+app.get('/api/music/details/:geniusId', async (req, res) => {
+    const geniusId = req.params.geniusId as string;
+    const key = process.env.GENIUS_API_KEY;
+    if (!key) return res.status(500).json({ error: 'GENIUS_API_KEY not set' });
+
+    try {
+        // 1. Get lyrics from Genius (scrapes the page)
+        const { getSongById } = await import('genius-lyrics-api');
+        const song = await getSongById(parseInt(geniusId), key);
+
+        // 2. Get songwriter credits from Genius API
+        const r = await fetch(
+            `https://api.genius.com/songs/${geniusId}`,
+            { headers: { Authorization: `Bearer ${key}` } }
+        );
+        const songData = await r.json() as {
+            response: { song: { title: string; primary_artist?: { name: string }; writer_artists?: Array<{ name: string }>; release_date_for_display?: string } }
+        };
+        const details = songData.response?.song;
+        const writers = details?.writer_artists?.map((w: { name: string }) => w.name).join(', ') || '';
+        const artist = details?.primary_artist?.name || '';
+        const releaseDate = details?.release_date_for_display || '';
+        const yearMatch = releaseDate.match(/\d{4}/);
+
+        // 3. Search YouTube for video URL (best-effort)
+        let youtubeUrl: string | null = null;
+        try {
+            const { YouTube } = await import('youtube-sr');
+            const videos = await YouTube.search(`${song?.title || ''} ${artist}`, { limit: 1, type: 'video' });
+            if (videos.length > 0 && videos[0].id) {
+                youtubeUrl = `https://www.youtube.com/watch?v=${videos[0].id}`;
+            }
+        } catch { /* YouTube search is best-effort */ }
+
+        res.json({
+            geniusId: parseInt(geniusId),
+            title: details?.title || song?.title || '',
+            artist,
+            writers,
+            year: yearMatch ? parseInt(yearMatch[0]) : null,
+            lyrics: song?.lyrics || '',
+            youtubeUrl,
+            albumArtUrl: song?.albumArt || null,
+        });
+    } catch (error) {
+        console.error('Genius details error:', error);
+        res.status(500).json({ error: 'Genius details failed' });
     }
 });
 
@@ -917,25 +1000,277 @@ app.delete('/api/entries/:id/images/:imageId', adminAuth, async (req, res) => {
     }
 });
 
-// ==================== BACKUP / IMPORT ====================
+// ==================== EXPORT / BACKUP / IMPORT ====================
 
-// GET backup of all entries as JSON file
-app.get('/api/admin/backup', adminAuth, async (_req, res) => {
+// Helper: parse metadata JSON safely
+function parseMetadata(metadata: string | null): Record<string, unknown> {
+    if (!metadata) return {};
+    try { return JSON.parse(metadata); } catch { return {}; }
+}
+
+// Helper: escape CSV field
+function csvEscape(value: unknown): string {
+    if (value === null || value === undefined) return '';
+    const str = String(value);
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        return '"' + str.replace(/"/g, '""') + '"';
+    }
+    return str;
+}
+
+// Helper: build CSV string from rows
+function buildCsv(headers: string[], rows: string[][]): string {
+    const lines = [headers.map(csvEscape).join(',')];
+    for (const row of rows) {
+        lines.push(row.map(csvEscape).join(','));
+    }
+    return lines.join('\r\n') + '\r\n';
+}
+
+// Column definitions per category for spreadsheet/CSV export
+const categoryColumns: Record<string, { header: string; key: string; width?: number }[]> = {
+    music: [
+        { header: 'Title', key: 'title', width: 30 },
+        { header: 'Performer', key: 'performer', width: 25 },
+        { header: 'Songwriter', key: 'songwriter', width: 25 },
+        { header: 'Year', key: 'year', width: 8 },
+        { header: 'Genre', key: 'genre', width: 15 },
+        { header: 'Runtime', key: 'runTime', width: 10 },
+        { header: 'Source URL', key: 'sourceUrl', width: 40 },
+        { header: 'Tags', key: 'tags', width: 25 },
+        { header: 'Lyrics', key: 'lyrics', width: 50 },
+    ],
+    film: [
+        { header: 'Title', key: 'title', width: 30 },
+        { header: 'Director', key: 'creator', width: 20 },
+        { header: 'Writers', key: 'writers', width: 25 },
+        { header: 'Cast', key: 'cast', width: 35 },
+        { header: 'Year', key: 'year', width: 8 },
+        { header: 'Runtime', key: 'duration', width: 10 },
+        { header: 'Country', key: 'country', width: 15 },
+        { header: 'Genre', key: 'genre', width: 15 },
+        { header: 'Synopsis', key: 'description', width: 50 },
+        { header: 'Source URL', key: 'sourceUrl', width: 40 },
+        { header: 'Tags', key: 'tags', width: 25 },
+    ],
+    history: [
+        { header: 'Title', key: 'title', width: 40 },
+        { header: 'Month', key: 'month', width: 8 },
+        { header: 'Day', key: 'day', width: 6 },
+        { header: 'Year', key: 'year', width: 8 },
+        { header: 'Description', key: 'description', width: 60 },
+        { header: 'Source URL', key: 'sourceUrl', width: 40 },
+        { header: 'Tags', key: 'tags', width: 25 },
+    ],
+    quote: [
+        { header: 'Quote', key: 'title', width: 50 },
+        { header: 'Author', key: 'creator', width: 25 },
+        { header: 'Source', key: 'source', width: 30 },
+        { header: 'Month', key: 'month', width: 8 },
+        { header: 'Day', key: 'day', width: 6 },
+        { header: 'Year', key: 'year', width: 8 },
+        { header: 'Tags', key: 'tags', width: 25 },
+    ],
+};
+
+// Helper: get row data for an entry based on its category columns
+function entryToRow(entry: Record<string, unknown>, cols: { key: string }[]): string[] {
+    const meta = parseMetadata(entry.metadata as string | null);
+    return cols.map(col => {
+        // Check entry-level fields first, then metadata
+        if (col.key in entry && entry[col.key] !== null && entry[col.key] !== undefined) {
+            return String(entry[col.key]);
+        }
+        // Map metadata keys (songwriter → writer, performer → performer, etc.)
+        const metaKeyMap: Record<string, string> = {
+            performer: 'performer',
+            songwriter: 'writer',
+            genre: 'genre',
+            runTime: 'runTime',
+            lyrics: 'lyrics',
+            writers: 'writers',
+            cast: 'cast',
+            duration: 'duration',
+            country: 'country',
+            source: 'source',
+        };
+        const metaKey = metaKeyMap[col.key] || col.key;
+        if (metaKey in meta && meta[metaKey] !== null && meta[metaKey] !== undefined) {
+            return String(meta[metaKey]);
+        }
+        return '';
+    });
+}
+
+// GET /api/admin/export?format=json|xlsx|csv|full&category=all|music|film|history|quote
+app.get('/api/admin/export', adminAuth, async (req, res) => {
+    const format = (req.query.format as string) || 'json';
+    const categoryFilter = (req.query.category as string) || 'all';
+    const date = new Date().toISOString().split('T')[0];
+
     try {
+        const where = categoryFilter !== 'all' ? { category: categoryFilter } : {};
         const entries = await prisma.entry.findMany({
+            where,
             orderBy: { id: 'asc' },
             include: { images: { orderBy: { sortOrder: 'asc' } } }
         });
-        const categories = await prisma.category.findMany({ orderBy: { sortOrder: 'asc' } });
-        const date = new Date().toISOString().split('T')[0];
-        const filename = `labor_database_backup_${date}.json`;
+        const cats = await prisma.category.findMany({ orderBy: { sortOrder: 'asc' } });
 
-        res.setHeader('Content-Type', 'application/json');
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
-        res.send(JSON.stringify({ entries, categories }, null, 2));
+
+        // ---- JSON ----
+        if (format === 'json') {
+            const filename = `labor_database_${categoryFilter}_${date}.json`;
+            const payload = {
+                _meta: {
+                    name: 'Labor Arts & Culture Database',
+                    exportedAt: new Date().toISOString(),
+                    entryCount: entries.length,
+                    categoryFilter,
+                    format: 'json',
+                },
+                categories: cats,
+                entries,
+            };
+            res.setHeader('Content-Type', 'application/json');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            res.send(JSON.stringify(payload, null, 2));
+            return;
+        }
+
+        // ---- XLSX ----
+        if (format === 'xlsx') {
+            const workbook = new ExcelJS.Workbook();
+            const activeCats = categoryFilter !== 'all'
+                ? [categoryFilter]
+                : [...new Set(entries.map(e => e.category))];
+
+            for (const cat of activeCats) {
+                const catEntries = entries.filter(e => e.category === cat);
+                if (catEntries.length === 0) continue;
+                const cols = categoryColumns[cat];
+                if (!cols) continue;
+
+                const label = cats.find(c => c.slug === cat)?.label || cat;
+                const sheet = workbook.addWorksheet(label);
+                sheet.columns = cols.map(c => ({ header: c.header, key: c.key, width: c.width || 15 }));
+
+                // Style header row
+                sheet.getRow(1).font = { bold: true };
+                sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2D3748' } };
+                sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+
+                for (const entry of catEntries) {
+                    const rowData = entryToRow(entry as unknown as Record<string, unknown>, cols);
+                    sheet.addRow(rowData);
+                }
+            }
+
+            const filename = `labor_database_${categoryFilter}_${date}.xlsx`;
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            await workbook.xlsx.write(res);
+            res.end();
+            return;
+        }
+
+        // ---- CSV ----
+        if (format === 'csv') {
+            const activeCats = categoryFilter !== 'all'
+                ? [categoryFilter]
+                : [...new Set(entries.map(e => e.category))];
+
+            // Single category → single CSV file
+            if (activeCats.length === 1) {
+                const cat = activeCats[0];
+                const catEntries = entries.filter(e => e.category === cat);
+                const cols = categoryColumns[cat];
+                if (!cols) { res.status(400).json({ error: `No column definition for category: ${cat}` }); return; }
+
+                const headers = cols.map(c => c.header);
+                const rows = catEntries.map(e => entryToRow(e as unknown as Record<string, unknown>, cols));
+                const csv = buildCsv(headers, rows);
+
+                const filename = `labor_database_${cat}_${date}.csv`;
+                res.setHeader('Content-Type', 'text/csv');
+                res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+                res.send(csv);
+                return;
+            }
+
+            // Multiple categories → ZIP of CSV files
+            const filename = `labor_database_csv_${date}.zip`;
+            res.setHeader('Content-Type', 'application/zip');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+            const archive = archiver('zip', { zlib: { level: 6 } });
+            archive.pipe(res);
+
+            for (const cat of activeCats) {
+                const catEntries = entries.filter(e => e.category === cat);
+                const cols = categoryColumns[cat];
+                if (!cols || catEntries.length === 0) continue;
+
+                const headers = cols.map(c => c.header);
+                const rows = catEntries.map(e => entryToRow(e as unknown as Record<string, unknown>, cols));
+                const csv = buildCsv(headers, rows);
+                archive.append(csv, { name: `${cat}.csv` });
+            }
+
+            await archive.finalize();
+            return;
+        }
+
+        // ---- FULL (JSON + Images ZIP) ----
+        if (format === 'full') {
+            const filename = `labor_database_full_${date}.zip`;
+            res.setHeader('Content-Type', 'application/zip');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+            const payload = {
+                _meta: {
+                    name: 'Labor Arts & Culture Database',
+                    exportedAt: new Date().toISOString(),
+                    entryCount: entries.length,
+                    categoryFilter,
+                    format: 'full',
+                },
+                categories: cats,
+                entries,
+            };
+
+            const archive = archiver('zip', { zlib: { level: 6 } });
+            archive.pipe(res);
+            archive.append(JSON.stringify(payload, null, 2), { name: 'backup.json' });
+
+            // Include uploaded images
+            const uploadsDir = path.join(__dirname, '..', 'uploads', 'entries');
+            if (fs.existsSync(uploadsDir)) {
+                // If category-filtered, only include images for matching entries
+                if (categoryFilter !== 'all') {
+                    const entryIds = new Set(entries.map(e => e.id));
+                    const files = fs.readdirSync(uploadsDir);
+                    for (const file of files) {
+                        // Image filenames follow pattern: {entryId}_{rest}
+                        const idMatch = file.match(/^(\d+)_/);
+                        if (idMatch && entryIds.has(parseInt(idMatch[1]))) {
+                            archive.file(path.join(uploadsDir, file), { name: `images/${file}` });
+                        }
+                    }
+                } else {
+                    archive.directory(uploadsDir, 'images');
+                }
+            }
+
+            await archive.finalize();
+            return;
+        }
+
+        res.status(400).json({ error: `Unknown format: ${format}. Use json, xlsx, csv, or full.` });
     } catch (error) {
-        res.status(500).json({ error: 'Failed to generate backup' });
+        console.error('Export error:', error);
+        res.status(500).json({ error: 'Export failed' });
     }
 });
 

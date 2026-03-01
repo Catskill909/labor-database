@@ -2,7 +2,7 @@
 
 **Client:** Chris Garlock & Harold Phillips / Labor Heritage Foundation
 **Date:** February 23, 2026
-**Status:** Phase 5 COMPLETE. Deployment audit COMPLETE. App running locally with 5,954 entries. Pushed to GitHub. Ready for Coolify deployment — see Coolify Setup section below for step-by-step instructions.
+**Status:** Phase 6 IN PROGRESS. Music search & export features complete. App running locally with 5,954 entries. Pushed to GitHub. Ready for Coolify deployment — see Coolify Setup section below for step-by-step instructions.
 **Repo:** https://github.com/Catskill909/labor-database
 **Next:** Deploy to Coolify (setup checklist below), fix pre-launch security issues, then timeline/tags/cross-linking, new content types (plays, poetry).
 
@@ -164,6 +164,7 @@ Everything lives in **one database, one search, one platform**. The unified Entr
 3. Configuration → Environment Variables:
    - `ADMIN_PASSWORD` = (strong password) — **REQUIRED** — protects admin dashboard & API
    - `TMDB_API_KEY` = (TMDB bearer token) — optional, for film search/enrichment
+   - `GENIUS_API_KEY` = (Genius client access token) — optional, for music search/enrichment
    - Do NOT set `DATABASE_URL`, `PORT`, or `NODE_ENV` — these are pre-configured in Dockerfile
 4. Configuration → Network → Exposed Port: `3001`
 5. Deploy
@@ -288,7 +289,7 @@ model Category {
 - **Full CRUD** — add/edit/delete entries, same pattern as landmarks
 - **Review queue** — submissions from the public start as `isPublished: false`, admin reviews and publishes
 - **Category management** — activate/deactivate categories, set display order
-- **Backup/restore** — JSON export/import, same as landmarks
+- **Multi-format export** — Export modal: JSON, XLSX, CSV, full ZIP (data + images). Category filtering
 
 ### Public: Submission Wizard
 The public "Add to Database" button uses a **wizard/stepper**:
@@ -423,7 +424,23 @@ This is faster and more reliable than a dynamic form generator, and produces bet
 - [x] **Contact info section** — Restyled SubmissionWizard Step 3 with "YOUR CONTACT INFO" header, red subtitle, side-by-side name/email
 - [x] **Category form tweaks** — Removed Date from quotes, reordered music fields (Title/Performer first), made film fields flexible with helper text
 
-### Phase 6: Timeline, Tags & Cross-Linking
+### Phase 6a: Music Search & Data Export ✅ COMPLETE
+- [x] **Genius API integration** — typeahead search in music forms (submission wizard + admin edit modal), auto-fills songwriter, lyrics, year from Genius database
+- [x] **YouTube URL auto-discovery** — `youtube-sr` finds matching YouTube video for selected song
+- [x] **MusicSearch component** — debounced search dropdown with album art thumbnails, loading states, "Fetching lyrics & YouTube video" indicator
+- [x] **Bulk music enrichment** — 100 entries enriched with songwriter/year via Genius API, 349/435 entries now have YouTube URLs
+- [x] **Multi-format export modal** — replaces old Backup button with full Export modal:
+  - Full Backup (JSON + all uploaded images as ZIP)
+  - Data Only (JSON with `_meta` schema header, re-importable)
+  - Spreadsheet (XLSX with one sheet per category, category-specific columns, styled headers)
+  - CSV (single file per category, or ZIP of all categories)
+  - Category filter dropdown for targeted exports
+  - Spinner/progress feedback during export generation
+- [x] **`ExportModal.tsx`** — clean dark-themed modal matching existing UI patterns
+- [x] **`/api/admin/export` endpoint** — unified server endpoint supporting all 4 formats with streaming response (no memory buffering)
+- [x] **Packages added**: `genius-lyrics-api`, `youtube-sr`, `exceljs`, `archiver`
+
+### Phase 6b: Timeline, Tags & Cross-Linking
 - [ ] **Timeline view** — browse by decade or year across all categories
 - [ ] **Tag system** — shared tags across all categories for cross-filtering
 - [ ] **Auto-linking** — surface connections across categories by date + keyword matching
@@ -606,13 +623,15 @@ npm run dev:fullstack   # starts server at http://localhost:3001
 ### Key Files
 | File | Purpose |
 |------|---------|
-| `server/index.ts` | Express API (~980 lines) — all routes, admin auth, search, On This Day |
+| `server/index.ts` | Express API (~1100 lines) — all routes, admin auth, search, On This Day, Genius, export |
 | `src/App.tsx` | Main React app — layout, state, tab routing (On This Day + browse) |
 | `src/components/AdminDashboard.tsx` | Admin: stats cards, segmented tabs, table layout, preview/edit/submitter modals |
 | `src/components/SubmissionWizard.tsx` | Public + admin entry wizard (`isAdmin` prop skips contact step) |
 | `src/components/EntryDetail.tsx` | Entry detail modal (category-aware: film, quote, music, history) |
 | `src/components/OnThisDayView.tsx` | On This Day tab — date hero, calendar, sectioned card grid |
 | `src/components/EntryGrid.tsx` | Category-specific card components (browse view) |
+| `src/components/MusicSearch.tsx` | Genius API typeahead search for music forms |
+| `src/components/ExportModal.tsx` | Multi-format export modal (JSON, XLSX, CSV, ZIP) |
 | `src/components/Header.tsx` | Header with search, Add button, hamburger menu |
 | `prisma/schema.prisma` | Database schema |
 | `src/index.css` | Custom CSS: tooltips (`[data-tooltip]`), glass effect, animations |

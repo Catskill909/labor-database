@@ -21,14 +21,17 @@
   "dependencies": {
     "@prisma/client": "^6.19.2",
     "@tailwindcss/vite": "^4.1.18",
+    "archiver": "^7.0.1",
     "cheerio": "^1.2.0",
     "cors": "^2.8.6",
     "csv-parse": "^5.6.0",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "fast-xml-parser": "^5.4.1",
     "framer-motion": "^12.34.3",
+    "genius-lyrics-api": "^3.2.1",
     "lucide-react": "^0.563.0",
     "multer": "^2.0.2",
     "react": "^19.2.0",
@@ -38,10 +41,12 @@
     "react-player": "^3.4.0",
     "react-router-dom": "^7.13.0",
     "sharp": "^0.34.5",
-    "tailwindcss": "^4.1.18"
+    "tailwindcss": "^4.1.18",
+    "youtube-sr": "^4.3.12"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@types/archiver": "^7.0.0",
     "@types/cheerio": "^0.22.35",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",

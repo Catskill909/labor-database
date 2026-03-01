@@ -4,6 +4,8 @@ import type { Category } from '../types.ts';
 import ImageDropzone from './ImageDropzone.tsx';
 import TmdbSearch from './TmdbSearch.tsx';
 import type { TmdbMovieDetails } from './TmdbSearch.tsx';
+import MusicSearch from './MusicSearch.tsx';
+import type { MusicDetails } from './MusicSearch.tsx';
 
 interface SubmissionWizardProps {
   categories: Category[];
@@ -52,6 +54,15 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
   const [submitterName, setSubmitterName] = useState('');
   const [submitterEmail, setSubmitterEmail] = useState('');
   const [submitterComment, setSubmitterComment] = useState('');
+
+  const handleMusicSelect = (song: MusicDetails) => {
+    setTitle(song.title);
+    setPerformer(song.artist);
+    setSongwriter(song.writers);
+    if (song.year) setYear(String(song.year));
+    setLyrics(song.lyrics);
+    if (song.youtubeUrl) setSourceUrl(song.youtubeUrl);
+  };
 
   const handleTmdbSelect = (movie: TmdbMovieDetails) => {
     setTitle(movie.title);
@@ -254,6 +265,7 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
 
           {step === 2 && selectedCategory === 'music' && (
             <div className="space-y-3">
+              <MusicSearch onSelect={handleMusicSelect} />
               <input type="text" placeholder="Song Title" value={title} onChange={e => setTitle(e.target.value)} className="input-field" />
               <input type="text" placeholder="Song Performer" value={performer} onChange={e => setPerformer(e.target.value)} className="input-field" />
               <input type="text" placeholder="Song Writer (optional)" value={songwriter} onChange={e => setSongwriter(e.target.value)} className="input-field" />
