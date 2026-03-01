@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Trash2, Eye, EyeOff, Download, Upload, Search, X, UserRound, Mail, MessageSquare, Edit2, Database } from 'lucide-react';
+import { Plus, Trash2, Eye, EyeOff, Download, Upload, Search, X, UserRound, Mail, MessageSquare, Edit2, Database, LogOut } from 'lucide-react';
 import type { Entry, Category } from '../types.ts';
 import ImageDropzone from './ImageDropzone.tsx';
 import SubmissionWizard from './SubmissionWizard.tsx';
@@ -38,7 +38,11 @@ function AnimatedRow({ children }: { children: React.ReactNode }) {
   return <div ref={ref} className="entry-card">{children}</div>;
 }
 
-export default function AdminDashboard() {
+interface AdminDashboardProps {
+  onLogout?: () => void;
+}
+
+export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
@@ -251,6 +255,15 @@ export default function AdminDashboard() {
             <a href="/" className="px-4 py-2.5 text-sm text-gray-400 hover:text-white transition-colors font-medium">
               View Site
             </a>
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-white/5 text-gray-400 hover:text-red-400 font-bold rounded-xl transition-all hover:scale-105 active:scale-95"
+                data-tooltip="Logout"
+              >
+                <LogOut size={16} />
+              </button>
+            )}
           </div>
         </div>
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Lock } from 'lucide-react';
+import { Lock, Eye, EyeOff } from 'lucide-react';
 
 interface AdminLoginProps {
   onLoginSuccess: () => void;
@@ -9,6 +9,7 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,14 +53,23 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
           </div>
         )}
 
-        <input
-          type="password"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          placeholder="Enter admin password"
-          className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm placeholder:text-gray-500 focus:outline-none focus:border-red-500/50 mb-4"
-          autoFocus
-        />
+        <div className="relative mb-4">
+          <input
+            type={showPassword ? 'text' : 'password'}
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            placeholder="Enter admin password"
+            className="w-full px-4 py-2.5 pr-10 bg-white/5 border border-white/10 rounded-lg text-sm placeholder:text-gray-500 focus:outline-none focus:border-red-500/50"
+            autoFocus
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+          >
+            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        </div>
 
         <button
           type="submit"

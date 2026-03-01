@@ -255,7 +255,11 @@ function AdminRoute() {
         <div className="w-10 h-10 rounded-full border-4 border-white/5 border-t-red-500 animate-spin"></div>
       </div>
     }>
-      <AdminDashboard />
+      <AdminDashboard onLogout={() => {
+        sessionStorage.removeItem('adminToken');
+        sessionStorage.removeItem('isAdminAuthenticated');
+        setIsAuthenticated(false);
+      }} />
     </Suspense>
   );
 }
