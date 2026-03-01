@@ -565,17 +565,39 @@ function MusicOTDCard({ entry, onClick }: { entry: Entry; onClick: () => void })
   return (
     <button
       onClick={onClick}
-      className="text-left w-full p-4 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-red-500/30 transition-colors group flex items-center gap-3"
+      className="text-left w-full h-full p-5 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-red-500/30 transition-colors group flex flex-col justify-start"
     >
-      <Music size={18} className="text-red-400/40 shrink-0" />
-      <div className="min-w-0">
-        <h3 className="text-sm font-semibold group-hover:text-red-300 transition-colors truncate">
-          {entry.title}
-        </h3>
-        <p className="text-xs text-gray-400 mt-0.5 truncate">
-          {meta.performer || entry.creator || 'Unknown artist'}
-          {entry.year ? ` \u00B7 ${entry.year}` : ''}
-        </p>
+      <div className="flex items-start gap-3">
+        <Music size={16} className="text-red-400/40 mt-0.5 shrink-0" />
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold leading-snug mb-1 group-hover:text-red-300 transition-colors">
+            {entry.title}
+          </h3>
+          {meta.performer && (
+            <p className="text-xs text-gray-400">
+              <span className="text-gray-500">Performer:</span> {meta.performer}
+            </p>
+          )}
+          {meta.writer && meta.writer !== meta.performer && (
+            <p className="text-xs text-gray-400">
+              <span className="text-gray-500">Artist:</span> {meta.writer}
+            </p>
+          )}
+          {(entry.sourceUrl || meta.lyrics) && (
+            <div className="flex items-center gap-2 mt-3">
+              {entry.sourceUrl && (
+                <span className="px-2.5 py-1 bg-red-600/20 text-red-400 text-[10px] font-medium rounded">
+                  Listen
+                </span>
+              )}
+              {meta.lyrics && (
+                <span className="px-2.5 py-1 bg-red-600/20 text-red-400 text-[10px] font-medium rounded">
+                  View Lyrics
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </button>
   );
