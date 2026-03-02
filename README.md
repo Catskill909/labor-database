@@ -54,6 +54,7 @@ Same architecture as the [Labor Landmarks Map](https://github.com/Catskill909/la
 │       ├── TmdbSearch.tsx   # TMDB typeahead search component
 │       ├── MusicSearch.tsx  # Genius API typeahead search component
 │       ├── ExportModal.tsx  # Multi-format export modal (JSON, XLSX, CSV, ZIP)
+│       ├── ImportModal.tsx  # ZIP/JSON import modal with format selection
 │       ├── ImageDropzone.tsx # Drag-and-drop image upload
 │       ├── SubmissionWizard.tsx  # Submission wizard (public + admin mode)
 │       └── AdminDashboard.tsx   # Admin dashboard (stats, table, preview/edit/submitter modals)
@@ -73,6 +74,7 @@ Same architecture as the [Labor Landmarks Map](https://github.com/Catskill909/la
 │   └── screenshots/         # Original Wix site reference images
 ├── Dockerfile               # Multi-stage production build
 ├── docker-compose.yml       # Local Docker with persistent volumes
+├── deployment-checklist.md     # Coolify production deployment guide & backup procedures
 ├── database-client-project.md  # Full project planning doc & roadmap
 └── CLAUDE.md                # AI coding session guardrails
 ```
@@ -177,9 +179,11 @@ If no database exists at `/app/data/dev.db`, the container logs a **WARNING** ab
 ### Production Data Migration
 
 After first Coolify deploy (empty database):
-1. Go to `/admin`, log in with your `ADMIN_PASSWORD`
-2. Use Import to upload a JSON backup (exported from local dev via Admin → Export → Data Only JSON)
-3. For images: either import pre-enriched data with poster URLs, or upload the `uploads/entries/` directory contents to the production volume
+1. **LOCAL:** Admin → Export → Full Backup (ZIP) — downloads all data + images in one package
+2. **PRODUCTION:** Admin → Import → Upload that ZIP — restores entries + images
+3. Verify entry counts + images display correctly
+
+One file out, one file in. See [deployment-checklist.md](deployment-checklist.md) for full details.
 
 ### CODE vs DATA
 
@@ -212,6 +216,8 @@ Features:
 - **Image management** — view existing images, upload new ones, delete with hover-to-remove
 - **Custom tooltips** — instant-appearing styled tooltips on all action buttons
 - **Multi-format export** — Export modal: Full Backup (JSON + images ZIP), Data Only (JSON), Spreadsheet (XLSX with one sheet per category), CSV. Category filter for targeted exports
+- **Import modal** — Import modal with format selection (Full Backup ZIP or Data Only JSON), merge warning, guided file upload
+- **Reset DB** — Destructive reset with type-to-confirm ("RESET") safety dialog, itemized deletion preview (entry count, images, records)
 - **Music search** — Genius API typeahead in music forms (submission wizard + edit modal), auto-fills songwriter, lyrics, year, and YouTube URL
 
 In local dev, admin login is always required but any password works if `ADMIN_PASSWORD` is not set.
@@ -240,6 +246,8 @@ In local dev, admin login is always required but any password works if `ADMIN_PA
 | `/api/admin/entries/:id` | DELETE | Admin: delete entry |
 | `/api/admin/export` | GET | Admin: multi-format export (`?format=json\|xlsx\|csv\|full&category=`) |
 | `/api/admin/import` | POST | Admin: JSON import with smart merge |
+| `/api/admin/import-zip` | POST | Admin: ZIP import (data + images) with ID remapping |
+| `/api/admin/reset` | DELETE | Admin: wipe all entries + images (type-to-confirm in UI) |
 | `/api/tags` | GET | Tag list with counts, grouped by theme/industry/social (`?category=`) |
 | `/api/admin/tags/normalize` | POST | Admin: normalize tags to canonical taxonomy |
 | `/api/admin/tags/auto-tag` | POST | Admin: auto-tag entries via keyword matching (`{dryRun: true}` for preview) |
@@ -259,6 +267,7 @@ In local dev, admin login is always required but any password works if `ADMIN_PA
 
 ## Documentation
 
+- [**deployment-checklist.md**](deployment-checklist.md) — Coolify production deployment guide, backup procedures, data migration, environment variables
 - [**database-client-project.md**](database-client-project.md) — Full project planning doc: vision, architecture, schema, phased roadmap, client Q&A, session work logs
 - [**CLAUDE.md**](CLAUDE.md) — AI coding session guardrails and pre-push checklist
 - [**docs/film-data-dev.md**](docs/film-data-dev.md) — Film import, TMDB integration, and enrichment notes

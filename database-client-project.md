@@ -2,10 +2,10 @@
 
 **Client:** Chris Garlock & Harold Phillips / Labor Heritage Foundation
 **Date:** February 23, 2026
-**Status:** Phase 8 COMPLETE. Tag system fully implemented — 34 canonical tags, normalization, auto-tagging (71% coverage), tag filtering in browse + On This Day views, clickable tag navigation, admin autocomplete. App running locally with 5,954 entries. Pushed to GitHub. Ready for Coolify deployment.
+**Status:** Phase 8 + Deployment Prep COMPLETE. Tag system (34 canonical tags, normalization, auto-tagging), portable ZIP import/export, Reset DB with type-to-confirm, Import modal. App running locally with 5,954 entries. Pushed to GitHub. Ready for Coolify deployment.
 **Repo:** https://github.com/Catskill909/labor-database
 **Production URL:** https://labor-database.supersoul.top
-**Next:** Deploy to Coolify (setup checklist below), then timeline view, auto-linking, new content types (plays, poetry).
+**Next:** Deploy to Coolify (see [deployment-checklist.md](deployment-checklist.md)), then timeline view, auto-linking, new content types (plays, poetry).
 
 ---
 
@@ -156,24 +156,8 @@ Everything lives in **one database, one search, one platform**. The unified Entr
 - Same backup/restore workflow
 - Subdomain via A record on Paul's domain, pointed to Coolify
 
-### Coolify Setup (Step-by-Step)
-1. Create new Coolify app → point to `https://github.com/Catskill909/labor-database`, branch `main`
-2. Configuration → Persistent Storage → add TWO volumes:
-   - Name: `labor_db_data` → Mount: `/app/data`
-   - Name: `labor_db_uploads` → Mount: `/app/uploads`
-   - **Both volumes MUST have different names** — Coolify silently fails on name collision
-3. Configuration → Environment Variables:
-   - `ADMIN_PASSWORD` = (strong password) — **REQUIRED** — protects admin dashboard & API
-   - `TMDB_API_KEY` = (TMDB bearer token) — optional, for film search/enrichment
-   - `GENIUS_API_KEY` = (Genius client access token) — optional, for music search/enrichment
-   - `CORS_ORIGIN` = `https://labor-database.supersoul.top` — recommended, restricts CORS to production domain
-   - Do NOT set `DATABASE_URL`, `PORT`, or `NODE_ENV` — these are pre-configured in Dockerfile
-4. Configuration → Network → Exposed Port: `3001`
-5. Configure health check: `GET /api/health` on port `3001`
-6. Deploy
-7. After first deploy: go to `/admin` → Import → upload JSON backup from local dev
-8. Verify: visit `https://labor-database.supersoul.top` — public site loads
-9. Verify: visit `https://labor-database.supersoul.top/admin` — admin login works
+### Coolify Setup
+See [deployment-checklist.md](deployment-checklist.md) for the complete step-by-step Coolify deployment guide with environment variables, persistent volumes, and data migration instructions.
 
 ### Container Startup
 On every deploy/restart:
@@ -464,6 +448,15 @@ This is faster and more reliable than a dynamic form generator, and produces bet
 - [x] **Tag API endpoints** — `GET /api/tags` (counts + groups), `GET /api/entries?tag=X` (AND filter), `GET /api/on-this-day?tag=X`, admin normalize/auto-tag/stats endpoints
 - [x] **New file: `server/tags.ts`** — taxonomy, normalization map, keyword dictionary, auto-tag engine (~1,000 lines)
 
+### Deployment Prep: Portable Data Migration & Admin Tools ✅ COMPLETE
+- [x] **ZIP import endpoint** — `POST /api/admin/import-zip`: streaming extraction, entry import with ID remapping, image restoration (renames files to new entry IDs), EntryImage record creation. Multer disk storage (300MB limit)
+- [x] **Reset DB endpoint** — `DELETE /api/admin/reset`: deletes all entries (cascades to EntryImage), clears `uploads/entries/` directory, returns deletion counts
+- [x] **ImportModal.tsx** — guided import modal matching ExportModal style: format selection (Full Backup ZIP vs Data Only JSON), amber merge warning, Choose File button, inline success/error display
+- [x] **Reset DB confirmation modal** — type-to-confirm safety: red "DESTRUCTIVE ACTION" banner, itemized deletion list (entry count, images, records), must type "RESET" to enable delete button
+- [x] **deployment-checklist.md** — complete Coolify deployment guide with env vars (including actual API keys), persistent volumes, data migration workflow, backup rules, troubleshooting
+- [x] **Packages added**: `unzipper`, `@types/unzipper`
+- [x] **Three-button admin workflow**: Export (Full Backup ZIP) → Import (upload ZIP) → Reset DB (emergency recovery). One file out, one file in.
+
 ### Phase 8 Deferred
 - [ ] **Timeline view** — visual decade/year browser across all categories (deferred from Phase 8)
 - [ ] **Auto-linking** — surface connections across categories by date + keyword matching (deferred from Phase 8)
@@ -656,6 +649,7 @@ npm run dev:fullstack   # starts server at http://localhost:3001
 | `src/components/EntryGrid.tsx` | Category-specific card components (browse view) |
 | `src/components/MusicSearch.tsx` | Genius API typeahead search for music forms |
 | `src/components/ExportModal.tsx` | Multi-format export modal (JSON, XLSX, CSV, ZIP) |
+| `src/components/ImportModal.tsx` | ZIP/JSON import modal with format selection and merge warning |
 | `src/components/Header.tsx` | Header with search, Add button, hamburger menu |
 | `prisma/schema.prisma` | Database schema |
 | `src/index.css` | Custom CSS: tooltips (`[data-tooltip]`), glass effect, animations |
@@ -663,8 +657,8 @@ npm run dev:fullstack   # starts server at http://localhost:3001
 | `CLAUDE.md` | AI session guardrails |
 
 ### Immediate Next Steps
-1. **Deploy to Coolify** — follow the "Coolify Setup (Step-by-Step)" section above. Production URL: `https://labor-database.supersoul.top`
-2. **Import production data** — use Admin Dashboard → Import with JSON backup from local dev
+1. **Deploy to Coolify** — follow [deployment-checklist.md](deployment-checklist.md). Production URL: `https://labor-database.supersoul.top`
+2. **Import production data** — LOCAL: Admin → Export → Full Backup (ZIP), then PRODUCTION: Admin → Import → Upload ZIP
 3. **Timeline view** — visual decade/year browser across all categories (deferred from Phase 8)
 4. **Auto-linking** — surface connections across categories by date + keyword matching
 5. **New content types** — Phase 9: plays, poetry (client to define fields)

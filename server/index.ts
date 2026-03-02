@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import multer from 'multer';
 import sharp from 'sharp';
 import archiver from 'archiver';
+import unzipper from 'unzipper';
 import ExcelJS from 'exceljs';
 import rateLimit from 'express-rate-limit';
 import { CANONICAL_TAGS, TAG_GROUPS, normalizeTags, autoTagEntry, mergeTagsWithExisting } from './tags.js';
@@ -105,6 +106,19 @@ const upload = multer({
             cb(null, true);
         } else {
             cb(new Error('Only JPEG, PNG, and WebP images are allowed'));
+        }
+    }
+});
+
+// Multer config for ZIP backup imports (disk storage — ZIPs can be 200MB+)
+const zipUpload = multer({
+    dest: path.join(__dirname, '../uploads/tmp'),
+    limits: { fileSize: 300 * 1024 * 1024 }, // 300MB
+    fileFilter: (_req, file, cb) => {
+        if (file.mimetype === 'application/zip' || file.mimetype === 'application/x-zip-compressed' || file.originalname.endsWith('.zip')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only ZIP files are allowed'));
         }
     }
 });
@@ -1640,7 +1654,201 @@ app.post('/api/admin/import', adminAuth, async (req, res) => {
     }
 });
 
-// DELETE all entries (Emergency/Reset)
+// POST /api/admin/import-zip — Import full backup ZIP (data + images)
+app.post('/api/admin/import-zip', adminAuth, zipUpload.single('backup'), async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ error: 'No ZIP file uploaded' });
+    }
+
+    const zipPath = req.file.path;
+    const tmpDir = path.join(__dirname, '../uploads/tmp');
+
+    try {
+        // Extract ZIP contents
+        const directory = await unzipper.Open.file(zipPath);
+
+        // Find backup.json in the ZIP
+        const jsonEntry = directory.files.find(f => f.path === 'backup.json');
+        if (!jsonEntry) {
+            fs.unlinkSync(zipPath);
+            return res.status(400).json({ error: 'ZIP does not contain backup.json' });
+        }
+
+        // Parse backup.json
+        const jsonBuffer = await jsonEntry.buffer();
+        const data = JSON.parse(jsonBuffer.toString('utf-8'));
+        const entries = Array.isArray(data) ? data : data.entries;
+        const categories = Array.isArray(data) ? null : data.categories;
+
+        if (!Array.isArray(entries)) {
+            fs.unlinkSync(zipPath);
+            return res.status(400).json({ error: 'backup.json does not contain entries array' });
+        }
+
+        // Collect image files from ZIP (images/ folder)
+        const imageFiles = directory.files.filter(f => f.path.startsWith('images/') && !f.path.endsWith('/'));
+
+        // Import data in a transaction
+        const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+            let addedCount = 0;
+            let updatedCount = 0;
+            let imagesRestored = 0;
+
+            // Import categories if provided
+            if (categories && Array.isArray(categories)) {
+                for (const cat of categories) {
+                    await tx.category.upsert({
+                        where: { slug: cat.slug },
+                        update: { label: cat.label, icon: cat.icon, sortOrder: cat.sortOrder, isActive: cat.isActive },
+                        create: { slug: cat.slug, label: cat.label, icon: cat.icon, sortOrder: cat.sortOrder, isActive: cat.isActive }
+                    });
+                }
+            }
+
+            // Track old ID → new ID mapping for image remapping
+            const idMap = new Map<number, number>();
+
+            for (const rawItem of entries) {
+                const item = cleanEntryText(rawItem);
+                const oldId = item.id;
+
+                // Check for existing entry by title + category (dedup strategy)
+                const existing = await tx.entry.findFirst({
+                    where: { title: item.title, category: item.category }
+                });
+
+                let newId: number;
+                if (existing) {
+                    await tx.entry.update({
+                        where: { id: existing.id },
+                        data: {
+                            description: item.description,
+                            month: item.month, day: item.day, year: item.year,
+                            creator: item.creator, metadata: item.metadata,
+                            tags: item.tags, sourceUrl: item.sourceUrl,
+                            isPublished: item.isPublished,
+                        }
+                    });
+                    newId = existing.id;
+                    updatedCount++;
+                } else {
+                    const created = await tx.entry.create({
+                        data: {
+                            category: item.category, title: item.title,
+                            description: item.description,
+                            month: item.month, day: item.day, year: item.year,
+                            creator: item.creator, metadata: item.metadata,
+                            tags: item.tags, sourceUrl: item.sourceUrl,
+                            isPublished: item.isPublished !== false,
+                            submitterName: item.submitterName,
+                            submitterEmail: item.submitterEmail,
+                            submitterComment: item.submitterComment,
+                        }
+                    });
+                    newId = created.id;
+                    addedCount++;
+                }
+
+                if (oldId) {
+                    idMap.set(oldId, newId);
+                }
+
+                // Restore images for this entry from the ZIP
+                if (item.images && Array.isArray(item.images) && imageFiles.length > 0) {
+                    for (const img of item.images) {
+                        const oldFilename = img.filename as string;
+                        // Find matching file in ZIP images/ folder
+                        const zipFile = imageFiles.find(f => f.path === `images/${oldFilename}`);
+                        if (!zipFile) continue;
+
+                        // Remap filename to use new entry ID
+                        const newFilename = oldId !== newId
+                            ? oldFilename.replace(/^\d+_/, `${newId}_`)
+                            : oldFilename;
+
+                        // Write image to uploads/entries/
+                        const imgBuffer = await zipFile.buffer();
+                        const destPath = path.join(uploadsDir, newFilename);
+                        if (!fs.existsSync(destPath)) {
+                            fs.writeFileSync(destPath, imgBuffer);
+                        }
+
+                        // Also restore thumbnail if it exists in ZIP
+                        const thumbFilename = `thumb_${oldFilename}`;
+                        const thumbZipFile = imageFiles.find(f => f.path === `images/${thumbFilename}`);
+                        if (thumbZipFile) {
+                            const newThumbFilename = oldId !== newId
+                                ? `thumb_${newFilename}`
+                                : thumbFilename;
+                            const thumbBuffer = await thumbZipFile.buffer();
+                            const thumbDestPath = path.join(uploadsDir, newThumbFilename);
+                            if (!fs.existsSync(thumbDestPath)) {
+                                fs.writeFileSync(thumbDestPath, thumbBuffer);
+                            }
+                        }
+
+                        // Create EntryImage record (skip if already exists)
+                        const existingImg = await tx.entryImage.findFirst({
+                            where: { entryId: newId, filename: newFilename }
+                        });
+                        if (!existingImg) {
+                            await tx.entryImage.create({
+                                data: {
+                                    entryId: newId,
+                                    filename: newFilename,
+                                    caption: img.caption || null,
+                                    sortOrder: img.sortOrder || 0,
+                                }
+                            });
+                            imagesRestored++;
+                        }
+                    }
+                }
+            }
+
+            return { added: addedCount, updated: updatedCount, imagesRestored };
+        });
+
+        // Clean up temp ZIP file
+        fs.unlinkSync(zipPath);
+
+        res.json({ message: 'Full backup imported', stats: result });
+    } catch (error) {
+        console.error('ZIP import error:', error);
+        // Clean up temp file on error
+        if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
+        res.status(500).json({ error: 'Failed to import ZIP backup' });
+    }
+});
+
+// DELETE all entries + images (Full Reset)
+app.delete('/api/admin/reset', adminAuth, async (_req, res) => {
+    try {
+        // Delete all entries (cascades to EntryImage records via Prisma)
+        const deleteResult = await prisma.entry.deleteMany();
+
+        // Clear uploaded image files
+        let deletedImages = 0;
+        if (fs.existsSync(uploadsDir)) {
+            const files = fs.readdirSync(uploadsDir);
+            for (const file of files) {
+                fs.unlinkSync(path.join(uploadsDir, file));
+                deletedImages++;
+            }
+        }
+
+        res.json({
+            message: 'Database reset complete',
+            deletedEntries: deleteResult.count,
+            deletedImages,
+        });
+    } catch (error) {
+        console.error('Reset error:', error);
+        res.status(500).json({ error: 'Failed to reset database' });
+    }
+});
+
+// DELETE all entries (Legacy — kept for backward compatibility)
 app.delete('/api/admin/clear', adminAuth, async (_req, res) => {
     try {
         await prisma.entry.deleteMany();

@@ -41,29 +41,43 @@
 - **Health check endpoint:** `GET /api/health` returns `{"status":"ok"}` (200) or `{"status":"error"}` (503)
 - **Port:** expose container port `3001` in Coolify
 
-### 5. Prisma Patterns
+### 5. MANDATORY: Backup Before Any DB/Schema Work
+- **This is a strict project rule. No exceptions.**
+- Before ANY of the following, create a local backup:
+  - Running Prisma migrations (`prisma migrate dev`, `prisma migrate deploy`)
+  - Modifying `schema.prisma`
+  - Running import scripts (`npm run import:*`)
+  - Running enrichment scripts (`npm run enrich:films`)
+  - Running tag normalization or auto-tagging
+  - Deploying code that changes database schema
+  - Any manual SQLite operations
+- **Local backup:** `cp prisma/dev.db backups/dev-$(date +%Y%m%d-%H%M%S).db`
+- **Production backup:** Admin Dashboard → Export → Full Backup (ZIP)
+- See [deployment-checklist.md](deployment-checklist.md) for full backup procedures
+
+### 6. Prisma Patterns
 - Always import both `PrismaClient` and `Prisma` from `@prisma/client` when using transactions
 - Transaction client type: `Prisma.TransactionClient` (NOT `typeof prisma`)
 - After schema changes: run `npx prisma generate` before building
 
-### 6. Unified Entry Model
+### 7. Unified Entry Model
 - ALL content types (history, quotes, music, films, plays, poetry) live in ONE `Entry` table
 - Category-specific fields go in the `metadata` JSON column
 - The `category` field determines the content type: "history", "quote", "music", "film", etc.
 - The `Category` model is a registry of available categories — admin-managed
 - Adding a new category = add a Category row + build its form + push
 
-### 7. Submitter Contact Fields (Admin-Only)
+### 8. Submitter Contact Fields (Admin-Only)
 - `submitterName`, `submitterEmail`, `submitterComment` are collected in public submission forms
 - These are **never** exposed in the public API — stripped server-side
 - They **are** returned by the admin API and admin backup
 
-### 8. HTML Entity Sanitization
+### 9. HTML Entity Sanitization
 - Imported data (especially from WordPress) may contain HTML entities (`&amp;`, `&quot;`, etc.)
 - `cleanEntryText()` in `server/index.ts` auto-decodes entities on all create/update/import operations
 - If importing raw data directly to SQLite, run entity cleanup manually
 
-### 9. Security Considerations (Resolved)
+### 10. Security Considerations (Resolved)
 - **CORS:** Restricted via `CORS_ORIGIN` env var. If unset (dev), allows all origins.
 - **Image upload (`POST /api/entries/:id/images`):** Protected by `adminAuth` + `uploadLimiter`. Public submissions cannot upload images.
 - **TMDB poster download (`POST /api/tmdb/download-poster`):** Protected by `adminAuth` + `uploadLimiter`.
@@ -94,6 +108,11 @@
 8. Health check configured: `GET /api/health` on port `3001`
 9. First deploy: import data via Admin Dashboard (`/admin` → Import JSON backup)
 10. Verify admin login works at `https://labor-database.supersoul.top/admin`
+
+## Deployment
+- **Full deployment guide:** [deployment-checklist.md](deployment-checklist.md)
+- **Production URL:** https://labor-database.supersoul.top
+- **DNS:** A record `labor-database.supersoul.top` → Coolify server
 
 ## Known Issues
 - Large JS chunks from react-player (~992KB dash.all.min, ~521KB hls) — lazy-loaded via code splitting, only fetched when viewing entry detail with video

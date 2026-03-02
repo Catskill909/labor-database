@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Trash2, Eye, EyeOff, Download, Upload, Search, X, UserRound, Mail, MessageSquare, Edit2, Database, LogOut } from 'lucide-react';
+import { Plus, Trash2, Eye, EyeOff, Download, Upload, Search, X, UserRound, Mail, MessageSquare, Edit2, Database, LogOut, AlertTriangle } from 'lucide-react';
 import type { Entry, Category } from '../types.ts';
 import ImageDropzone from './ImageDropzone.tsx';
 import SubmissionWizard from './SubmissionWizard.tsx';
@@ -7,6 +7,7 @@ import EntryDetail from './EntryDetail.tsx';
 import MusicSearch from './MusicSearch.tsx';
 import type { MusicDetails } from './MusicSearch.tsx';
 import ExportModal from './ExportModal.tsx';
+import ImportModal from './ImportModal.tsx';
 
 const PAGE_SIZE = 60;
 
@@ -58,7 +59,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [showAddWizard, setShowAddWizard] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const offsetRef = useRef(0);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshKey] = useState(0);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -192,34 +193,28 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   };
 
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
-  const handleImport = async () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-
-      try {
-        const text = await file.text();
-        const data = JSON.parse(text);
-
-        const res = await fetch('/api/admin/import', {
-          method: 'POST',
-          headers: getAdminHeaders(),
-          body: JSON.stringify(data),
-        });
-
-        const result = await res.json();
-        alert(`Import complete: ${result.stats.added} added, ${result.stats.updated} updated, ${result.stats.skipped} skipped`);
-        refetch();
-      } catch (err) {
-        console.error('Import failed:', err);
-        alert('Import failed. Check console for details.');
-      }
-    };
-    input.click();
+  const handleReset = async () => {
+    setResetting(true);
+    try {
+      const res = await fetch('/api/admin/reset', {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}` },
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Reset failed');
+      alert(`Database reset complete.\n\n${result.deletedEntries} entries deleted\n${result.deletedImages} image files removed`);
+      setShowResetModal(false);
+      refetch();
+    } catch (err) {
+      console.error('Reset failed:', err);
+      alert(`Reset failed: ${err instanceof Error ? err.message : 'Check console.'}`);
+    } finally {
+      setResetting(false);
+    }
   };
 
   const unpublishedCount = entries.filter(e => !e.isPublished).length;
@@ -247,10 +242,13 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             >
               <Plus size={16} /> Add to Database
             </button>
+            <button onClick={() => setShowResetModal(true)} className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 hover:bg-red-900/50 border border-red-900/30 text-red-400 font-bold rounded-xl transition-all hover:scale-105 active:scale-95">
+              <Trash2 size={16} /> Reset DB
+            </button>
             <button onClick={() => setShowExportModal(true)} className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-white/5 text-gray-300 font-bold rounded-xl transition-all hover:scale-105 active:scale-95">
               <Download size={16} /> Export
             </button>
-            <button onClick={handleImport} className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-white/5 text-gray-300 font-bold rounded-xl transition-all hover:scale-105 active:scale-95">
+            <button onClick={() => setShowImportModal(true)} className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-white/5 text-gray-300 font-bold rounded-xl transition-all hover:scale-105 active:scale-95">
               <Upload size={16} /> Import
             </button>
             <a href="/" className="px-4 py-2.5 text-sm text-gray-400 hover:text-white transition-colors font-medium">
@@ -450,12 +448,102 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         />
       )}
 
-      {/* Submitter Info Modal */}
+      {/* Reset DB Confirmation Modal */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => !resetting && setShowResetModal(false)} />
+          <div className="relative w-full max-w-md bg-[var(--card)] border-2 border-red-600/60 rounded-xl shadow-2xl overflow-hidden">
+
+            {/* Red warning banner */}
+            <div className="bg-red-600/15 border-b border-red-600/30 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-red-600 p-2 rounded-lg shadow-lg shadow-red-600/30">
+                  <AlertTriangle size={22} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-red-400">Reset Database</h3>
+                  <p className="text-xs text-red-400/60 font-medium">DESTRUCTIVE ACTION — CANNOT BE UNDONE</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <div className="bg-red-950/40 border border-red-900/40 rounded-lg p-4 space-y-2">
+                <p className="text-sm text-gray-200">
+                  This will <span className="font-bold text-red-400">permanently delete:</span>
+                </p>
+                <ul className="text-sm text-gray-400 space-y-1 ml-4 list-disc">
+                  <li><span className="text-white font-semibold">{totalCount.toLocaleString()}</span> database entries</li>
+                  <li>All uploaded images (film posters, thumbnails)</li>
+                  <li>All EntryImage records</li>
+                </ul>
+              </div>
+
+              <p className="text-sm text-gray-500">
+                Only do this before importing a full backup. Make sure you have exported a backup first!
+              </p>
+
+              {/* Type to confirm */}
+              <div>
+                <label className="text-xs text-gray-500 block mb-1.5">
+                  Type <span className="font-mono font-bold text-red-400 bg-red-950/50 px-1.5 py-0.5 rounded">RESET</span> to confirm
+                </label>
+                <input
+                  type="text"
+                  placeholder="Type RESET here"
+                  className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-gray-300 focus:outline-none focus:border-red-500/50 placeholder:text-gray-600"
+                  onChange={(e) => {
+                    const confirmBtn = document.getElementById('reset-confirm-btn') as HTMLButtonElement;
+                    if (confirmBtn) confirmBtn.disabled = e.target.value !== 'RESET' || resetting;
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end px-6 py-4 border-t border-white/5">
+              <button
+                onClick={() => setShowResetModal(false)}
+                disabled={resetting}
+                className="px-4 py-2.5 text-sm text-gray-400 hover:text-white font-medium transition-colors disabled:opacity-30"
+              >
+                Cancel
+              </button>
+              <button
+                id="reset-confirm-btn"
+                onClick={handleReset}
+                disabled={true}
+                className="flex items-center gap-2 px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                {resetting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Resetting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={16} />
+                    Delete Everything
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Export Modal */}
       {showExportModal && (
         <ExportModal
           categories={categories}
           onClose={() => setShowExportModal(false)}
+        />
+      )}
+
+      {/* Import Modal */}
+      {showImportModal && (
+        <ImportModal
+          onClose={() => setShowImportModal(false)}
+          onComplete={() => refetch()}
         />
       )}
 
