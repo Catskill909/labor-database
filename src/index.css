@@ -80,10 +80,16 @@ body {
 }
 
 /* react-day-picker dark theme overrides */
-.rdp-dark {
-  --rdp-accent-color: #d97706;
-  --rdp-accent-background-color: rgba(217, 119, 6, 0.2);
+.rdp-root.rdp-dark {
+  --rdp-accent-color: #ffffff;
+  --rdp-accent-background-color: rgba(255, 255, 255, 0.15);
+  --rdp-selected-border: 2px solid #ffffff;
+  --rdp-today-color: #ffffff;
   color: #f0f0f5;
+}
+
+.rdp-root.rdp-dark .rdp-chevron {
+  fill: #ffffff;
 }
 
 /* Dark theme for month dropdown */
@@ -97,7 +103,7 @@ body {
 }
 
 .rdp-dark select:hover {
-  border-color: rgba(217, 119, 6, 0.4);
+  border-color: rgba(255, 255, 255, 0.4);
 }
 
 .rdp-dark select option {

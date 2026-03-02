@@ -13,9 +13,6 @@ import {
   Music,
   Plus,
   Database,
-  Tag,
-  X,
-  ChevronDown,
 } from 'lucide-react';
 import type { Entry } from '../types.ts';
 import { parseMetadata } from '../types.ts';
@@ -55,7 +52,7 @@ const DAY_SUFFIXES = (d: number) => {
 };
 
 function formatDayOfWeek(month: number, day: number): string {
-  const year = (month === 2 && day === 29) ? 2024 : 2024;
+  const year = (month === 2 && day === 29) ? 2024 : new Date().getFullYear();
   try {
     const d = new Date(year, month - 1, day);
     return format(d, 'EEEE');
@@ -77,6 +74,7 @@ function CategoryIcon({ category }: { category: string }) {
 
 export default function OnThisDayView({ onSelectEntry, onAddClick }: OnThisDayViewProps) {
   const today = new Date();
+  const currentYear = today.getFullYear();
   const defaultClassNames = getDefaultClassNames();
   const [month, setMonth] = useState(today.getMonth() + 1);
   const [day, setDay] = useState(today.getDate());
@@ -84,10 +82,6 @@ export default function OnThisDayView({ onSelectEntry, onAddClick }: OnThisDayVi
   const [loading, setLoading] = useState(true);
   const [calendarData, setCalendarData] = useState<CalendarData | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [availableTags, setAvailableTags] = useState<{ tag: string; count: number; group: string }[]>([]);
-  const [showTagDropdown, setShowTagDropdown] = useState(false);
-  const tagDropdownRef = useRef<HTMLDivElement>(null);
   const calendarMonthRef = useRef(month);
 
   const goToDate = useCallback((m: number, d: number) => {
@@ -97,16 +91,16 @@ export default function OnThisDayView({ onSelectEntry, onAddClick }: OnThisDayVi
   }, []);
 
   const goToPrevDay = useCallback(() => {
-    const ref = new Date(2024, month - 1, day);
+    const ref = new Date(currentYear, month - 1, day);
     const prev = subDays(ref, 1);
     goToDate(prev.getMonth() + 1, prev.getDate());
-  }, [month, day, goToDate]);
+  }, [month, day, currentYear, goToDate]);
 
   const goToNextDay = useCallback(() => {
-    const ref = new Date(2024, month - 1, day);
+    const ref = new Date(currentYear, month - 1, day);
     const next = addDays(ref, 1);
     goToDate(next.getMonth() + 1, next.getDate());
-  }, [month, day, goToDate]);
+  }, [month, day, currentYear, goToDate]);
 
   const goToToday = useCallback(() => {
     const now = new Date();
@@ -141,11 +135,10 @@ export default function OnThisDayView({ onSelectEntry, onAddClick }: OnThisDayVi
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [goToPrevDay, goToNextDay, goToToday]);
 
-  // Fetch on-this-day data (with optional tag filter)
+  // Fetch on-this-day data
   useEffect(() => {
     setLoading(true);
     const params = new URLSearchParams({ month: String(month), day: String(day) });
-    if (selectedTags.length > 0) params.set('tag', selectedTags.join(','));
     fetch(`/api/on-this-day?${params}`)
       .then(r => r.json())
       .then(d => {
@@ -156,27 +149,7 @@ export default function OnThisDayView({ onSelectEntry, onAddClick }: OnThisDayVi
         console.error('Failed to fetch On This Day:', err);
         setLoading(false);
       });
-  }, [month, day, selectedTags]);
-
-  // Fetch available tags
-  useEffect(() => {
-    fetch('/api/tags')
-      .then(r => r.json())
-      .then(d => setAvailableTags(d.tags || []))
-      .catch(() => {});
-  }, []);
-
-  // Close tag dropdown on outside click
-  useEffect(() => {
-    if (!showTagDropdown) return;
-    const handler = (e: MouseEvent) => {
-      if (tagDropdownRef.current && !tagDropdownRef.current.contains(e.target as Node)) {
-        setShowTagDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showTagDropdown]);
+  }, [month, day]);
 
   // Fetch calendar data when calendar opens or month changes
   useEffect(() => {
@@ -252,18 +225,18 @@ export default function OnThisDayView({ onSelectEntry, onAddClick }: OnThisDayVi
               <DayPicker
                 mode="single"
                 captionLayout="dropdown-months"
-                startMonth={new Date(2024, 0)}
-                endMonth={new Date(2024, 11)}
-                selected={new Date(2024, month - 1, day)}
+                startMonth={new Date(currentYear, 0)}
+                endMonth={new Date(currentYear, 11)}
+                selected={new Date(currentYear, month - 1, day)}
                 onSelect={(date) => {
                   if (date) {
                     goToDate(date.getMonth() + 1, date.getDate());
                   }
                 }}
-                defaultMonth={new Date(2024, month - 1)}
+                defaultMonth={new Date(currentYear, month - 1)}
                 modifiers={{
                   hasEntries: calendarData
-                    ? calendarData.daysWithEntries.map(d => new Date(2024, calendarData.month - 1, d))
+                    ? calendarData.daysWithEntries.map(d => new Date(currentYear, calendarData.month - 1, d))
                     : [],
                 }}
                 modifiersClassNames={{
@@ -298,70 +271,6 @@ export default function OnThisDayView({ onSelectEntry, onAddClick }: OnThisDayVi
           </p>
         )}
       </div>
-
-      {/* Tag filter */}
-      {availableTags.length > 0 && (
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 mt-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="relative" ref={tagDropdownRef}>
-              <button
-                onClick={() => setShowTagDropdown(!showTagDropdown)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-colors ${
-                  selectedTags.length > 0
-                    ? 'bg-red-500/10 border-red-500/20 text-red-300'
-                    : 'bg-white/5 border-white/10 text-gray-400 hover:text-gray-300'
-                }`}
-              >
-                <Tag size={11} />
-                {selectedTags.length > 0 ? `${selectedTags.length} tag${selectedTags.length > 1 ? 's' : ''}` : 'Filter by tag'}
-                <ChevronDown size={11} className={`transition-transform ${showTagDropdown ? 'rotate-180' : ''}`} />
-              </button>
-
-              {showTagDropdown && (
-                <div className="absolute top-full left-0 mt-1 z-50 bg-gray-900 border border-white/10 rounded-lg shadow-xl w-64 max-h-72 overflow-y-auto">
-                  {selectedTags.length > 0 && (
-                    <div className="px-3 py-2 border-b border-white/10">
-                      <button onClick={() => setSelectedTags([])} className="text-xs text-red-400 hover:text-red-300">
-                        Clear all tags
-                      </button>
-                    </div>
-                  )}
-                  {availableTags.map(t => (
-                    <label
-                      key={t.tag}
-                      className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/5 cursor-pointer text-xs"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedTags.includes(t.tag)}
-                        onChange={() => {
-                          setSelectedTags(prev =>
-                            prev.includes(t.tag) ? prev.filter(x => x !== t.tag) : [...prev, t.tag]
-                          );
-                        }}
-                        className="rounded border-white/20 bg-white/5 text-red-500 focus:ring-red-500/50 focus:ring-offset-0"
-                      />
-                      <span className={`flex-1 ${selectedTags.includes(t.tag) ? 'text-white' : 'text-gray-400'}`}>
-                        {t.tag}
-                      </span>
-                      <span className="text-[10px] text-gray-600">{t.count}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {selectedTags.map(tag => (
-              <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-500/10 border border-red-500/20 rounded text-[11px] text-red-300">
-                {tag}
-                <button onClick={() => setSelectedTags(prev => prev.filter(t => t !== tag))} className="hover:text-white">
-                  <X size={10} />
-                </button>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Loading state */}
       {loading && (
