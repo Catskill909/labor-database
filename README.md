@@ -35,7 +35,7 @@ npm run enrich:films
 | Backend | Express 5 + tsx |
 | Database | SQLite + Prisma ORM |
 | Film Data | TMDB API (server-side proxy) |
-| Music Data | Genius API + YouTube search |
+| Music Data | Genius API (metadata) + LRCLIB API (lyrics) + YouTube search |
 | Deployment | Docker → Coolify (auto-deploy from `main`) |
 
 Same architecture as the [Labor Landmarks Map](https://github.com/Catskill909/labor-map).
@@ -241,7 +241,7 @@ In local dev, admin login is always required but any password works if `ADMIN_PA
 | `/api/tmdb/movie/:tmdbId` | GET | Full TMDB movie details + credits + videos |
 | `/api/tmdb/download-poster` | POST | Download TMDB poster and attach to entry (admin auth required) |
 | `/api/music/search` | GET | Search Genius for songs (`?query=`) |
-| `/api/music/details/:geniusId` | GET | Fetch lyrics, songwriter, year, YouTube URL from Genius |
+| `/api/music/details/:geniusId` | GET | Fetch songwriter, year from Genius API + lyrics from LRCLIB + YouTube URL |
 | `/api/admin/entries` | GET | Admin: list with submitter info + pagination |
 | `/api/admin/entries` | POST | Admin: create entry (published, no submitter info) |
 | `/api/admin/entries/:id` | PUT | Admin: update entry |
@@ -264,7 +264,7 @@ In local dev, admin login is always required but any password works if `ADMIN_PA
 - **Public Submissions** — 3-step wizard (pick category → category-specific form → contact info). Double-click protected with spinner
 - **Admin Dashboard** — Stats cards, preview modal, category-specific edit forms, submitter info, custom tooltips, table layout
 - **Film Enrichment** — TMDB API integration for posters, cast, trailers. YouTube embed via react-player
-- **Music Search** — Genius API integration for songwriter credits, lyrics, year. YouTube URL auto-discovery
+- **Music Search** — Genius API for songwriter credits and year, LRCLIB API for lyrics, YouTube URL auto-discovery
 - **Multi-Format Export** — Export modal with JSON, XLSX (spreadsheet), CSV, and full ZIP (data + images) formats. Category filtering
 - **Tag System** — 34 canonical tags in 3 groups (Theme, Industry, Social Dimension) based on Library of Congress labor subject headings. Tag filter dropdown in browse and On This Day views (AND logic). Clickable tag pills navigate to filtered browse. Admin tag autocomplete in edit forms
 

@@ -116,3 +116,11 @@
 
 ## Known Issues
 - Large JS chunks from react-player (~992KB dash.all.min, ~521KB hls) — lazy-loaded via code splitting, only fetched when viewing entry detail with video
+
+## External API Notes
+
+### Music Endpoint (`/api/music/details/:geniusId`)
+- **Genius API** — used for song metadata (title, artist, writers, year, album art). Direct JSON API, works from any IP.
+- **LRCLIB API** (`lrclib.net`) — used for lyrics. Free JSON API, no scraping required. Replaced Genius web scraping which was blocked from cloud/datacenter IPs (worked locally but failed in production).
+- **youtube-sr** — used for YouTube URL discovery. Best-effort.
+- If LRCLIB doesn't have lyrics for a song, the endpoint still returns all other metadata — lyrics are best-effort.
