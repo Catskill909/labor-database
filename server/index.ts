@@ -155,6 +155,76 @@ app.get('/api/health', async (_req, res) => {
     }
 });
 
+// ==================== JSON FEED ====================
+
+app.get('/api/feed.json', async (req, res) => {
+    try {
+        const { category, limit: limitParam } = req.query;
+        const feedLimit = Math.min(parseInt(limitParam as string) || 50, 200);
+
+        const where: Prisma.EntryWhereInput = { isPublished: true };
+        if (category && typeof category === 'string') {
+            where.category = category;
+        }
+
+        const entries = await prisma.entry.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+            include: { images: { orderBy: { sortOrder: 'asc' } } },
+            take: feedLimit,
+        });
+
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+        const host = req.headers['x-forwarded-host'] || req.get('host');
+        const baseUrl = `${protocol}://${host}`;
+
+        const items = entries.map(e => {
+            const { submitterName: _sn, submitterEmail: _se, submitterComment: _sc, ...rest } = e;
+            const item: Record<string, unknown> = {
+                id: `${baseUrl}/api/entries/${rest.id}`,
+                url: `${baseUrl}/#entry-${rest.id}`,
+                title: rest.title,
+                content_text: rest.description,
+                date_published: rest.createdAt.toISOString(),
+                date_modified: rest.updatedAt.toISOString(),
+                tags: rest.tags ? rest.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+                _labor_database: {
+                    category: rest.category,
+                    creator: rest.creator,
+                    month: rest.month,
+                    day: rest.day,
+                    year: rest.year,
+                    metadata: rest.metadata ? (() => { try { return JSON.parse(rest.metadata as string); } catch { return null; } })() : null,
+                    source_url: rest.sourceUrl,
+                },
+            };
+            if (rest.creator) {
+                item.authors = [{ name: rest.creator }];
+            }
+            if (rest.images.length > 0) {
+                item.image = `${baseUrl}/uploads/entries/${rest.images[0].filename}`;
+            }
+            return item;
+        });
+
+        const feed = {
+            version: 'https://jsonfeed.org/version/1.1',
+            title: 'Labor Arts & Culture Database',
+            home_page_url: baseUrl,
+            feed_url: `${baseUrl}/api/feed.json${category ? `?category=${category}` : ''}`,
+            description: 'Labor history, quotes, music, and films from the Labor Heritage Foundation.',
+            items,
+        };
+
+        res.set('Content-Type', 'application/feed+json; charset=utf-8');
+        res.set('Cache-Control', 'public, max-age=300');
+        res.json(feed);
+    } catch (error) {
+        console.error('JSON Feed error:', error);
+        res.status(500).json({ error: 'Failed to generate feed' });
+    }
+});
+
 // ==================== AUTH ====================
 
 app.post('/api/admin/verify-password', authLimiter, (req, res) => {

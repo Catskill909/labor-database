@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Trash2, Eye, EyeOff, Download, Upload, Search, X, UserRound, Mail, MessageSquare, Edit2, Database, LogOut, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Eye, EyeOff, Download, Upload, Search, X, UserRound, Mail, MessageSquare, Edit2, Database, LogOut, AlertTriangle, Code2 } from 'lucide-react';
 import type { Entry, Category } from '../types.ts';
 import ImageDropzone from './ImageDropzone.tsx';
 import SubmissionWizard from './SubmissionWizard.tsx';
@@ -8,6 +8,7 @@ import MusicSearch from './MusicSearch.tsx';
 import type { MusicDetails } from './MusicSearch.tsx';
 import ExportModal from './ExportModal.tsx';
 import ImportModal from './ImportModal.tsx';
+import ApiModal from './ApiModal.tsx';
 
 const PAGE_SIZE = 60;
 
@@ -194,6 +195,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
   const [showExportModal, setShowExportModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showApiModal, setShowApiModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetting, setResetting] = useState(false);
 
@@ -247,6 +249,9 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             </button>
             <button onClick={() => setShowExportModal(true)} className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-white/5 text-gray-300 font-bold rounded-xl transition-all hover:scale-105 active:scale-95">
               <Download size={16} /> Export
+            </button>
+            <button onClick={() => setShowApiModal(true)} className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-white/5 text-gray-300 font-bold rounded-xl transition-all hover:scale-105 active:scale-95">
+              <Code2 size={16} /> API
             </button>
             <button onClick={() => setShowImportModal(true)} className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-white/5 text-gray-300 font-bold rounded-xl transition-all hover:scale-105 active:scale-95">
               <Upload size={16} /> Import
@@ -545,6 +550,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
           onClose={() => setShowImportModal(false)}
           onComplete={() => refetch()}
         />
+      )}
+
+      {/* API Reference Modal */}
+      {showApiModal && (
+        <ApiModal onClose={() => setShowApiModal(false)} />
       )}
 
       {submitterInfoEntry && (
