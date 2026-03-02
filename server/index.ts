@@ -443,17 +443,18 @@ app.get('/api/music/details/:geniusId', async (req, res) => {
     if (!key) return res.status(500).json({ error: 'GENIUS_API_KEY not set' });
 
     try {
-        // 1. Get lyrics from Genius (scrapes the page)
-        const { getSongById } = await import('genius-lyrics-api');
-        const song = await getSongById(parseInt(geniusId), key);
-
-        // 2. Get songwriter credits from Genius API
+        // 1. Get songwriter credits from Genius API (reliable — direct API call)
         const r = await fetch(
             `https://api.genius.com/songs/${geniusId}`,
             { headers: { Authorization: `Bearer ${key}` } }
         );
+        if (!r.ok) {
+            const text = await r.text();
+            console.error(`Genius API error ${r.status}:`, text);
+            return res.status(r.status).json({ error: `Genius API returned ${r.status}` });
+        }
         const songData = await r.json() as {
-            response: { song: { title: string; primary_artist?: { name: string }; writer_artists?: Array<{ name: string }>; release_date_for_display?: string } }
+            response: { song: { title: string; url?: string; song_art_image_url?: string; primary_artist?: { name: string }; writer_artists?: Array<{ name: string }>; release_date_for_display?: string } }
         };
         const details = songData.response?.song;
         const writers = details?.writer_artists?.map((w: { name: string }) => w.name).join(', ') || '';
@@ -461,11 +462,24 @@ app.get('/api/music/details/:geniusId', async (req, res) => {
         const releaseDate = details?.release_date_for_display || '';
         const yearMatch = releaseDate.match(/\d{4}/);
 
+        // 2. Get lyrics from Genius (scrapes the page — best-effort, may fail on cloud IPs)
+        let lyrics = '';
+        let albumArtUrl: string | null = details?.song_art_image_url || null;
+        try {
+            const { getSongById } = await import('genius-lyrics-api');
+            const song = await getSongById(parseInt(geniusId), key);
+            lyrics = song?.lyrics || '';
+            if (song?.albumArt) albumArtUrl = song.albumArt;
+        } catch (scrapeErr) {
+            console.warn('Genius lyrics scrape failed (returning metadata without lyrics):', scrapeErr instanceof Error ? scrapeErr.message : scrapeErr);
+        }
+
         // 3. Search YouTube for video URL (best-effort)
         let youtubeUrl: string | null = null;
         try {
             const { YouTube } = await import('youtube-sr');
-            const videos = await YouTube.search(`${song?.title || ''} ${artist}`, { limit: 1, type: 'video' });
+            const searchTitle = details?.title || '';
+            const videos = await YouTube.search(`${searchTitle} ${artist}`, { limit: 1, type: 'video' });
             if (videos.length > 0 && videos[0].id) {
                 youtubeUrl = `https://www.youtube.com/watch?v=${videos[0].id}`;
             }
@@ -473,17 +487,18 @@ app.get('/api/music/details/:geniusId', async (req, res) => {
 
         res.json({
             geniusId: parseInt(geniusId),
-            title: details?.title || song?.title || '',
+            title: details?.title || '',
             artist,
             writers,
             year: yearMatch ? parseInt(yearMatch[0]) : null,
-            lyrics: song?.lyrics || '',
+            lyrics,
             youtubeUrl,
-            albumArtUrl: song?.albumArt || null,
+            albumArtUrl,
         });
     } catch (error) {
         console.error('Genius details error:', error);
-        res.status(500).json({ error: 'Genius details failed' });
+        const message = error instanceof Error ? error.message : 'Genius details failed';
+        res.status(500).json({ error: message });
     }
 });
 
