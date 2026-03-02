@@ -799,9 +799,25 @@ app.get('/api/entries', async (req, res) => {
             }
         }
 
+        // Sort param
+        const sort = req.query.sort as string | undefined;
+        const sortMap: Record<string, object | object[]> = {
+            'newest': { createdAt: 'desc' },
+            'oldest': { createdAt: 'asc' },
+            'title-asc': { title: 'asc' },
+            'title-desc': { title: 'desc' },
+            'creator-asc': { creator: 'asc' },
+            'creator-desc': { creator: 'desc' },
+            'year-newest': [{ year: 'desc' }, { createdAt: 'desc' }],
+            'year-oldest': [{ year: 'asc' }, { createdAt: 'asc' }],
+            'event-date-newest': [{ year: 'desc' }, { month: 'desc' }, { day: 'desc' }],
+            'event-date-oldest': [{ year: 'asc' }, { month: 'asc' }, { day: 'asc' }],
+        };
+        const orderBy = (sort && sortMap[sort]) || { createdAt: 'desc' };
+
         const entries = await prisma.entry.findMany({
             where,
-            orderBy: { createdAt: 'desc' },
+            orderBy: orderBy as Prisma.EntryOrderByWithRelationInput | Prisma.EntryOrderByWithRelationInput[],
             include: { images: { orderBy: { sortOrder: 'asc' } } },
             take: limit ? parseInt(limit as string) : undefined,
             skip: offset ? parseInt(offset as string) : undefined,
@@ -1015,13 +1031,24 @@ app.get('/api/admin/entries', adminAuth, async (req, res) => {
             where.id = { in: results.map(r => r.id) };
         }
 
+        // Sort param (admin)
+        const sort = req.query.sort as string | undefined;
+        const adminSortMap: Record<string, object | object[]> = {
+            'newest': [{ isPublished: 'asc' }, { createdAt: 'desc' }],
+            'oldest': [{ isPublished: 'asc' }, { createdAt: 'asc' }],
+            'title-asc': [{ isPublished: 'asc' }, { title: 'asc' }],
+            'title-desc': [{ isPublished: 'asc' }, { title: 'desc' }],
+            'category-asc': [{ isPublished: 'asc' }, { category: 'asc' }, { title: 'asc' }],
+        };
+        const adminOrderBy = (sort && adminSortMap[sort]) || [{ isPublished: 'asc' }, { createdAt: 'desc' }];
+
         const take = limit ? parseInt(limit as string) : undefined;
         const skip = offset ? parseInt(offset as string) : undefined;
 
         const [entries, total] = await Promise.all([
             prisma.entry.findMany({
                 where,
-                orderBy: [{ isPublished: 'asc' }, { createdAt: 'desc' }],
+                orderBy: adminOrderBy as Prisma.EntryOrderByWithRelationInput[],
                 include: { images: { orderBy: { sortOrder: 'asc' } } },
                 ...(take !== undefined && { take }),
                 ...(skip !== undefined && { skip }),

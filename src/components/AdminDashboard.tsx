@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, Trash2, Eye, EyeOff, Download, Upload, Search, X, UserRound, Mail, MessageSquare, Edit2, Database, LogOut, AlertTriangle, Code2 } from 'lucide-react';
+import { SortDropdown, ADMIN_SORT_OPTIONS } from './FilterBar.tsx';
 import type { Entry, Category } from '../types.ts';
 import ImageDropzone from './ImageDropzone.tsx';
 import SubmissionWizard from './SubmissionWizard.tsx';
@@ -50,6 +51,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [filterPublished, setFilterPublished] = useState<string>('');
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState('newest');
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -77,10 +79,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     if (selectedCategory) params.set('category', selectedCategory);
     if (filterPublished) params.set('isPublished', filterPublished);
     if (search.trim()) params.set('search', search.trim());
+    if (sort && sort !== 'newest') params.set('sort', sort);
     params.set('limit', String(PAGE_SIZE));
     params.set('offset', String(offset));
     return params;
-  }, [selectedCategory, filterPublished, search]);
+  }, [selectedCategory, filterPublished, search, sort]);
 
   // Initial fetch when filters change
   useEffect(() => {
@@ -302,23 +305,32 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
           </div>
         </div>
 
-        {/* ── Category Tabs ── */}
-        <div className="flex items-center gap-1 mb-6 bg-zinc-900/60 border border-white/5 rounded-xl p-1 w-fit">
-          <button
-            onClick={() => { setSelectedCategory(''); setFilterPublished(''); }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${!selectedCategory && !filterPublished ? 'bg-white/10 text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
-          >
-            All
-          </button>
-          {categories.map(cat => (
+        {/* ── Category Tabs + Sort ── */}
+        <div className="flex items-center gap-4 mb-6 flex-wrap">
+          <div className="flex items-center gap-1 bg-zinc-900/60 border border-white/5 rounded-xl p-1 w-fit">
             <button
-              key={cat.slug}
-              onClick={() => { setSelectedCategory(cat.slug === selectedCategory ? '' : cat.slug); setFilterPublished(''); }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${selectedCategory === cat.slug ? 'bg-white/10 text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+              onClick={() => { setSelectedCategory(''); setFilterPublished(''); }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${!selectedCategory && !filterPublished ? 'bg-white/10 text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
             >
-              {cat.label}
+              All
             </button>
-          ))}
+            {categories.map(cat => (
+              <button
+                key={cat.slug}
+                onClick={() => { setSelectedCategory(cat.slug === selectedCategory ? '' : cat.slug); setFilterPublished(''); }}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${selectedCategory === cat.slug ? 'bg-white/10 text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+          <div className="ml-auto">
+            <SortDropdown
+              value={sort}
+              onChange={setSort}
+              options={ADMIN_SORT_OPTIONS}
+            />
+          </div>
         </div>
 
         {/* ── Entry Table ── */}

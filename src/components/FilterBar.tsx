@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { SlidersHorizontal, X, Tag, ChevronDown } from 'lucide-react';
+import { SlidersHorizontal, X, Tag, ChevronDown, ArrowUpDown, Check } from 'lucide-react';
 
 interface TagInfo {
   tag: string;
@@ -7,10 +7,113 @@ interface TagInfo {
   group: string;
 }
 
+interface SortOption {
+  value: string;
+  label: string;
+}
+
+const SORT_OPTIONS: Record<string, SortOption[]> = {
+  history: [
+    { value: 'newest', label: 'Date Added (newest)' },
+    { value: 'oldest', label: 'Date Added (oldest)' },
+    { value: 'event-date-newest', label: 'Event Date (newest)' },
+    { value: 'event-date-oldest', label: 'Event Date (oldest)' },
+    { value: 'title-asc', label: 'Title A–Z' },
+  ],
+  quote: [
+    { value: 'newest', label: 'Date Added (newest)' },
+    { value: 'oldest', label: 'Date Added (oldest)' },
+    { value: 'creator-asc', label: 'Author A–Z' },
+    { value: 'creator-desc', label: 'Author Z–A' },
+    { value: 'title-asc', label: 'Title A–Z' },
+  ],
+  music: [
+    { value: 'newest', label: 'Date Added (newest)' },
+    { value: 'oldest', label: 'Date Added (oldest)' },
+    { value: 'title-asc', label: 'Title A–Z' },
+    { value: 'creator-asc', label: 'Artist A–Z' },
+    { value: 'year-newest', label: 'Year (newest)' },
+    { value: 'year-oldest', label: 'Year (oldest)' },
+  ],
+  film: [
+    { value: 'newest', label: 'Date Added (newest)' },
+    { value: 'oldest', label: 'Date Added (oldest)' },
+    { value: 'title-asc', label: 'Title A–Z' },
+    { value: 'creator-asc', label: 'Director A–Z' },
+    { value: 'year-newest', label: 'Year (newest)' },
+    { value: 'year-oldest', label: 'Year (oldest)' },
+  ],
+};
+
+export const ADMIN_SORT_OPTIONS: SortOption[] = [
+  { value: 'newest', label: 'Date Added (newest)' },
+  { value: 'oldest', label: 'Date Added (oldest)' },
+  { value: 'title-asc', label: 'Title A–Z' },
+  { value: 'title-desc', label: 'Title Z–A' },
+  { value: 'category-asc', label: 'Category A–Z' },
+];
+
+export function SortDropdown({ value, onChange, options }: {
+  value: string;
+  onChange: (v: string) => void;
+  options: SortOption[];
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const current = options.find(o => o.value === value) || options[0];
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className={`flex items-center gap-1.5 ${selectClass} ${value !== 'newest' ? 'border-red-500/50 text-white' : ''}`}
+      >
+        <ArrowUpDown size={12} />
+        <span className="hidden sm:inline">{current.label}</span>
+        <span className="sm:hidden">Sort</span>
+        <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="absolute top-full right-0 mt-1 z-50 bg-gray-900 border border-white/10 rounded-lg shadow-xl min-w-[200px] py-1 overflow-hidden">
+          {options.map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+              className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
+                opt.value === value
+                  ? 'text-white bg-white/10'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Check size={12} className={opt.value === value ? 'opacity-100' : 'opacity-0'} />
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface FilterBarProps {
   category: string;
   filters: Record<string, string>;
   setFilters: (filters: Record<string, string>) => void;
+  sort: string;
+  onSortChange: (sort: string) => void;
 }
 
 const MONTHS = [
@@ -146,7 +249,7 @@ function TagFilterDropdown({ category, selectedTags, onChange }: {
   );
 }
 
-export default function FilterBar({ category, filters, setFilters }: FilterBarProps) {
+export default function FilterBar({ category, filters, setFilters, sort, onSortChange }: FilterBarProps) {
   const [genres, setGenres] = useState<string[]>([]);
 
   // Fetch filter options when category changes
@@ -324,6 +427,17 @@ export default function FilterBar({ category, filters, setFilters }: FilterBarPr
             <X size={12} />
             Clear
           </button>
+        )}
+
+        {/* Sort dropdown — right-aligned */}
+        {SORT_OPTIONS[category] && (
+          <div className="ml-auto">
+            <SortDropdown
+              value={sort}
+              onChange={onSortChange}
+              options={SORT_OPTIONS[category]}
+            />
+          </div>
         )}
       </div>
     </div>

@@ -20,6 +20,7 @@ function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('on-this-day');
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<Record<string, string>>({});
+  const [sort, setSort] = useState('newest');
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -44,9 +45,10 @@ function HomePage() {
       .catch(err => console.error('Failed to fetch counts:', err));
   }, []);
 
-  // Reset filters when category changes
+  // Reset filters and sort when category changes
   useEffect(() => {
     setFilters({});
+    setSort('newest');
   }, [selectedCategory]);
 
   // Build query params (shared between initial fetch and load-more)
@@ -57,10 +59,11 @@ function HomePage() {
     for (const [key, value] of Object.entries(filters)) {
       if (value) params.set(key, value);
     }
+    if (sort && sort !== 'newest') params.set('sort', sort);
     params.set('limit', String(PAGE_SIZE));
     params.set('offset', String(offset));
     return params;
-  }, [selectedCategory, searchQuery, filters]);
+  }, [selectedCategory, searchQuery, filters, sort]);
 
   // Initial fetch when category, search, or filters change (skip for On This Day)
   useEffect(() => {
@@ -158,6 +161,8 @@ function HomePage() {
           category={selectedCategory}
           filters={filters}
           setFilters={setFilters}
+          sort={sort}
+          onSortChange={setSort}
         />
       )}
 
