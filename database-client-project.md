@@ -413,7 +413,8 @@ This is faster and more reliable than a dynamic form generator, and produces bet
 - [x] **Category form tweaks** — Removed Date from quotes, reordered music fields (Title/Performer first), made film fields flexible with helper text
 
 ### Phase 6a: Music Search & Data Export ✅ COMPLETE
-- [x] **Genius API integration** — typeahead search in music forms (submission wizard + admin edit modal), auto-fills songwriter, lyrics, year from Genius database
+- [x] **Genius API integration** — typeahead search in music forms (submission wizard + admin edit modal), auto-fills songwriter, year, album art from Genius API
+- [x] **LRCLIB lyrics API** — replaced Genius webpage scraping with [LRCLIB](https://lrclib.net) free JSON API for lyrics. Genius scraping worked locally but was blocked from cloud/datacenter IPs in production. LRCLIB returns lyrics via direct API call — no scraping, works from any IP.
 - [x] **YouTube URL auto-discovery** — `youtube-sr` finds matching YouTube video for selected song
 - [x] **MusicSearch component** — debounced search dropdown with album art thumbnails, loading states, "Fetching lyrics & YouTube video" indicator
 - [x] **Bulk music enrichment** — 100 entries enriched with songwriter/year via Genius API, 349/435 entries now have YouTube URLs
@@ -426,7 +427,7 @@ This is faster and more reliable than a dynamic form generator, and produces bet
   - Spinner/progress feedback during export generation
 - [x] **`ExportModal.tsx`** — clean dark-themed modal matching existing UI patterns
 - [x] **`/api/admin/export` endpoint** — unified server endpoint supporting all 4 formats with streaming response (no memory buffering)
-- [x] **Packages added**: `genius-lyrics-api`, `youtube-sr`, `exceljs`, `archiver`
+- [x] **Packages added**: `youtube-sr`, `exceljs`, `archiver`
 
 ### Phase 7: Pre-Launch Security Hardening ✅ COMPLETE
 - [x] **Health check endpoint** — `GET /api/health` with DB connectivity check (200/503)
@@ -471,6 +472,7 @@ This is faster and more reliable than a dynamic form generator, and produces bet
 1. **Alpine DNS in Docker builds**: Coolify's build containers may not have DNS access. Avoid `apk add` for packages that aren't essential — use what Alpine provides via BusyBox.
 2. **Reverse proxy timeouts**: Coolify's Traefik proxy has ~60s default timeout. Long-running requests (large file imports) must use SSE/chunked streaming to keep the connection alive.
 3. **Large transaction performance**: SQLite + Prisma with 6,000+ entry upserts in a single `$transaction` is very slow. Batch processing (50 entries per transaction) is dramatically faster and allows progress reporting.
+4. **Cloud IP scraping blocks**: Websites like Genius.com block web scraping from cloud/datacenter IPs while allowing residential IPs. Code that scrapes works locally but fails silently in production. Solution: use direct JSON APIs (e.g., LRCLIB for lyrics) instead of webpage scraping.
 
 ### Phase 8 Deferred
 - [ ] **Timeline view** — visual decade/year browser across all categories (deferred from Phase 8)
@@ -641,6 +643,7 @@ Cross-referencing (e.g., Pittston strike ↔ Trumka quote ↔ related song) work
 - SQLite database with 5,954 entries (3,762 CSV + 2,192 films) — both local and production
 - Coolify auto-deploys from `main` branch — push code, database untouched
 - Admin dashboard at `/admin` — fully styled with preview, edit, submitter info, export/import/reset
+- Music details endpoint uses Genius API (metadata) + LRCLIB API (lyrics) + youtube-sr (video URL)
 - Public + admin submission wizards with category-specific forms and double-click protection
 
 ### To Start Working
@@ -673,8 +676,10 @@ npm run dev:fullstack   # starts server at http://localhost:3001
 ### Immediate Next Steps
 1. ~~**Deploy to Coolify**~~ — **DONE** (March 2, 2026)
 2. ~~**Import production data**~~ — **DONE** (March 2, 2026)
-3. **Timeline view** — visual decade/year browser across all categories
-4. **Auto-linking** — surface connections across categories by date + keyword matching
-5. **New content types** — Phase 9: plays, poetry (client to define fields)
-6. **Week view** — browse a full week of On This Day content
-7. **Share/print** — copy/share/print individual entries or daily digest
+3. ~~**Fix production lyrics**~~ — **DONE** (March 2, 2026) — Replaced Genius scraping with LRCLIB API
+4. **Client presentation** — prepare client email showcasing the live product
+5. **Timeline view** — visual decade/year browser across all categories
+6. **Auto-linking** — surface connections across categories by date + keyword matching
+7. **New content types** — Phase 9: plays, poetry (client to define fields)
+8. **Week view** — browse a full week of On This Day content
+9. **Share/print** — copy/share/print individual entries or daily digest
