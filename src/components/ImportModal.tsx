@@ -8,6 +8,18 @@ interface ImportModalProps {
 
 type ImportFormat = 'zip' | 'json';
 
+interface ImportProgress {
+  phase: 'uploading' | 'extracting' | 'importing' | 'done' | 'error';
+  message?: string;
+  percent?: number;
+  current?: number;
+  total?: number;
+  added?: number;
+  updated?: number;
+  images?: number;
+  error?: string;
+}
+
 const formatOptions: { value: ImportFormat; label: string; description: string; icon: typeof Package }[] = [
   { value: 'zip', label: 'Full Backup (.zip)', description: 'Data + all images. Use this for full restore or production migration.', icon: Package },
   { value: 'json', label: 'Data Only (.json)', description: 'Entries only, no images. Good for incremental updates.', icon: FileJson },
@@ -16,14 +28,124 @@ const formatOptions: { value: ImportFormat; label: string; description: string; 
 export default function ImportModal({ onClose, onComplete }: ImportModalProps) {
   const [format, setFormat] = useState<ImportFormat>('zip');
   const [importing, setImporting] = useState(false);
+  const [progress, setProgress] = useState<ImportProgress | null>(null);
   const [error, setError] = useState('');
   const [result, setResult] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const xhrRef = useRef<XMLHttpRequest | null>(null);
 
   const handleChooseFile = () => {
     if (fileRef.current) {
       fileRef.current.accept = format === 'zip' ? '.zip' : '.json';
       fileRef.current.click();
+    }
+  };
+
+  const handleZipImport = (file: File) => {
+    const token = localStorage.getItem('adminToken') || sessionStorage.getItem('adminToken') || '';
+    const formData = new FormData();
+    formData.append('backup', file);
+
+    const xhr = new XMLHttpRequest();
+    xhrRef.current = xhr;
+
+    // Phase 1: Upload progress
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const percent = Math.round((e.loaded / e.total) * 100);
+        setProgress({ phase: 'uploading', percent, message: `Uploading... ${percent}%` });
+      }
+    };
+
+    xhr.upload.onload = () => {
+      setProgress({ phase: 'extracting', message: 'Processing on server...' });
+    };
+
+    // Phase 2: Read SSE stream for processing progress
+    let buffer = '';
+    xhr.onprogress = () => {
+      const newData = xhr.responseText.substring(buffer.length);
+      buffer = xhr.responseText;
+
+      const lines = newData.split('\n');
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const event = JSON.parse(line.substring(6));
+            if (event.phase === 'importing') {
+              setProgress({
+                phase: 'importing',
+                current: event.current,
+                total: event.total,
+                added: event.added,
+                updated: event.updated,
+                images: event.images,
+                message: `Processing entries... ${event.current}/${event.total}`,
+              });
+            } else if (event.phase === 'extracting') {
+              setProgress({ phase: 'extracting', message: event.message });
+            } else if (event.phase === 'done') {
+              setProgress({ phase: 'done' });
+              setResult(`${event.stats.added} added, ${event.stats.updated} updated, ${event.stats.imagesRestored} images restored`);
+              setImporting(false);
+              onComplete();
+            } else if (event.phase === 'error') {
+              setProgress({ phase: 'error', error: event.error });
+              setError(event.error);
+              setImporting(false);
+            }
+          } catch { /* skip malformed lines */ }
+        }
+      }
+    };
+
+    xhr.onerror = () => {
+      setError('Network error during import. Please try again.');
+      setImporting(false);
+      setProgress(null);
+    };
+
+    xhr.onload = () => {
+      // If we haven't already handled done/error via SSE, check status
+      if (xhr.status >= 400 && !error) {
+        setError('Import failed. Check server logs.');
+        setImporting(false);
+        setProgress(null);
+      }
+    };
+
+    xhr.open('POST', '/api/admin/import-zip');
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.send(formData);
+  };
+
+  const handleJsonImport = async (file: File) => {
+    try {
+      const token = localStorage.getItem('adminToken') || sessionStorage.getItem('adminToken') || '';
+      const text = await file.text();
+      const jsonData = JSON.parse(text);
+
+      setProgress({ phase: 'importing', message: 'Importing data...' });
+
+      const res = await fetch('/api/admin/import', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(jsonData),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Import failed');
+      setResult(`${data.stats.added} added, ${data.stats.updated} updated, ${data.stats.skipped} skipped`);
+      onComplete();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Import failed. Check console.');
+      console.error('Import failed:', err);
+    } finally {
+      setImporting(false);
+      setProgress(null);
     }
   };
 
@@ -34,51 +156,23 @@ export default function ImportModal({ onClose, onComplete }: ImportModalProps) {
     setImporting(true);
     setError('');
     setResult('');
+    setProgress({ phase: 'uploading', percent: 0, message: 'Starting upload...' });
 
-    try {
-      const token = localStorage.getItem('adminToken') || sessionStorage.getItem('adminToken') || '';
-
-      if (format === 'zip') {
-        const formData = new FormData();
-        formData.append('backup', file);
-
-        const res = await fetch('/api/admin/import-zip', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` },
-          body: formData,
-        });
-
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Import failed');
-        setResult(`${data.stats.added} added, ${data.stats.updated} updated, ${data.stats.imagesRestored} images restored`);
-      } else {
-        const text = await file.text();
-        const jsonData = JSON.parse(text);
-
-        const res = await fetch('/api/admin/import', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(jsonData),
-        });
-
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Import failed');
-        setResult(`${data.stats.added} added, ${data.stats.updated} updated, ${data.stats.skipped} skipped`);
-      }
-
-      onComplete();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Import failed. Check console.');
-      console.error('Import failed:', err);
-    } finally {
-      setImporting(false);
-      // Reset file input so same file can be re-selected
-      if (fileRef.current) fileRef.current.value = '';
+    if (format === 'zip') {
+      handleZipImport(file);
+    } else {
+      handleJsonImport(file);
     }
+
+    // Reset file input so same file can be re-selected
+    if (fileRef.current) fileRef.current.value = '';
   };
+
+  const progressPercent = progress?.phase === 'uploading'
+    ? (progress.percent || 0)
+    : progress?.phase === 'importing' && progress.total
+      ? Math.round(((progress.current || 0) / progress.total) * 100)
+      : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -139,8 +233,31 @@ export default function ImportModal({ onClose, onComplete }: ImportModalProps) {
           {/* Merge warning */}
           <div className="flex items-start gap-2.5 text-xs text-amber-400/80 bg-amber-500/5 border border-amber-500/10 rounded-lg px-3 py-2.5">
             <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-            <span>Import merges with existing data. To start fresh, use <strong>Reset DB</strong> first, then import.</span>
+            <span>Import merges with existing data. To start fresh, use <strong>Reset DB</strong> first, then import. Large backups may take several minutes.</span>
           </div>
+
+          {/* Progress */}
+          {progress && !result && !error && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm text-gray-300">
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                <span>{progress.message}</span>
+              </div>
+              {progressPercent !== null && (
+                <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="h-full bg-red-500 rounded-full transition-all duration-300"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+              )}
+              {progress.phase === 'importing' && progress.added !== undefined && (
+                <p className="text-[11px] text-gray-500">
+                  {progress.added} added, {progress.updated} updated, {progress.images} images
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Error */}
           {error && (
