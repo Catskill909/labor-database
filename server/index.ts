@@ -1,9 +1,11 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import { PrismaClient, Prisma } from '@prisma/client';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import sharp from 'sharp';
@@ -54,6 +56,7 @@ const prisma = new PrismaClient();
 
 const corsOrigin = process.env.CORS_ORIGIN;
 app.use(cors(corsOrigin ? { origin: corsOrigin, credentials: true } : undefined));
+app.use(helmet());
 app.use(express.json({ limit: '10mb' }));
 
 // Rate limiting
@@ -130,17 +133,30 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 const adminAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const adminPassword = process.env.ADMIN_PASSWORD;
 
-    // If no password configured, allow access (local dev convenience)
+    // If no password configured:
+    // - In production, reject access (safety guard)
+    // - In dev, allow access (convenience)
     if (!adminPassword) {
+        if (process.env.NODE_ENV === 'production') {
+            console.error('CRITICAL: ADMIN_PASSWORD not set in production! Rejecting admin access.');
+            return res.status(503).json({ error: 'Admin access unavailable - server misconfigured' });
+        }
         return next();
     }
 
     const authHeader = req.headers.authorization;
-    if (authHeader && authHeader === `Bearer ${adminPassword}`) {
-        next();
-    } else {
-        res.status(401).json({ error: 'Unauthorized - Invalid or missing admin credentials' });
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : '';
+
+    // Timing-safe comparison to prevent timing attacks
+    if (token.length > 0 && token.length === adminPassword.length) {
+        const isValid = crypto.timingSafeEqual(
+            Buffer.from(token),
+            Buffer.from(adminPassword)
+        );
+        if (isValid) return next();
     }
+
+    res.status(401).json({ error: 'Unauthorized - Invalid or missing admin credentials' });
 };
 
 // ==================== HEALTH CHECK ====================
@@ -337,7 +353,7 @@ app.get('/api/tmdb/search', searchLimiter, async (req, res) => {
 });
 
 // Get full movie details (credits + videos in one call)
-app.get('/api/tmdb/movie/:tmdbId', async (req, res) => {
+app.get('/api/tmdb/movie/:tmdbId', searchLimiter, async (req, res) => {
     const tmdbId = req.params.tmdbId as string;
     try {
         const r = await fetch(`${TMDB_BASE}/movie/${tmdbId}?append_to_response=credits,videos`, { headers: tmdbHeaders() });
@@ -673,14 +689,10 @@ app.get('/api/tags', async (req, res) => {
     try {
         const { category } = req.query;
 
-        let whereClause = `WHERE isPublished = 1 AND tags IS NOT NULL AND tags != ''`;
-        if (category && typeof category === 'string') {
-            whereClause += ` AND category = '${category.replace(/'/g, "''")}'`;
-        }
-
-        const entries: { tags: string }[] = await prisma.$queryRawUnsafe(
-            `SELECT tags FROM Entry ${whereClause}`
-        );
+        // Use parameterized queries to prevent SQL injection
+        const entries: { tags: string }[] = (category && typeof category === 'string')
+            ? await prisma.$queryRaw`SELECT tags FROM Entry WHERE isPublished = 1 AND tags IS NOT NULL AND tags != '' AND category = ${category}`
+            : await prisma.$queryRaw`SELECT tags FROM Entry WHERE isPublished = 1 AND tags IS NOT NULL AND tags != ''`;
 
         // Count each tag
         const tagCounts: Record<string, number> = {};
@@ -1905,7 +1917,13 @@ app.post('/api/admin/import-zip', adminAuth, zipUpload.single('backup'), async (
                                 : oldFilename;
 
                             const imgBuffer = await zipFile.buffer();
-                            const destPath = path.join(uploadsDir, newFilename);
+                            // Path traversal protection: use basename and verify resolved path
+                            const safeFilename = path.basename(newFilename);
+                            const destPath = path.join(uploadsDir, safeFilename);
+                            if (!destPath.startsWith(uploadsDir)) {
+                                console.error(`Path traversal attempt blocked: ${newFilename}`);
+                                continue;
+                            }
                             if (!fs.existsSync(destPath)) {
                                 fs.writeFileSync(destPath, imgBuffer);
                             }
@@ -1917,7 +1935,13 @@ app.post('/api/admin/import-zip', adminAuth, zipUpload.single('backup'), async (
                                     ? `thumb_${newFilename}`
                                     : thumbFilename;
                                 const thumbBuffer = await thumbZipFile.buffer();
-                                const thumbDestPath = path.join(uploadsDir, newThumbFilename);
+                                // Path traversal protection for thumbnails
+                                const safeThumbFilename = path.basename(newThumbFilename);
+                                const thumbDestPath = path.join(uploadsDir, safeThumbFilename);
+                                if (!thumbDestPath.startsWith(uploadsDir)) {
+                                    console.error(`Path traversal attempt blocked: ${newThumbFilename}`);
+                                    continue;
+                                }
                                 if (!fs.existsSync(thumbDestPath)) {
                                     fs.writeFileSync(thumbDestPath, thumbBuffer);
                                 }
@@ -1987,16 +2011,7 @@ app.delete('/api/admin/reset', adminAuth, async (_req, res) => {
     }
 });
 
-// DELETE all entries (Legacy — kept for backward compatibility)
-app.delete('/api/admin/clear', adminAuth, async (_req, res) => {
-    try {
-        await prisma.entry.deleteMany();
-        res.json({ message: 'All entries deleted' });
-    } catch (error) {
-        console.error('Clear entries error:', error);
-        res.status(500).json({ error: 'Failed to clear entries' });
-    }
-});
+// Legacy /api/admin/clear endpoint removed (use /api/admin/reset instead)
 
 // ==================== STATIC FILES ====================
 

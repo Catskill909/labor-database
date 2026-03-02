@@ -41,6 +41,9 @@ uploads/
 # Deployment checklist (contains secrets)
 deployment-checklist.md
 
+# Security audit (contains internal findings)
+app-audit.md
+
 # Dev/scratch files
 prisma/dev.db.backup-pre-enrichment
 scripts/yt-enrich.mjs
