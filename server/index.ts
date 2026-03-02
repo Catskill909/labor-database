@@ -462,16 +462,48 @@ app.get('/api/music/details/:geniusId', async (req, res) => {
         const releaseDate = details?.release_date_for_display || '';
         const yearMatch = releaseDate.match(/\d{4}/);
 
-        // 2. Get lyrics from Genius (scrapes the page — best-effort, may fail on cloud IPs)
+        // 2. Scrape lyrics from Genius song page (best-effort)
         let lyrics = '';
-        let albumArtUrl: string | null = details?.song_art_image_url || null;
-        try {
-            const { getSongById } = await import('genius-lyrics-api');
-            const song = await getSongById(parseInt(geniusId), key);
-            lyrics = song?.lyrics || '';
-            if (song?.albumArt) albumArtUrl = song.albumArt;
-        } catch (scrapeErr) {
-            console.warn('Genius lyrics scrape failed (returning metadata without lyrics):', scrapeErr instanceof Error ? scrapeErr.message : scrapeErr);
+        const albumArtUrl: string | null = details?.song_art_image_url || null;
+        if (details?.url) {
+            try {
+                const { load } = await import('cheerio');
+                const pageRes = await fetch(details.url, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (compatible; LaborHeritageDatabaseBot/1.0)',
+                        'Accept': 'text/html',
+                    },
+                });
+                if (pageRes.ok) {
+                    const html = await pageRes.text();
+                    const $ = load(html);
+                    // Try modern Genius layout first, then legacy
+                    let lyricsText = '';
+                    $('div[data-lyrics-container="true"]').each((_i, elem) => {
+                        const text = $(elem).text().trim();
+                        // Skip description containers (e.g. "31 ContributorsSong Title Lyrics...")
+                        if (!text || /^\d+\s*Contributor/.test(text)) return;
+                        // Replace <br> with newlines, strip other tags
+                        const snippet = $(elem).html()?.replace(/<br\s*\/?>/gi, '\n').replace(/<(?!\s*br\s*\/?)[^>]+>/gi, '') || '';
+                        lyricsText += snippet + '\n\n';
+                    });
+                    if (!lyricsText) {
+                        lyricsText = $('div[class="lyrics"]').text().trim();
+                    }
+                    if (!lyricsText) {
+                        $('div[class^="Lyrics__Container"]').each((_i, elem) => {
+                            const snippet = $(elem).html()?.replace(/<br\s*\/?>/gi, '\n').replace(/<(?!\s*br\s*\/?)[^>]+>/gi, '') || '';
+                            lyricsText += snippet + '\n\n';
+                        });
+                    }
+                    // Decode HTML entities and clean up
+                    if (lyricsText) {
+                        lyrics = $('<textarea/>').html(lyricsText).text().trim();
+                    }
+                }
+            } catch (scrapeErr) {
+                console.warn('Genius lyrics scrape failed (returning metadata without lyrics):', scrapeErr instanceof Error ? scrapeErr.message : scrapeErr);
+            }
         }
 
         // 3. Search YouTube for video URL (best-effort)
