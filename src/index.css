@@ -13,8 +13,14 @@
   --glass-border: rgba(255, 255, 255, 0.1);
 }
 
-button, [role="button"] {
+button,
+[role="button"] {
   cursor: pointer;
+}
+
+html,
+body {
+  overflow-x: hidden;
 }
 
 body {
@@ -55,6 +61,7 @@ body {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -66,6 +73,7 @@ body {
   transform: translateY(16px);
   transition: opacity 0.4s ease-out, transform 0.4s ease-out;
 }
+
 .entry-visible {
   opacity: 1;
   transform: translateY(0);
@@ -75,6 +83,7 @@ body {
 .line-clamp-12 {
   display: -webkit-box;
   -webkit-line-clamp: 12;
+  line-clamp: 12;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -132,6 +141,7 @@ body {
 [data-tooltip] {
   position: relative;
 }
+
 [data-tooltip]::after {
   content: attr(data-tooltip);
   position: absolute;
@@ -152,6 +162,7 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   z-index: 100;
 }
+
 [data-tooltip]:hover::after {
   opacity: 1;
   transform: translateX(-50%) translateY(100%) scale(1);
