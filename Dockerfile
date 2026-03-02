@@ -17,9 +17,9 @@ RUN npm run build
 FROM node:22-alpine
 WORKDIR /app
 
-# Install runtime utilities (prisma for migrations, tsx for server, curl for healthcheck)
+# Install runtime utilities (prisma for migrations, tsx for server)
+# Note: Alpine includes wget via BusyBox — no need to install curl for health checks
 RUN npm install -g prisma tsx
-RUN apk add --no-cache curl
 
 # Install only production dependencies
 COPY package*.json ./
