@@ -2,10 +2,10 @@
 
 **Client:** Chris Garlock & Harold Phillips / Labor Heritage Foundation
 **Date:** February 23, 2026
-**Status:** Phase 8 + Deployment Prep COMPLETE. Tag system (34 canonical tags, normalization, auto-tagging), portable ZIP import/export, Reset DB with type-to-confirm, Import modal. App running locally with 5,954 entries. Pushed to GitHub. Ready for Coolify deployment.
+**Status:** DEPLOYED TO PRODUCTION (March 2, 2026). All phases complete through Phase 8 + Deployment. 5,954 entries live at production URL with full data + images imported via ZIP backup.
 **Repo:** https://github.com/Catskill909/labor-database
 **Production URL:** https://labor-database.supersoul.top
-**Next:** Deploy to Coolify (see [deployment-checklist.md](deployment-checklist.md)), then timeline view, auto-linking, new content types (plays, poetry).
+**Next:** Timeline view, auto-linking, new content types (plays, poetry).
 
 ---
 
@@ -457,6 +457,21 @@ This is faster and more reliable than a dynamic form generator, and produces bet
 - [x] **Packages added**: `unzipper`, `@types/unzipper`
 - [x] **Three-button admin workflow**: Export (Full Backup ZIP) → Import (upload ZIP) → Reset DB (emergency recovery). One file out, one file in.
 
+### Production Deployment ✅ COMPLETE (March 2, 2026)
+- [x] **Coolify deployment** — Docker build succeeds, auto-deploy from `main` branch
+- [x] **Dockerfile fix** — Removed `apk add curl` (DNS resolution fails in Coolify build environment). Alpine's built-in `wget` via BusyBox is sufficient; Coolify health checks use HTTP directly.
+- [x] **ZIP import streaming** — Rewrote `POST /api/admin/import-zip` to use Server-Sent Events (SSE) streaming. Prevents Coolify reverse proxy (Traefik) timeout on large imports. Entries processed in batches of 50 instead of one giant transaction.
+- [x] **Import progress UI** — `ImportModal.tsx` rewritten with XHR upload progress (percentage bar), SSE stream reading for server-side processing progress (entries X/Y with running stats), and "Large backups may take several minutes" notice.
+- [x] **OnThisDayView fixes** — Replaced hardcoded year 2024 with dynamic `new Date().getFullYear()`. Removed tag filter dropdown from On This Day view (simplification).
+- [x] **Calendar CSS** — Updated react-day-picker dark theme to white accent colors and chevron fills.
+- [x] **Data imported** — Full backup ZIP (5,954 entries + ~153MB images) successfully imported to production via streaming import.
+- [x] **Production verified** — Site live at `https://labor-database.supersoul.top`, admin login works, search works, film posters display, On This Day shows content.
+
+### Deployment Lessons Learned
+1. **Alpine DNS in Docker builds**: Coolify's build containers may not have DNS access. Avoid `apk add` for packages that aren't essential — use what Alpine provides via BusyBox.
+2. **Reverse proxy timeouts**: Coolify's Traefik proxy has ~60s default timeout. Long-running requests (large file imports) must use SSE/chunked streaming to keep the connection alive.
+3. **Large transaction performance**: SQLite + Prisma with 6,000+ entry upserts in a single `$transaction` is very slow. Batch processing (50 entries per transaction) is dramatically faster and allows progress reporting.
+
 ### Phase 8 Deferred
 - [ ] **Timeline view** — visual decade/year browser across all categories (deferred from Phase 8)
 - [ ] **Auto-linking** — surface connections across categories by date + keyword matching (deferred from Phase 8)
@@ -621,13 +636,12 @@ Cross-referencing (e.g., Pittston strike ↔ Trumka quote ↔ related song) work
 ## Handoff Notes for Next Session
 
 ### Current State
+- **LIVE IN PRODUCTION** at https://labor-database.supersoul.top (deployed March 2, 2026)
 - App runs locally on port 3001 (`./dev.sh`)
-- SQLite database at `prisma/dev.db` with 5,954 entries (3,762 CSV + 2,192 films)
-- "On This Day" is the landing tab — shows today's date with history, quotes, year-matched films/music
-- Admin dashboard fully styled with preview, edit (category-specific), submitter info modals
+- SQLite database with 5,954 entries (3,762 CSV + 2,192 films) — both local and production
+- Coolify auto-deploys from `main` branch — push code, database untouched
+- Admin dashboard at `/admin` — fully styled with preview, edit, submitter info, export/import/reset
 - Public + admin submission wizards with category-specific forms and double-click protection
-- All code pushed to https://github.com/Catskill909/labor-database
-- NOT yet deployed to Coolify
 
 ### To Start Working
 ```bash
@@ -657,9 +671,9 @@ npm run dev:fullstack   # starts server at http://localhost:3001
 | `CLAUDE.md` | AI session guardrails |
 
 ### Immediate Next Steps
-1. **Deploy to Coolify** — follow [deployment-checklist.md](deployment-checklist.md). Production URL: `https://labor-database.supersoul.top`
-2. **Import production data** — LOCAL: Admin → Export → Full Backup (ZIP), then PRODUCTION: Admin → Import → Upload ZIP
-3. **Timeline view** — visual decade/year browser across all categories (deferred from Phase 8)
+1. ~~**Deploy to Coolify**~~ — **DONE** (March 2, 2026)
+2. ~~**Import production data**~~ — **DONE** (March 2, 2026)
+3. **Timeline view** — visual decade/year browser across all categories
 4. **Auto-linking** — surface connections across categories by date + keyword matching
 5. **New content types** — Phase 9: plays, poetry (client to define fields)
 6. **Week view** — browse a full week of On This Day content

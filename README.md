@@ -124,48 +124,44 @@ npm run enrich:films -- --no-posters # Skip poster downloads
 
 Idempotent — safe to re-run (skips entries already enriched with `tmdbId`).
 
-## Deployment (Coolify)
+## Deployment
 
-Docker-based deployment with two persistent volumes. **Without both volumes, ALL DATA AND IMAGES ARE LOST on every deploy.**
+**Live at https://labor-database.supersoul.top** (deployed March 2, 2026)
+
+Docker-based deployment via Coolify with auto-deploy from `main`. Two persistent volumes preserve data across deploys.
+
+### Quick Reference
+
+```
+Production URL:     https://labor-database.supersoul.top
+Admin URL:          https://labor-database.supersoul.top/admin
+Health Check:       GET /api/health
+Container Port:     3001
+Auto-deploy:        Push to main → Coolify builds + deploys
+Backup:             Admin → Export → Full Backup (ZIP)
+Restore:            Admin → Import → Upload ZIP
+Recovery:           Reset DB → Import ZIP → Done
+```
 
 ### Persistent Volumes (CRITICAL)
 
-| Volume | Mount Path | Purpose | Without it... |
-|--------|-----------|---------|---------------|
-| `labor_db_data` | `/app/data` | SQLite database | ALL entries wiped every deploy |
-| `labor_db_uploads` | `/app/uploads` | Uploaded images (~153 MB posters) | All images lost every deploy |
+**Without both volumes, ALL DATA AND IMAGES ARE LOST on every deploy.**
+
+| Volume | Mount Path | Purpose |
+|--------|-----------|---------|
+| `labor_db_data` | `/app/data` | SQLite database (5,954 entries) |
+| `labor_db_uploads` | `/app/uploads` | Uploaded images (~153 MB posters) |
 
 ### Environment Variables
 
-| Variable | Required | Set Where | Notes |
-|----------|----------|-----------|-------|
-| `ADMIN_PASSWORD` | **Yes** | Coolify env vars | Protects `/admin` dashboard and all `/api/admin/*` endpoints |
-| `TMDB_API_KEY` | No | Coolify env vars | Enables TMDB film search/enrichment in forms |
-| `GENIUS_API_KEY` | No | Coolify env vars | Enables Genius music search (songwriter, lyrics, year auto-fill) |
-| `CORS_ORIGIN` | No | Coolify env vars | Restricts CORS to specified origin (e.g. `https://labor-database.supersoul.top`). If unset, allows all origins |
-| `DATABASE_URL` | No | Pre-set in Dockerfile | Default: `file:/app/data/dev.db` — do NOT override |
-| `PORT` | No | Pre-set in Dockerfile | Default: `3001` — do NOT override |
-| `NODE_ENV` | No | Pre-set in Dockerfile | Default: `production` |
+| Variable | Required | Notes |
+|----------|----------|-------|
+| `ADMIN_PASSWORD` | **Yes** | Protects `/admin` dashboard and all `/api/admin/*` endpoints |
+| `TMDB_API_KEY` | No | Enables TMDB film search/enrichment in forms |
+| `GENIUS_API_KEY` | No | Enables Genius music search (songwriter, lyrics, year auto-fill) |
+| `CORS_ORIGIN` | No | Restricts CORS to specified origin. If unset, allows all origins |
 
-**Never put secrets in the Dockerfile `ARG` or `ENV`** — always use Coolify environment variables.
-
-### Setup Checklist
-
-1. Create new Coolify app pointing to this repo (`main` branch)
-2. **Add TWO persistent storage volumes** (Configuration → Persistent Storage):
-   - Volume 1: name `labor_db_data`, mount at `/app/data`
-   - Volume 2: name `labor_db_uploads`, mount at `/app/uploads`
-   - **Verify both volumes have DIFFERENT names** (Coolify silently fails if names collide)
-3. Set environment variables:
-   - `ADMIN_PASSWORD=<strong-password>`
-   - `TMDB_API_KEY=<your-tmdb-bearer-token>` (optional — film search)
-   - `GENIUS_API_KEY=<your-genius-client-access-token>` (optional — music search)
-   - `CORS_ORIGIN=https://labor-database.supersoul.top` (recommended — restricts CORS)
-4. Set exposed port to `3001`
-5. Configure health check: `GET /api/health` on port `3001`
-6. Deploy — Coolify auto-deploys on push to `main`
-7. Verify: visit `https://labor-database.supersoul.top` — should see the app
-8. Verify: visit `https://labor-database.supersoul.top/admin` — should prompt for password
+Pre-set in Dockerfile (do NOT override): `DATABASE_URL`, `PORT=3001`, `NODE_ENV=production`
 
 ### Container Startup Sequence
 
@@ -174,33 +170,40 @@ On every deploy, the container runs:
 2. `prisma/seed.ts` — seeds default categories (idempotent — skips if categories exist)
 3. `tsx server/index.ts` — starts the Express server on port 3001
 
-If no database exists at `/app/data/dev.db`, the container logs a **WARNING** about missing persistent volume.
-
-### Production Data Migration
-
-After first Coolify deploy (empty database):
-1. **LOCAL:** Admin → Export → Full Backup (ZIP) — downloads all data + images in one package
-2. **PRODUCTION:** Admin → Import → Upload that ZIP — restores entries + images
-3. Verify entry counts + images display correctly
-
-One file out, one file in. See [deployment-checklist.md](deployment-checklist.md) for full details.
-
 ### CODE vs DATA
 
 - **Code changes** → `git push` → Coolify auto-deploys (database untouched)
-- **Data changes** → Admin panel (add/edit/delete entries, JSON backup/restore)
+- **Data changes** → Admin panel (add/edit/delete entries, backup/restore)
 - Always ask: "Is this a CODE problem or a DATA problem?"
 
-### Security Hardening (Completed)
+### Data Migration
 
-All pre-launch security issues have been resolved:
-- **Health check** — `GET /api/health` verifies DB connectivity (200 OK / 503 error)
-- **CORS** — Restricted via `CORS_ORIGIN` env var; unset allows all (dev convenience)
-- **Image upload auth** — `POST /api/entries/:id/images` protected by `adminAuth` + rate limiting. Public submissions cannot upload images.
-- **TMDB poster auth** — `POST /api/tmdb/download-poster` protected by `adminAuth` + rate limiting
-- **Rate limiting** — `express-rate-limit` applied: general (100/min), auth (5/min), uploads (10/min), search (30/min)
-- **Admin auth** — Login required everywhere (localhost bypass removed). Server allows all if `ADMIN_PASSWORD` unset (dev).
-- **Bundle optimization** — EntryDetail, SubmissionWizard, AdminDashboard lazy-loaded via `React.lazy()`. react-player chunks only loaded on demand.
+To migrate data to a new/empty instance:
+1. **SOURCE:** Admin → Export → Full Backup (ZIP)
+2. **TARGET:** Admin → Import → Upload that ZIP (progress bar shows upload + processing)
+3. Verify entry counts + images display correctly
+
+The ZIP import uses SSE streaming with batch processing — handles large backups (~160MB) without proxy timeout.
+
+### Security
+
+- **Health check** — `GET /api/health` verifies DB connectivity (200/503)
+- **CORS** — Restricted via `CORS_ORIGIN` env var; unset allows all (dev)
+- **Rate limiting** — general (100/min), auth (5/min), uploads (10/min), search (30/min)
+- **Admin auth** — Login required everywhere. Server allows all if `ADMIN_PASSWORD` unset (dev)
+- **Bundle optimization** — EntryDetail, SubmissionWizard, AdminDashboard lazy-loaded via `React.lazy()`
+
+### Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| "WARNING: No existing database found" | Volume not mounted — check Persistent Storage |
+| Site shows no data | Import your backup ZIP via Admin |
+| Images not showing | Volume `labor_db_uploads` not mounted, or images not imported |
+| Admin login not working | `ADMIN_PASSWORD` not set in Coolify env vars |
+| Build fails | Run `npx tsc --noEmit` locally before pushing |
+
+See [deployment-checklist.md](deployment-checklist.md) for the complete step-by-step setup guide.
 
 ## Admin Panel
 
