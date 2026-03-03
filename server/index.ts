@@ -61,8 +61,12 @@ app.use(helmet({
         directives: {
             ...helmet.contentSecurityPolicy.getDefaultDirectives(),
             "frame-src": ["'self'", "https://www.youtube.com", "https://www.youtube-nocookie.com"],
-            "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://www.youtube.com"],
+            "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://www.youtube.com", "https://www.google.com"],
             "img-src": ["'self'", "data:", "*", "https://image.tmdb.org", "https://i.ytimg.com", "https://images.genius.com"],
+            // Fix YouTube embed Error 153 in production: allow YouTube player API calls
+            "connect-src": ["'self'", "https://www.youtube.com", "https://*.youtube.com", "https://*.googlevideo.com", "https://*.google.com"],
+            "child-src": ["'self'", "blob:", "https://www.youtube.com"],
+            "worker-src": ["'self'", "blob:"],
         },
     },
     // Fix: Allow images to load across ports in dev (5173 -> 3001)
