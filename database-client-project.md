@@ -439,13 +439,12 @@ This is faster and more reliable than a dynamic form generator, and produces bet
 - [x] **Bundle optimization** — `React.lazy()` for EntryDetail, SubmissionWizard, AdminDashboard. react-player chunks loaded on demand only.
 
 ### Phase 8: Tag System ✅ COMPLETE
-- [x] **Canonical tag taxonomy** — 34 historian-grade tags in 3 groups (Theme/Topic, Industry/Sector, Social Dimension), informed by Library of Congress labor subject headings, Tamiment/Wagner Archives, and Labor Film Database categories
+- [x] **Canonical tag taxonomy** — 35 historian-grade tags in 3 groups (Theme/Topic, Industry/Sector, Social Dimension), informed by Library of Congress labor subject headings, Tamiment/Wagner Archives, and Labor Film Database categories
 - [x] **Tag normalization** — mapped 200+ messy WordPress/Labor Film Database tags to canonical names, dropped meta/platform tags (festivals, streaming, recommendations). 1,892 film entries cleaned
 - [x] **Auto-tagging engine** — deterministic keyword matching (no LLM): 800+ regex patterns, 40+ notable labor figures, 25+ notable events, 30+ unions/orgs. Conservative max 5 tags per entry. 3,153 entries auto-tagged (71.4% overall coverage: 93% films, 80% history, 50% quotes, 30% music)
 - [x] **Tag filter in browse view** — `FilterBar.tsx` multi-select dropdown with grouped checkboxes, tag counts, AND logic (narrows results). Available for all categories
 - [x] **Clickable tag pills** — tags in `EntryDetail.tsx` are clickable buttons; clicking navigates to browse view filtered by that tag + category
-- [x] **Tag filter in On This Day** — `OnThisDayView.tsx` tag dropdown filters On This Day content by topic
-- [x] **Tag autocomplete in admin** — `TagAutocomplete` component in `AdminDashboard.tsx` edit modal suggests canonical tags
+- [x] **Tag Selector UI** — `TagSelector.tsx` component: all 35 tags always visible inline (no dropdown), grouped by Theme/Industry/Social, one-click toggle, 5-tag max with counter, clear explanation text. Integrated in all 3 form contexts: public submission (all categories), admin add, admin edit
 - [x] **Tag API endpoints** — `GET /api/tags` (counts + groups), `GET /api/entries?tag=X` (AND filter), `GET /api/on-this-day?tag=X`, admin normalize/auto-tag/stats endpoints
 - [x] **New file: `server/tags.ts`** — taxonomy, normalization map, keyword dictionary, auto-tag engine (~1,000 lines)
 

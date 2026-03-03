@@ -48,3 +48,6 @@ app-audit.md
 prisma/dev.db.backup-pre-enrichment
 scripts/yt-enrich.mjs
 scripts/yt-test.mjs
+
+# Internal brainstorm docs (not for client/git)
+INTERNAL-*.md

@@ -57,7 +57,8 @@ Same architecture as the [Labor Landmarks Map](https://github.com/Catskill909/la
 │       ├── ImportModal.tsx  # ZIP/JSON import modal with format selection
 │       ├── ImageDropzone.tsx # Drag-and-drop image upload
 │       ├── SubmissionWizard.tsx  # Submission wizard (public + admin mode)
-│       └── AdminDashboard.tsx   # Admin dashboard (stats, table, preview/edit/submitter modals)
+│       ├── AdminDashboard.tsx   # Admin dashboard (stats, table, preview/edit/submitter modals)
+│       └── TagSelector.tsx      # Inline tag selector (35 canonical tags, grouped, 5-tag limit)
 ├── prisma/
 │   ├── schema.prisma        # Database schema
 │   └── seed.ts              # Default categories
@@ -287,7 +288,8 @@ In local dev, admin login is always required but any password works if `ADMIN_PA
 - **Film Enrichment** — TMDB API integration for posters, cast, trailers. YouTube embed via react-player
 - **Music Search** — Genius API for songwriter credits and year, LRCLIB API for lyrics, YouTube URL auto-discovery
 - **Multi-Format Export** — Export modal with JSON, XLSX (spreadsheet), CSV, and full ZIP (data + images) formats. Category filtering
-- **Tag System** — 34 canonical tags in 3 groups (Theme, Industry, Social Dimension) based on Library of Congress labor subject headings. Tag filter dropdown in browse and On This Day views (AND logic). Clickable tag pills navigate to filtered browse. Admin tag autocomplete in edit forms
+- **Tag System** — 35 canonical tags in 3 groups (Theme, Industry, Social Dimension) based on Library of Congress labor subject headings. Tag filter dropdown in browse views (AND logic). Clickable tag pills navigate to filtered browse
+- **Tag Selector UI** — Modern inline tag selector in all submission and edit forms. All 35 tags always visible grouped by category, one-click toggle selection, 5-tag limit with counter. No hidden dropdowns — fully discoverable UI
 
 ## Documentation
 

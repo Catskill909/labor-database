@@ -6,6 +6,7 @@ import TmdbSearch from './TmdbSearch.tsx';
 import type { TmdbMovieDetails } from './TmdbSearch.tsx';
 import MusicSearch from './MusicSearch.tsx';
 import type { MusicDetails } from './MusicSearch.tsx';
+import TagSelector from './TagSelector.tsx';
 
 interface SubmissionWizardProps {
   categories: Category[];
@@ -36,13 +37,15 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
   const [runTime, setRunTime] = useState('');
   const [lyrics, setLyrics] = useState('');
 
+  // Tags (shared across all categories)
+  const [tags, setTags] = useState('');
+
   // Film-specific
   const [filmCast, setFilmCast] = useState('');
   const [filmWriters, setFilmWriters] = useState('');
   const [filmRuntime, setFilmRuntime] = useState('');
   const [filmCountry, setFilmCountry] = useState('');
   const [filmGenre, setFilmGenre] = useState('');
-  const [filmTags, setFilmTags] = useState('');
   const [tmdbPosterPath, setTmdbPosterPath] = useState<string | null>(null);
   const [tmdbPosterPreview, setTmdbPosterPreview] = useState<string | null>(null);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
@@ -89,7 +92,6 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
       let metadata: Record<string, string> = {};
       let entryTitle = title;
       let entryCreator = creator;
-      let entryTags = '';
 
       if (selectedCategory === 'film') {
         metadata = {};
@@ -104,7 +106,6 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
           const ytMatch = sourceUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
           if (ytMatch) metadata.youtubeId = ytMatch[1];
         }
-        entryTags = filmTags;
       } else if (selectedCategory === 'music') {
         metadata = { writer: songwriter, performer, genre, runTime, locationUrl: sourceUrl, lyrics };
         if (!entryCreator && performer) entryCreator = performer;
@@ -129,7 +130,7 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
         year: year || null,
         creator: entryCreator || null,
         metadata: Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : null,
-        tags: entryTags || null,
+        tags: tags || null,
         sourceUrl: sourceUrl || null,
       };
 
@@ -250,6 +251,10 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
                 rows={5}
                 className="input-field"
               />
+              <div>
+                <label className="text-xs text-gray-400 block mb-1.5">Tags <span className="text-gray-600">(optional, max 5)</span></label>
+                <TagSelector value={tags} onChange={setTags} />
+              </div>
             </div>
           )}
 
@@ -264,6 +269,10 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
                 rows={4}
                 className="input-field"
               />
+              <div>
+                <label className="text-xs text-gray-400 block mb-1.5">Tags <span className="text-gray-600">(optional, max 5)</span></label>
+                <TagSelector value={tags} onChange={setTags} />
+              </div>
             </div>
           )}
 
@@ -286,6 +295,10 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
                 rows={4}
                 className="input-field"
               />
+              <div>
+                <label className="text-xs text-gray-400 block mb-1.5">Tags <span className="text-gray-600">(optional, max 5)</span></label>
+                <TagSelector value={tags} onChange={setTags} />
+              </div>
             </div>
           )}
 
@@ -354,8 +367,8 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
                 <input type="text" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} className="input-field" />
               </div>
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Tags <span className="text-gray-600">(optional)</span></label>
-                <input type="text" placeholder="e.g. Women, Strikes, Working Class" value={filmTags} onChange={e => setFilmTags(e.target.value)} className="input-field" />
+                <label className="text-xs text-gray-400 block mb-1.5">Tags <span className="text-gray-600">(optional, max 5)</span></label>
+                <TagSelector value={tags} onChange={setTags} />
               </div>
               <div>
                 <label className="text-xs text-gray-400 block mb-1">Comments / Notes <span className="text-gray-600">(optional)</span></label>
