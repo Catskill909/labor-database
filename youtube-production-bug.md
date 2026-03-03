@@ -2,8 +2,9 @@
 
 ## Issue Summary
 **Date**: 2026-03-02  
-**Status**: � FIX APPLIED - Pending Deploy  
-**Environment**: Production only (works locally)
+**Status**: ✅ RESOLVED  
+**Environment**: Production only (works locally)  
+**Resolution**: Fixed `Referrer-Policy` header + switched to `youtube-nocookie.com`
 
 ## Symptoms
 1. YouTube player shows **Error 153: Video player configuration error**

@@ -202,6 +202,27 @@ The ZIP import uses SSE streaming with batch processing — handles large backup
 | Images not showing | Volume `labor_db_uploads` not mounted, or images not imported |
 | Admin login not working | `ADMIN_PASSWORD` not set in Coolify env vars |
 | Build fails | Run `npx tsc --noEmit` locally before pushing |
+| **YouTube Error 153** | See [YouTube Embed Fix](#youtube-embed-fix) below |
+
+### YouTube Embed Fix
+
+**Problem**: YouTube embeds show "Error 153: Video player configuration error" in production but work locally.
+
+**Root Cause**: Helmet's default `Referrer-Policy: no-referrer` header strips referrer info that YouTube requires to validate embeds.
+
+**Why Local Works**: Vite dev server sends no security headers. Production Express + Helmet sends restrictive headers.
+
+**Solution** (already applied in `server/index.ts`):
+```typescript
+app.use(helmet({
+    // ... CSP config ...
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },  // ← This fixes YouTube
+}));
+```
+
+Also using `youtube-nocookie.com` for embed URLs (more reliable than `youtube.com`).
+
+**Note**: `ERR_BLOCKED_BY_CLIENT` errors on `log_event` and `generate_204` are caused by ad blockers and are harmless — they only block YouTube's telemetry, not video playback.
 
 See [deployment-checklist.md](deployment-checklist.md) for the complete step-by-step setup guide.
 

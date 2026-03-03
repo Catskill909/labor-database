@@ -473,6 +473,7 @@ This is faster and more reliable than a dynamic form generator, and produces bet
 2. **Reverse proxy timeouts**: Coolify's Traefik proxy has ~60s default timeout. Long-running requests (large file imports) must use SSE/chunked streaming to keep the connection alive.
 3. **Large transaction performance**: SQLite + Prisma with 6,000+ entry upserts in a single `$transaction` is very slow. Batch processing (50 entries per transaction) is dramatically faster and allows progress reporting.
 4. **Cloud IP scraping blocks**: Websites like Genius.com block web scraping from cloud/datacenter IPs while allowing residential IPs. Code that scrapes works locally but fails silently in production. Solution: use direct JSON APIs (e.g., LRCLIB for lyrics) instead of webpage scraping.
+5. **YouTube Error 153 — Referrer-Policy breaks embeds**: Helmet's default `Referrer-Policy: no-referrer` strips referrer info that YouTube requires to validate embeds. Fix: set `referrerPolicy: { policy: 'strict-origin-when-cross-origin' }` in helmet config. Also use `youtube-nocookie.com` for embed URLs. This only affects production (Vite dev server sends no security headers). See [README.md#youtube-embed-fix](README.md#youtube-embed-fix).
 
 ### Phase 8 Deferred
 - [ ] **Timeline view** — visual decade/year browser across all categories (deferred from Phase 8)
