@@ -128,7 +128,7 @@ function FilmDetail({ entry, onClose, onTagClick }: EntryDetailProps) {
               </div>
               <div className="aspect-video rounded-lg overflow-hidden bg-black">
                 <iframe
-                  src={`https://www.youtube.com/embed/${meta.youtubeId}`}
+                  src={`https://www.youtube-nocookie.com/embed/${meta.youtubeId}`}
                   width="100%"
                   height="100%"
                   frameBorder="0"
@@ -279,7 +279,7 @@ export default function EntryDetail({ entry, onClose, onTagClick }: EntryDetailP
                   </div>
                   <div className="aspect-video rounded-lg overflow-hidden bg-black">
                     <iframe
-                      src={`https://www.youtube.com/embed/${(() => { const m = entry.sourceUrl!.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/); return m ? m[1] : ''; })()}`}
+                      src={`https://www.youtube-nocookie.com/embed/${(() => { const m = entry.sourceUrl!.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/); return m ? m[1] : ''; })()}`}
                       width="100%"
                       height="100%"
                       frameBorder="0"

@@ -47,9 +47,15 @@
 ---
 
 ## Root Cause
-**IDENTIFIED**: Helmet CSP Default Directives
+**IDENTIFIED**: Helmet's `Referrer-Policy: no-referrer` header
 
-The Express server uses `helmet.contentSecurityPolicy.getDefaultDirectives()` as the base, then overrides specific directives. However, the default `connect-src` directive is `'self'` which blocks YouTube's internal player API requests.
+~~The Express server uses `helmet.contentSecurityPolicy.getDefaultDirectives()` as the base...~~ **WRONG!**
+
+**ACTUAL ROOT CAUSE**: Helmet defaults to `Referrer-Policy: no-referrer` which strips ALL referrer information from requests. YouTube's embed player **requires** referrer info to validate that embeds are authorized.
+
+**Proof**: `curl -I https://labor-database.supersoul.top` shows `referrer-policy: no-referrer`
+
+Per [YouTube's documentation](https://developers.google.com/youtube/terms/required-minimum-functionality) and [Simon Willison's investigation](https://til.simonwillison.net/youtube/fixing-153-embed), this breaks embeds.
 
 ### Key Difference Local vs Production:
 | Environment | Server | CSP Applied? | YouTube |

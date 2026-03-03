@@ -69,6 +69,9 @@ app.use(helmet({
             "worker-src": ["'self'", "blob:"],
         },
     },
+    // Fix YouTube Error 153: YouTube requires referrer info to validate embeds
+    // Default 'no-referrer' breaks YouTube - use 'strict-origin-when-cross-origin' instead
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
     // Fix: Allow images to load across ports in dev (5173 -> 3001)
     crossOriginResourcePolicy: false,
     crossOriginEmbedderPolicy: false,
