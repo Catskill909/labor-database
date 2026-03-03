@@ -62,9 +62,12 @@ app.use(helmet({
             ...helmet.contentSecurityPolicy.getDefaultDirectives(),
             "frame-src": ["'self'", "https://www.youtube.com", "https://www.youtube-nocookie.com"],
             "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://www.youtube.com"],
-            "img-src": ["'self'", "data:", "https://image.tmdb.org", "https://i.ytimg.com", "https://images.genius.com"],
+            "img-src": ["'self'", "data:", "*", "https://image.tmdb.org", "https://i.ytimg.com", "https://images.genius.com"],
         },
     },
+    // Fix: Allow images to load across ports in dev (5173 -> 3001)
+    crossOriginResourcePolicy: false,
+    crossOriginEmbedderPolicy: false,
 }));
 app.use(express.json({ limit: '10mb' }));
 
@@ -135,6 +138,7 @@ const zipUpload = multer({
     }
 });
 
+// Serve uploaded images as static files
 // Serve uploaded images as static files
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 

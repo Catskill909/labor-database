@@ -1,5 +1,4 @@
 import { X, ExternalLink, Calendar, User, Clock, Globe, Play, MessageSquare } from 'lucide-react';
-import ReactPlayer from 'react-player';
 import type { Entry } from '../types.ts';
 import { parseMetadata, formatEntryDate } from '../types.ts';
 
@@ -128,13 +127,14 @@ function FilmDetail({ entry, onClose, onTagClick }: EntryDetailProps) {
                 <span className="text-sm font-medium text-gray-400">Trailer</span>
               </div>
               <div className="aspect-video rounded-lg overflow-hidden bg-black">
-                <ReactPlayer
-                  src={`https://www.youtube.com/watch?v=${meta.youtubeId}`}
+                <iframe
+                  src={`https://www.youtube.com/embed/${meta.youtubeId}`}
                   width="100%"
                   height="100%"
-                  light={true}
-                  controls={true}
-                  playing={false}
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  title="Trailer"
                 />
               </div>
             </div>
@@ -278,13 +278,14 @@ export default function EntryDetail({ entry, onClose, onTagClick }: EntryDetailP
                     <span className="text-sm font-medium text-gray-400">Listen</span>
                   </div>
                   <div className="aspect-video rounded-lg overflow-hidden bg-black">
-                    <ReactPlayer
-                      src={entry.sourceUrl}
+                    <iframe
+                      src={`https://www.youtube.com/embed/${(() => { const m = entry.sourceUrl!.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/); return m ? m[1] : ''; })()}`}
                       width="100%"
                       height="100%"
-                      light={true}
-                      controls={true}
-                      playing={false}
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      title="Listen"
                     />
                   </div>
                 </div>
