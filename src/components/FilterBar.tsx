@@ -345,7 +345,7 @@ export default function FilterBar({ category, filters, setFilters, sort, onSortC
               type="text"
               value={filters.creator || ''}
               onChange={v => update('creator', v)}
-              placeholder="Artist / performer..."
+              placeholder="Title or Artist..."
               className={`${inputClass} w-48`}
             />
 
@@ -368,7 +368,7 @@ export default function FilterBar({ category, filters, setFilters, sort, onSortC
               type="text"
               value={filters.creator || ''}
               onChange={v => update('creator', v)}
-              placeholder="Director..."
+              placeholder="Title or Director..."
               className={`${inputClass} w-48`}
             />
 

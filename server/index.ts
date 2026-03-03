@@ -775,10 +775,27 @@ app.get('/api/entries', async (req, res) => {
         let filterIds: number[] | null = null;
 
         if (creator && typeof creator === 'string') {
-            const q = `%${creator.trim()}%`;
-            const results: { id: number }[] = await prisma.$queryRaw`
-                SELECT id FROM Entry
-                WHERE creator LIKE ${q}
+            const searchTerm = creator.trim();
+            const q = `%${searchTerm}%`;
+            const exactTitle = searchTerm;
+            
+            // Search ALL fields with ranking (exact title first, then title contains, then other fields)
+            const results: { id: number; rank: number }[] = await prisma.$queryRaw`
+                SELECT id,
+                    CASE 
+                        WHEN LOWER(title) = LOWER(${exactTitle}) THEN 1
+                        WHEN title LIKE ${q} THEN 2
+                        WHEN creator LIKE ${q} THEN 3
+                        WHEN description LIKE ${q} THEN 4
+                        ELSE 5
+                    END as rank
+                FROM Entry
+                WHERE title LIKE ${q}
+                   OR creator LIKE ${q}
+                   OR description LIKE ${q}
+                   OR tags LIKE ${q}
+                   OR metadata LIKE ${q}
+                ORDER BY rank ASC
             `;
             filterIds = results.map(r => r.id);
         }
@@ -822,27 +839,45 @@ app.get('/api/entries', async (req, res) => {
             }
         }
 
+        // Preserve filter ranking order for re-sorting later
+        let filterRankedIds: number[] | null = null;
         if (filterIds !== null) {
+            filterRankedIds = filterIds; // Keep the ranked order from SQL
             where.id = { in: filterIds };
         }
 
         // For search: use raw SQL with LIKE (case-insensitive in SQLite)
-        // then apply other filters via Prisma
+        // Rank results: exact title match > title contains > creator > description > tags/metadata
         let searchIds: number[] | null = null;
         if (search && typeof search === 'string') {
-            const q = `%${search.trim()}%`;
-            const results: { id: number }[] = await prisma.$queryRaw`
-                SELECT id FROM Entry
+            const searchTerm = search.trim();
+            const q = `%${searchTerm}%`;
+            const exactTitle = searchTerm; // For exact match comparison
+            
+            const results: { id: number; rank: number }[] = await prisma.$queryRaw`
+                SELECT id,
+                    CASE 
+                        WHEN LOWER(title) = LOWER(${exactTitle}) THEN 1
+                        WHEN title LIKE ${q} THEN 2
+                        WHEN creator LIKE ${q} THEN 3
+                        WHEN description LIKE ${q} THEN 4
+                        ELSE 5
+                    END as rank
+                FROM Entry
                 WHERE title LIKE ${q}
                    OR description LIKE ${q}
                    OR creator LIKE ${q}
                    OR tags LIKE ${q}
                    OR metadata LIKE ${q}
+                ORDER BY rank ASC
             `;
             searchIds = results.map(r => r.id);
         }
 
+        // Preserve search ranking order
+        let searchRankedIds: number[] | null = null;
         if (searchIds !== null) {
+            searchRankedIds = searchIds; // Keep the ranked order from SQL
             // If we already have filterIds, intersect with search results
             if (where.id) {
                 const existing = (where.id as { in: number[] }).in;
@@ -852,7 +887,7 @@ app.get('/api/entries', async (req, res) => {
             }
         }
 
-        // Sort param
+        // Sort param (ignored if search ranking is active)
         const sort = req.query.sort as string | undefined;
         const sortMap: Record<string, object | object[]> = {
             'newest': { createdAt: 'desc' },
@@ -868,13 +903,26 @@ app.get('/api/entries', async (req, res) => {
         };
         const orderBy = (sort && sortMap[sort]) || { createdAt: 'desc' };
 
-        const entries = await prisma.entry.findMany({
+        // Skip Prisma ordering if we have ranked IDs (we'll re-sort after fetch)
+        const useRanking = searchRankedIds || filterRankedIds;
+        let entries = await prisma.entry.findMany({
             where,
-            orderBy: orderBy as Prisma.EntryOrderByWithRelationInput | Prisma.EntryOrderByWithRelationInput[],
+            orderBy: useRanking ? undefined : (orderBy as Prisma.EntryOrderByWithRelationInput | Prisma.EntryOrderByWithRelationInput[]),
             include: { images: { orderBy: { sortOrder: 'asc' } } },
             take: limit ? parseInt(limit as string) : undefined,
             skip: offset ? parseInt(offset as string) : undefined,
         });
+
+        // Re-sort entries by ranking (search ranking takes priority, then filter ranking)
+        const rankedIds = searchRankedIds || filterRankedIds;
+        if (rankedIds) {
+            const idOrder = new Map(rankedIds.map((id, idx) => [id, idx]));
+            entries = entries.sort((a, b) => {
+                const aIdx = idOrder.get(a.id) ?? Infinity;
+                const bIdx = idOrder.get(b.id) ?? Infinity;
+                return aIdx - bIdx;
+            });
+        }
 
         // Build base URL for image paths
         const protocol = req.headers['x-forwarded-proto'] || req.protocol;
