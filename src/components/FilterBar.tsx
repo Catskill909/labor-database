@@ -92,11 +92,10 @@ export function SortDropdown({ value, onChange, options }: {
             <button
               key={opt.value}
               onClick={() => { onChange(opt.value); setOpen(false); }}
-              className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
-                opt.value === value
+              className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${opt.value === value
                   ? 'text-white bg-white/10'
                   : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
+                }`}
             >
               <Check size={12} className={opt.value === value ? 'opacity-100' : 'opacity-0'} />
               {opt.label}
@@ -161,7 +160,7 @@ function TagFilterDropdown({ category, selectedTags, onChange }: {
         setTags(data.tags || []);
         setGroups(data.groups || []);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [category]);
 
   // Close on outside click
@@ -260,7 +259,7 @@ export default function FilterBar({ category, filters, setFilters, sort, onSortC
         .then(data => {
           if (data.genres) setGenres(data.genres);
         })
-        .catch(() => {});
+        .catch(() => { });
     } else {
       setGenres([]);
     }
@@ -354,7 +353,7 @@ export default function FilterBar({ category, filters, setFilters, sort, onSortC
               onChange={e => update('genre', e.target.value)}
               className={selectClass}
             >
-              <option value="">Genre</option>
+              <option value="">Filter by Genre</option>
               {genres.map(g => (
                 <option key={g} value={g}>{g}</option>
               ))}
@@ -377,7 +376,7 @@ export default function FilterBar({ category, filters, setFilters, sort, onSortC
               onChange={e => update('genre', e.target.value)}
               className={selectClass}
             >
-              <option value="">Genre</option>
+              <option value="">Filter by Genre</option>
               {genres.map(g => (
                 <option key={g} value={g}>{g}</option>
               ))}
