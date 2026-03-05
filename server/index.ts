@@ -20,12 +20,18 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
-// Sanitize control characters (U+0000-U+001F except \t \n \r) for RFC 8259 JSON compliance
+// Sanitize text for RFC 8259 JSON compliance - removes control chars, invalid UTF-8, and binary data
 function sanitizeForJson(text: string | null | undefined): string | null {
     if (!text) return text as null;
-    // Remove or replace control characters that break JSON parsing
-    // Keep \t (0x09), \n (0x0A), \r (0x0D) as they are valid when escaped
-    return text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+    return text
+        // Remove all control characters except tab, newline, carriage return
+        .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+        // Remove Unicode replacement character and other problematic chars
+        .replace(/[\uFFFD\uFFFE\uFFFF]/g, '')
+        // Remove surrogate pairs that are unpaired (invalid UTF-16)
+        .replace(/[\uD800-\uDFFF]/g, '')
+        // Remove any remaining non-printable unicode control chars
+        .replace(/[\u0080-\u009F]/g, '');
 }
 
 // Decode common HTML entities in text fields to prevent display issues
