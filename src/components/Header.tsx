@@ -129,7 +129,7 @@ export default function Header({ searchQuery, setSearchQuery, onAddClick }: Head
           </div>
 
           {/* Search bar + hamburger on mobile (same row) */}
-          <div className="flex items-center gap-2 w-full sm:flex-1 sm:max-w-xl">
+          <div className="flex items-center gap-2 w-full sm:flex-1 sm:max-w-xl sm:mx-auto">
             <div className="relative flex-1">
               <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
               <input
