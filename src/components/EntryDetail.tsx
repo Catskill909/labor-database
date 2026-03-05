@@ -91,7 +91,7 @@ function FilmDetail({ entry, onClose, onTagClick }: EntryDetailProps) {
               )}
 
               {/* Synopsis */}
-              <div className="text-sm leading-relaxed text-gray-300">
+              <div className="text-sm leading-relaxed text-gray-300 whitespace-pre-wrap">
                 {entry.description}
               </div>
 
