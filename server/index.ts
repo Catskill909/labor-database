@@ -64,6 +64,21 @@ function cleanEntryText<T extends Record<string, unknown>>(data: T): T {
     return cleaned;
 }
 
+// Sanitize entry object for JSON output - removes invalid chars from all text fields
+function sanitizeEntryForJson<T extends Record<string, unknown>>(entry: T): T {
+    const textFields = ['title', 'description', 'creator', 'tags', 'sourceUrl'] as const;
+    const sanitized = { ...entry };
+    for (const field of textFields) {
+        if (field in sanitized && typeof sanitized[field] === 'string') {
+            (sanitized as Record<string, unknown>)[field] = sanitizeForJson(sanitized[field] as string);
+        }
+    }
+    if ('metadata' in sanitized && typeof sanitized.metadata === 'string') {
+        (sanitized as Record<string, unknown>).metadata = sanitizeForJson(sanitized.metadata as string);
+    }
+    return sanitized;
+}
+
 const app = express();
 const port = process.env.PORT || 3001;
 const prisma = new PrismaClient();
@@ -614,8 +629,9 @@ app.get('/api/on-this-day', async (req, res) => {
 
         const addImageUrls = (e: typeof dateEntries[number]) => {
             const { submitterName: _sn, submitterEmail: _se, submitterComment: _sc, ...rest } = e;
+            const sanitized = sanitizeEntryForJson(rest);
             return {
-                ...rest,
+                ...sanitized,
                 images: rest.images.map(img => ({
                     ...img,
                     url: `${baseUrl}/uploads/entries/${img.filename}`,
@@ -948,11 +964,12 @@ app.get('/api/entries', async (req, res) => {
         const host = req.headers['x-forwarded-host'] || req.get('host');
         const baseUrl = `${protocol}://${host}`;
 
-        // Strip submitter contact info and add full image URLs
+        // Strip submitter contact info, sanitize text, and add full image URLs
         const publicEntries = entries.map((e) => {
             const { submitterName: _sn, submitterEmail: _se, submitterComment: _sc, ...rest } = e;
+            const sanitized = sanitizeEntryForJson(rest);
             return {
-                ...rest,
+                ...sanitized,
                 images: rest.images.map((img) => ({
                     ...img,
                     url: `${baseUrl}/uploads/entries/${img.filename}`,
@@ -1074,11 +1091,12 @@ app.get('/api/entries/:id', async (req, res) => {
         });
         if (entry) {
             const { submitterName: _sn, submitterEmail: _se, submitterComment: _sc, ...rest } = entry;
+            const sanitized = sanitizeEntryForJson(rest);
             const protocol = req.headers['x-forwarded-proto'] || req.protocol;
             const host = req.headers['x-forwarded-host'] || req.get('host');
             const baseUrl = `${protocol}://${host}`;
             res.json({
-                ...rest,
+                ...sanitized,
                 images: rest.images.map(img => ({
                     ...img,
                     url: `${baseUrl}/uploads/entries/${img.filename}`,
@@ -1116,7 +1134,7 @@ app.post('/api/entries', uploadLimiter, async (req, res) => {
                 submitterComment: submitterComment || null,
             }
         });
-        res.status(201).json(entry);
+        res.status(201).json(sanitizeEntryForJson(entry));
     } catch (error) {
         console.error('Create entry error:', error);
         res.status(500).json({ error: 'Failed to create entry' });
@@ -1178,14 +1196,17 @@ app.get('/api/admin/entries', adminAuth, async (req, res) => {
         const protocol = req.headers['x-forwarded-proto'] || req.protocol;
         const host = req.headers['x-forwarded-host'] || req.get('host');
         const baseUrl = `${protocol}://${host}`;
-        const withUrls = entries.map(e => ({
-            ...e,
-            images: e.images.map(img => ({
-                ...img,
-                url: `${baseUrl}/uploads/entries/${img.filename}`,
-                thumbnailUrl: `${baseUrl}/uploads/entries/thumb_${img.filename}`
-            }))
-        }));
+        const withUrls = entries.map(e => {
+            const sanitized = sanitizeEntryForJson(e);
+            return {
+                ...sanitized,
+                images: e.images.map(img => ({
+                    ...img,
+                    url: `${baseUrl}/uploads/entries/${img.filename}`,
+                    thumbnailUrl: `${baseUrl}/uploads/entries/thumb_${img.filename}`
+                }))
+            };
+        });
         res.set('X-Total-Count', String(total));
         res.json(withUrls);
     } catch (error) {
@@ -1216,7 +1237,7 @@ app.post('/api/admin/entries', adminAuth, async (req, res) => {
                 submitterComment: submitterComment || null,
             }
         });
-        res.status(201).json(entry);
+        res.status(201).json(sanitizeEntryForJson(entry));
     } catch (error) {
         console.error('Admin create entry error:', error);
         res.status(500).json({ error: 'Failed to create entry' });
@@ -1244,7 +1265,7 @@ app.put('/api/admin/entries/:id', adminAuth, async (req, res) => {
                 isPublished,
             }
         });
-        res.json(entry);
+        res.json(sanitizeEntryForJson(entry));
     } catch (error) {
         console.error('Update entry error:', error);
         res.status(500).json({ error: 'Failed to update entry' });
