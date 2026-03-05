@@ -286,7 +286,7 @@ app.get('/api/feed.json', async (req, res) => {
             items,
         };
 
-        res.set('Content-Type', 'application/feed+json; charset=utf-8');
+        res.set('Content-Type', 'application/json; charset=utf-8');
         res.set('Cache-Control', 'public, max-age=300');
         res.json(feed);
     } catch (error) {
