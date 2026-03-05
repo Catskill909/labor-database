@@ -588,12 +588,12 @@ function MusicOTDCard({ entry, onClick }: { entry: Entry; onClick: () => void })
           {(entry.sourceUrl || meta.lyrics) && (
             <div className="flex items-center gap-2 mt-3">
               {entry.sourceUrl && (
-                <span className="px-2.5 py-1 bg-red-600/20 text-red-400 text-[10px] font-medium rounded">
+                <span className="px-2.5 py-1 bg-slate-600/20 text-slate-400 text-[10px] font-medium rounded">
                   Listen
                 </span>
               )}
               {meta.lyrics && (
-                <span className="px-2.5 py-1 bg-red-600/20 text-red-400 text-[10px] font-medium rounded">
+                <span className="px-2.5 py-1 bg-slate-600/20 text-slate-400 text-[10px] font-medium rounded">
                   View Lyrics
                 </span>
               )}

@@ -125,7 +125,7 @@ export default function Header({ searchQuery, setSearchQuery, onAddClick }: Head
             <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center shadow-lg">
               <Database size={22} className="text-white" />
             </div>
-            <h1 className="text-xl font-bold tracking-tight">Labor Arts &amp; Culture Database</h1>
+            <h1 className="text-xl font-bold tracking-tight">LHF Labor Arts &amp; Culture Database</h1>
           </div>
 
           {/* Search bar + hamburger on mobile (same row) */}

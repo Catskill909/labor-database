@@ -20,6 +20,14 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
+// Sanitize control characters (U+0000-U+001F except \t \n \r) for RFC 8259 JSON compliance
+function sanitizeForJson(text: string | null | undefined): string | null {
+    if (!text) return text as null;
+    // Remove or replace control characters that break JSON parsing
+    // Keep \t (0x09), \n (0x0A), \r (0x0D) as they are valid when escaped
+    return text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+}
+
 // Decode common HTML entities in text fields to prevent display issues
 function decodeHtmlEntities(text: string | null | undefined): string | null {
     if (!text) return text as null;
@@ -216,26 +224,31 @@ app.get('/api/feed.json', async (req, res) => {
 
         const items = entries.map(e => {
             const { submitterName: _sn, submitterEmail: _se, submitterComment: _sc, ...rest } = e;
+            // Sanitize text fields for RFC 8259 JSON compliance
+            const safeTitle = sanitizeForJson(rest.title) || '';
+            const safeDescription = sanitizeForJson(rest.description);
+            const safeCreator = sanitizeForJson(rest.creator);
+            const safeTags = sanitizeForJson(rest.tags);
             const item: Record<string, unknown> = {
                 id: `${baseUrl}/api/entries/${rest.id}`,
                 url: `${baseUrl}/#entry-${rest.id}`,
-                title: rest.title,
-                content_text: rest.description,
+                title: safeTitle,
+                content_text: safeDescription,
                 date_published: rest.createdAt.toISOString(),
                 date_modified: rest.updatedAt.toISOString(),
-                tags: rest.tags ? rest.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+                tags: safeTags ? safeTags.split(',').map(t => t.trim()).filter(Boolean) : [],
                 _labor_database: {
                     category: rest.category,
-                    creator: rest.creator,
+                    creator: safeCreator,
                     month: rest.month,
                     day: rest.day,
                     year: rest.year,
-                    metadata: rest.metadata ? (() => { try { return JSON.parse(rest.metadata as string); } catch { return null; } })() : null,
+                    metadata: rest.metadata ? (() => { try { return JSON.parse(sanitizeForJson(rest.metadata as string) || '{}'); } catch { return null; } })() : null,
                     source_url: rest.sourceUrl,
                 },
             };
-            if (rest.creator) {
-                item.authors = [{ name: rest.creator }];
+            if (safeCreator) {
+                item.authors = [{ name: safeCreator }];
             }
             if (rest.images.length > 0) {
                 item.image = `${baseUrl}/uploads/entries/${rest.images[0].filename}`;
