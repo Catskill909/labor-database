@@ -198,11 +198,10 @@ export default function OnThisDayView({ onSelectEntry, onAddClick }: OnThisDayVi
 
           <button
             onClick={() => setShowCalendar(!showCalendar)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border transition-colors ${
-              showCalendar
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border transition-colors ${showCalendar
                 ? 'bg-amber-600/20 border-amber-500/30 text-amber-400'
                 : 'bg-white/5 border-white/10 hover:bg-white/10'
-            }`}
+              }`}
             title="Pick a date"
           >
             <Calendar size={16} />
@@ -247,7 +246,7 @@ export default function OnThisDayView({ onSelectEntry, onAddClick }: OnThisDayVi
                   fetch(`/api/on-this-day/calendar?month=${date.getMonth() + 1}`)
                     .then(r => r.json())
                     .then(d => setCalendarData(d))
-                    .catch(() => {});
+                    .catch(() => { });
                 }}
                 classNames={{
                   root: `${defaultClassNames.root} rdp-dark`,
@@ -496,7 +495,6 @@ function QuoteOTDCard({ entry, onClick }: { entry: Entry; onClick: () => void })
       {entry.creator && (
         <p className="text-xs text-gray-400 mt-2 font-medium">
           &mdash; {entry.creator}
-          {entry.year && <span className="text-gray-600 ml-1">({entry.year})</span>}
         </p>
       )}
     </button>
