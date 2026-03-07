@@ -111,6 +111,9 @@ app.use(helmet({
 }));
 app.use(express.json({ limit: '10mb' }));
 
+// Trust proxy for rate limiting behind reverse proxy (Coolify/Traefik)
+app.set('trust proxy', 1);
+
 // Rate limiting
 const generalLimiter = rateLimit({
     windowMs: 60 * 1000,
