@@ -41,18 +41,9 @@ RUN mkdir -p /app/data /app/uploads/entries
 
 EXPOSE 3001
 
+# Copy startup script
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
 # Initialize DB (migrate), seed categories if empty, and start server
-# Safety check: detect if /app/data volume is missing (DB would be wiped every deploy)
-# Use flock to prevent concurrent migrations (SQLite locking issue)
-CMD ["sh", "-c", "\
-  if [ ! -f /app/data/dev.db ]; then \
-    echo '========================================'; \
-    echo 'WARNING: No existing database found at /app/data/dev.db'; \
-    echo 'If this is production, a persistent volume MUST be mounted at /app/data'; \
-    echo 'Without it, ALL DATA IS LOST on every deploy!'; \
-    echo '========================================'; \
-  else \
-    echo \"Existing database found at /app/data/dev.db\"; \
-  fi && \
-  flock -x /app/data/migrate.lock -c 'npx prisma migrate deploy && npx tsx prisma/seed.ts' && \
-  tsx server/index.ts"]
+CMD ["/app/docker-entrypoint.sh"]
