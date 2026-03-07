@@ -83,6 +83,9 @@ const app = express();
 const port = process.env.PORT || 3001;
 const prisma = new PrismaClient();
 
+// Enable WAL mode for better concurrent read/write performance
+prisma.$executeRawUnsafe('PRAGMA journal_mode=WAL').catch(() => {});
+
 const corsOrigin = process.env.CORS_ORIGIN;
 app.use(cors(corsOrigin ? { origin: corsOrigin, credentials: true } : undefined));
 app.use(helmet({
