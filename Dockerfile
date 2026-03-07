@@ -19,7 +19,8 @@ WORKDIR /app
 
 # Install runtime utilities (prisma for migrations, tsx for server)
 # Note: Alpine includes wget via BusyBox — no need to install curl for health checks
-RUN npm install -g prisma tsx
+# Install util-linux for flock (prevents concurrent migration race conditions)
+RUN apk add --no-cache util-linux && npm install -g prisma tsx
 
 # Install only production dependencies
 COPY package*.json ./
@@ -43,6 +44,7 @@ EXPOSE 3001
 
 # Initialize DB (migrate), seed categories if empty, and start server
 # Safety check: detect if /app/data volume is missing (DB would be wiped every deploy)
+# Use flock to prevent concurrent migrations (SQLite locking issue)
 CMD ["sh", "-c", "\
   if [ ! -f /app/data/dev.db ]; then \
     echo '========================================'; \
@@ -53,6 +55,5 @@ CMD ["sh", "-c", "\
   else \
     echo \"Existing database found at /app/data/dev.db\"; \
   fi && \
-  npx prisma migrate deploy && \
-  npx tsx prisma/seed.ts && \
+  flock -x /app/data/migrate.lock -c 'npx prisma migrate deploy && npx tsx prisma/seed.ts' && \
   tsx server/index.ts"]
