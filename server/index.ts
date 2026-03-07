@@ -14,6 +14,7 @@ import unzipper from 'unzipper';
 import ExcelJS from 'exceljs';
 import rateLimit from 'express-rate-limit';
 import { CANONICAL_TAGS, TAG_GROUPS, normalizeTags, autoTagEntry, mergeTagsWithExisting } from './tags.js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2123,6 +2124,101 @@ app.delete('/api/admin/reset', adminAuth, async (_req, res) => {
 });
 
 // Legacy /api/admin/clear endpoint removed (use /api/admin/reset instead)
+
+// ==================== AI RESEARCH DEMO ====================
+
+const genAI = process.env.GOOGLE_AI_API_KEY 
+    ? new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY)
+    : null;
+
+// Standalone AI enhance endpoint for demo (no auth, no database)
+app.post('/api/ai/enhance', async (req, res) => {
+    if (!genAI) {
+        return res.status(500).json({ error: 'GOOGLE_AI_API_KEY not configured. See ai-demo-setup.md for instructions.' });
+    }
+
+    const { title, description, category, creator, settings } = req.body;
+    
+    if (!title || !category) {
+        return res.status(400).json({ error: 'Title and category are required' });
+    }
+
+    const outputLength = settings?.outputLength || 'detailed';
+    const tone = settings?.tone || 'factual';
+
+    const categoryPrompts: Record<string, string> = {
+        history: 'Focus on dates, causes, outcomes, key figures, and lasting impact on the labor movement.',
+        quote: 'Identify the speaker\'s biography, the context of the quote, and the historical moment.',
+        music: 'Find songwriter background, the labor movement connection, and related protest songs.',
+        film: 'Find cast and crew info, the real-world labor story behind the film, and critical reception.'
+    };
+
+    const lengthInstruction = outputLength === 'short' 
+        ? 'Keep responses brief (2-3 sentences per section).' 
+        : 'Provide detailed responses (5-10 sentences per section).';
+    
+    const toneInstruction = tone === 'factual' 
+        ? 'Use an encyclopedic, factual tone.' 
+        : 'Use a narrative, storytelling tone.';
+
+    const systemPrompt = `You are a research assistant for the Labor Arts & Culture Database. Your job is to help curators enrich database entries about labor history, union movements, and workers' rights.
+
+${categoryPrompts[category] || categoryPrompts.history}
+
+${lengthInstruction}
+${toneInstruction}
+
+Respond ONLY with a valid JSON object (no markdown, no code blocks) containing these fields:
+{
+  "expandedDescription": { "text": "expanded narrative about this entry", "confidence": "high|medium|low" },
+  "bulletPoints": [{ "text": "quick fact", "confidence": "high|medium|low" }],  // provide 3-12 facts depending on significance
+  "wikipediaUrl": { "url": "https://en.wikipedia.org/wiki/...", "summary": "brief summary of the article", "confidence": "high|medium|low" },
+  "externalLinks": [{ "label": "source name", "url": "https://...", "confidence": "high|medium|low" }],
+  "suggestedTags": [{ "tag": "tag name", "confidence": "high|medium|low" }],
+  "keyPeopleOrgs": { "text": "bullet list of key people and organizations mentioned", "confidence": "high|medium|low" }
+}
+
+Only suggest Wikipedia URLs you are confident exist. Set wikipediaUrl to null if no clear match.
+Mark confidence as: high (strong source), medium (inferred), low (speculative).
+
+Available tags (use ONLY these exact names): ${CANONICAL_TAGS.join(', ')}.`;
+
+    try {
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+        
+        const prompt = `Research this ${category} entry for the Labor Database:
+
+Title: ${title}
+${creator ? `Creator/Author: ${creator}` : ''}
+${description ? `Current Description: ${description}` : 'No description yet.'}
+
+${category === 'quote' && creator ? `IMPORTANT: Research the person "${creator}" — their biography, role in the labor movement, and the historical context of this quote.` : ''}
+${category === 'music' && creator ? `IMPORTANT: Research the artist/songwriter "${creator}" — their background, connection to labor movements, and related works.` : ''}
+
+Generate research suggestions to enrich this entry.`;
+
+        const result = await model.generateContent({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            systemInstruction: systemPrompt,
+        });
+
+        const responseText = result.response.text();
+        
+        // Parse JSON from response (handle potential markdown code blocks)
+        let jsonText = responseText;
+        const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
+        if (jsonMatch) {
+            jsonText = jsonMatch[1];
+        }
+        
+        const suggestions = JSON.parse(jsonText.trim());
+        res.json(suggestions);
+    } catch (error: unknown) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        console.error('AI enhance error:', errMsg, error);
+        res.status(500).json({ error: `AI error: ${errMsg}` });
+    }
+});
 
 // ==================== STATIC FILES ====================
 

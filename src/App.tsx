@@ -10,6 +10,7 @@ import OnThisDayView from './components/OnThisDayView.tsx';
 const EntryDetail = lazy(() => import('./components/EntryDetail.tsx'));
 const SubmissionWizard = lazy(() => import('./components/SubmissionWizard.tsx'));
 const AdminDashboard = lazy(() => import('./components/AdminDashboard.tsx'));
+const AiSandboxDemo = lazy(() => import('./components/AiSandboxDemo.tsx'));
 import type { Entry, Category } from './types.ts';
 
 const PAGE_SIZE = 60;
@@ -280,6 +281,15 @@ function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/admin" element={<AdminRoute />} />
+        <Route path="/ai-demo" element={
+          <Suspense fallback={
+            <div className="flex items-center justify-center min-h-screen bg-[#0a0a0a]">
+              <div className="w-10 h-10 rounded-full border-4 border-white/5 border-t-red-500 animate-spin"></div>
+            </div>
+          }>
+            <AiSandboxDemo />
+          </Suspense>
+        } />
       </Routes>
     </Router>
   );

@@ -5,6 +5,45 @@
 
 ---
 
+## Demo Status (March 7, 2026)
+
+✅ **Proof of concept complete** — standalone demo at `/ai-demo`
+
+### What's Built
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| `POST /api/ai/enhance` endpoint | ✅ Done | Uses Gemini 2.0 Flash, category-aware prompts |
+| `AiSandboxDemo.tsx` | ✅ Done | 2-panel editor with sample entries |
+| `/ai-demo` route | ✅ Done | Accessible without auth for demo purposes |
+| Gemini API integration | ✅ Done | `@google/generative-ai` package added |
+| Category-aware prompts | ✅ Done | History, quote, music, film |
+| Creator/author research | ✅ Done | AI researches Joe Hill, Florence Reece, etc. |
+| Quick Facts (3-12) | ✅ Done | Scales with event significance |
+| Canonical tags | ✅ Done | Uses `CANONICAL_TAGS` from `server/tags.ts` |
+| Confidence indicators | ✅ Done | High/medium/low with color coding |
+| Settings (length/tone) | ✅ Done | Short vs detailed, factual vs narrative |
+
+### Demo Limitations (Deferred to Integration)
+
+- Tag editing uses simple badges (not `TagSelector`)
+- Links not editable after adding
+- No database persistence
+- Sample entries only (not real DB entries)
+
+### Files Added/Modified
+
+```
+src/components/AiSandboxDemo.tsx  — NEW (standalone demo component)
+src/App.tsx                       — Added /ai-demo route
+server/index.ts                   — Added /api/ai/enhance endpoint + Gemini import
+package.json                      — Added @google/generative-ai dependency
+.env                              — Added GOOGLE_AI_API_KEY
+ai-demo-setup.md                  — NEW (setup instructions)
+```
+
+---
+
 ## Architecture Audit
 
 ### Current Schema (What We Have)

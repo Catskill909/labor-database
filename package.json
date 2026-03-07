@@ -19,6 +19,7 @@
     "import:all": "tsx scripts/import-history.ts && tsx scripts/import-quotes.ts && tsx scripts/import-music.ts && tsx scripts/import-films.ts"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.21.0",
     "@prisma/client": "^6.19.2",
     "@tailwindcss/vite": "^4.1.18",
     "archiver": "^7.0.1",
