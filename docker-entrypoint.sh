@@ -4,36 +4,14 @@
 if [ ! -f /app/data/dev.db ]; then
     echo '========================================'
     echo 'WARNING: No existing database found at /app/data/dev.db'
-    echo 'If this is production, a persistent volume MUST be mounted at /app/data'
-    echo 'Without it, ALL DATA IS LOST on every deploy!'
+    echo 'Running initial migration...'
     echo '========================================'
+    npx prisma migrate deploy || true
+    npx tsx prisma/seed.ts || true
 else
-    echo "Existing database found at /app/data/dev.db"
+    echo "Existing database found - skipping migrations (already applied)"
 fi
 
-# Retry migration up to 5 times with exponential backoff
-# This handles "database is locked" errors from concurrent containers
-MAX_RETRIES=5
-RETRY_DELAY=2
-
-for i in $(seq 1 $MAX_RETRIES); do
-    echo "Migration attempt $i of $MAX_RETRIES..."
-    if npx prisma migrate deploy 2>&1; then
-        echo "Migration successful!"
-        break
-    else
-        if [ $i -eq $MAX_RETRIES ]; then
-            echo "Migration failed after $MAX_RETRIES attempts, starting server anyway..."
-        else
-            echo "Migration failed, retrying in ${RETRY_DELAY}s..."
-            sleep $RETRY_DELAY
-            RETRY_DELAY=$((RETRY_DELAY * 2))
-        fi
-    fi
-done
-
-# Seed is idempotent, run it
-npx tsx prisma/seed.ts 2>/dev/null || true
-
-echo "Starting server..."
+# Just start the server - migrations are already done
+echo "Starting server on port 3001..."
 exec tsx server/index.ts
