@@ -18,9 +18,8 @@ FROM node:22-alpine
 WORKDIR /app
 
 # Install runtime utilities (prisma for migrations, tsx for server)
-# Note: Alpine includes wget via BusyBox — no need to install curl for health checks
-# Install util-linux for flock (prevents concurrent migration race conditions)
-RUN apk add --no-cache util-linux && npm install -g prisma tsx
+# Install curl for healthchecks, util-linux for flock (prevents concurrent migration race conditions)
+RUN apk add --no-cache curl util-linux && npm install -g prisma tsx
 
 # Install only production dependencies
 COPY package*.json ./
