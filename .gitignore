@@ -51,3 +51,6 @@ scripts/yt-test.mjs
 
 # Internal brainstorm docs (not for client/git)
 INTERNAL-*.md
+
+# Internal data import analysis
+data-import.md
