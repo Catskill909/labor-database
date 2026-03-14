@@ -29,11 +29,15 @@ dist-server
 # Environment variables
 .env
 
-# SQLite Database
+# SQLite Database (includes WAL mode files)
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 prisma/*.db
 prisma/*.db-journal
+prisma/*.db-shm
+prisma/*.db-wal
 
 # Uploaded images (local dev only, production uses Coolify persistent storage)
 uploads/
@@ -57,3 +61,6 @@ INTERNAL-*.md
 
 # Internal data import analysis
 data-import.md
+
+# Internal planning docs
+admin-help.md
