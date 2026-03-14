@@ -914,7 +914,93 @@ app.get('/api/entries', async (req, res) => {
             // Helper: whole-word LIKE pattern
             const wordLike = (w: string) => `% ${w} %`;
             // Field expression: replace common punctuation with spaces, pad both sides
-            const F = (col: string) => `(' ' || REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(${col}, ',', ' '), '.', ' '), ';', ' '), ':', ' '), '"', ' '), '''', ' ') || ' ')`;
+            // Covers: , . ; : " ' - — – / & ( ) [ ] ! ?
+            const F = (col: string) => `(' ' || REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(${col}, ',', ' '), '.', ' '), ';', ' '), ':', ' '), '"', ' '), '''', ' '), '-', ' '), '/', ' '), '&', ' '), '(', ' '), ')', ' '), '[', ' '), ']', ' '), '!', ' '), '?', ' ') || ' ')`;
+
+            // Date-aware search: detect month names, day numbers, years, and decades
+            const monthNames: Record<string, number> = {
+                january: 1, jan: 1, february: 2, feb: 2, march: 3, mar: 3,
+                april: 4, apr: 4, may: 5, june: 6, jun: 6, july: 7, jul: 7,
+                august: 8, aug: 8, september: 9, sep: 9, sept: 9,
+                october: 10, oct: 10, november: 11, nov: 11, december: 12, dec: 12,
+            };
+            let dateMonth: number | null = null;
+            let dateDay: number | null = null;
+            let dateYear: number | null = null;
+            let decadeStart: number | null = null;
+            let decadeEnd: number | null = null;
+            let standaloneYear: number | null = null;
+            const remainingWords: string[] = [];
+            for (const w of words) {
+                const lower = w.toLowerCase();
+                if (!dateMonth && monthNames[lower]) {
+                    dateMonth = monthNames[lower];
+                } else if (dateMonth && !dateDay && /^\d{1,2}$/.test(w)) {
+                    const d = parseInt(w);
+                    if (d >= 1 && d <= 31) dateDay = d;
+                    else remainingWords.push(w);
+                } else if (dateMonth && !dateYear && /^\d{4}$/.test(w)) {
+                    dateYear = parseInt(w);
+                } else if (!decadeStart && /^\d{4}s$/i.test(w)) {
+                    // Decade search: "1930s", "1960s", "2000s"
+                    decadeStart = parseInt(w.slice(0, 4));
+                    decadeEnd = decadeStart + 9;
+                } else if (!dateMonth && !standaloneYear && !decadeStart && /^\d{4}$/.test(w) && words.length >= 1) {
+                    // Standalone year: "1886" — also search year column
+                    standaloneYear = parseInt(w);
+                    remainingWords.push(w); // keep for text search too
+                } else {
+                    remainingWords.push(w);
+                }
+            }
+
+            // If we detected a date pattern (at minimum a month), search date columns
+            let dateIds: number[] = [];
+            if (dateMonth) {
+                const dateClauses: string[] = ['month = ?'];
+                const dateParams: (number | string)[] = [dateMonth];
+                if (dateDay) { dateClauses.push('day = ?'); dateParams.push(dateDay); }
+                if (dateYear) { dateClauses.push('year = ?'); dateParams.push(dateYear); }
+                // If there are remaining non-date words, require them to match text fields
+                if (remainingWords.length > 0) {
+                    for (const rw of remainingWords) {
+                        const rwq = wordLike(rw);
+                        dateClauses.push(`(${F('title')} LIKE ? OR ${F('description')} LIKE ? OR ${F('creator')} LIKE ? OR ${F('tags')} LIKE ? OR ${F('metadata')} LIKE ?)`);
+                        dateParams.push(rwq, rwq, rwq, rwq, rwq);
+                    }
+                }
+                const dateSql = `SELECT id FROM Entry WHERE ${dateClauses.join(' AND ')}`;
+                const dateResults = await prisma.$queryRawUnsafe<{ id: number }[]>(dateSql, ...dateParams);
+                dateIds = dateResults.map(r => r.id);
+            }
+
+            // Decade search: "1930s" → year 1930-1939
+            if (decadeStart && decadeEnd) {
+                const decadeClauses: string[] = ['year >= ? AND year <= ?'];
+                const decadeParams: (number | string)[] = [decadeStart, decadeEnd];
+                if (remainingWords.length > 0) {
+                    for (const rw of remainingWords) {
+                        const rwq = wordLike(rw);
+                        decadeClauses.push(`(${F('title')} LIKE ? OR ${F('description')} LIKE ? OR ${F('creator')} LIKE ? OR ${F('tags')} LIKE ? OR ${F('metadata')} LIKE ?)`);
+                        decadeParams.push(rwq, rwq, rwq, rwq, rwq);
+                    }
+                }
+                const decadeSql = `SELECT id FROM Entry WHERE ${decadeClauses.join(' AND ')}`;
+                const decadeResults = await prisma.$queryRawUnsafe<{ id: number }[]>(decadeSql, ...decadeParams);
+                const decadeMatchIds = decadeResults.map(r => r.id);
+                const existing = new Set(dateIds);
+                for (const id of decadeMatchIds) { if (!existing.has(id)) dateIds.push(id); }
+            }
+
+            // Standalone year search: "1886" → also check year column
+            if (standaloneYear) {
+                const yearResults = await prisma.$queryRawUnsafe<{ id: number }[]>(
+                    `SELECT id FROM Entry WHERE year = ?`, standaloneYear
+                );
+                const yearMatchIds = yearResults.map(r => r.id);
+                const existing = new Set(dateIds);
+                for (const id of yearMatchIds) { if (!existing.has(id)) dateIds.push(id); }
+            }
 
             if (words.length <= 1) {
                 // Single word — ranked search with prefix matching
@@ -939,6 +1025,12 @@ app.get('/api/entries', async (req, res) => {
                     sql, exactTitle, q, q, q, q, q, q, q, q
                 );
                 searchIds = results.map(r => r.id);
+                // For single month word, merge date-matched entries (rank 0 = top)
+                if (dateIds.length > 0) {
+                    const textIdSet = new Set(searchIds);
+                    const uniqueDateIds = dateIds.filter(id => !textIdSet.has(id));
+                    searchIds = [...uniqueDateIds, ...searchIds];
+                }
             } else {
                 // Multi-word — each word must prefix-match somewhere across the entry's fields (AND logic)
                 // Rank by how many words appear in title (best), then creator, then description
@@ -955,7 +1047,16 @@ app.get('/api/entries', async (req, res) => {
                 const titleHitParams = words.map(w => wordLike(w));
                 const sql = `SELECT id, (${words.length} - (${titleHits})) as rank FROM Entry WHERE ${wordClauses} ORDER BY rank ASC`;
                 const results = await prisma.$queryRawUnsafe<{ id: number; rank: number }[]>(sql, ...titleHitParams, ...wordParams);
-                searchIds = results.map(r => r.id);
+                const textIds = results.map(r => r.id);
+
+                // Merge: date-matched entries first, then text-matched entries (deduped)
+                if (dateIds.length > 0) {
+                    const textIdSet = new Set(textIds);
+                    const uniqueDateIds = dateIds.filter(id => !textIdSet.has(id));
+                    searchIds = [...dateIds, ...textIds.filter(id => !dateIds.includes(id))];
+                } else {
+                    searchIds = textIds;
+                }
             }
         }
 
@@ -1251,26 +1352,120 @@ app.get('/api/admin/entries', adminAuth, async (req, res) => {
             const searchTerm = search.trim();
             const words = searchTerm.split(/\s+/).filter(Boolean);
             const wordLike = (w: string) => `% ${w} %`;
-            const F = (col: string) => `(' ' || REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(${col}, ',', ' '), '.', ' '), ';', ' '), ':', ' '), '"', ' '), '''', ' ') || ' ')`;
+            const F = (col: string) => `(' ' || REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(${col}, ',', ' '), '.', ' '), ';', ' '), ':', ' '), '"', ' '), '''', ' '), '-', ' '), '/', ' '), '&', ' '), '(', ' '), ')', ' '), '[', ' '), ']', ' '), '!', ' '), '?', ' ') || ' ')`;
+
+            // Date-aware search: detect month names, day numbers, years, and decades
+            const monthNames: Record<string, number> = {
+                january: 1, jan: 1, february: 2, feb: 2, march: 3, mar: 3,
+                april: 4, apr: 4, may: 5, june: 6, jun: 6, july: 7, jul: 7,
+                august: 8, aug: 8, september: 9, sep: 9, sept: 9,
+                october: 10, oct: 10, november: 11, nov: 11, december: 12, dec: 12,
+            };
+            let dateMonth: number | null = null;
+            let dateDay: number | null = null;
+            let dateYear: number | null = null;
+            let decadeStart: number | null = null;
+            let decadeEnd: number | null = null;
+            let standaloneYear: number | null = null;
+            const remainingWords: string[] = [];
+            for (const w of words) {
+                const lower = w.toLowerCase();
+                if (!dateMonth && monthNames[lower]) {
+                    dateMonth = monthNames[lower];
+                } else if (dateMonth && !dateDay && /^\d{1,2}$/.test(w)) {
+                    const d = parseInt(w);
+                    if (d >= 1 && d <= 31) dateDay = d;
+                    else remainingWords.push(w);
+                } else if (dateMonth && !dateYear && /^\d{4}$/.test(w)) {
+                    dateYear = parseInt(w);
+                } else if (!decadeStart && /^\d{4}s$/i.test(w)) {
+                    decadeStart = parseInt(w.slice(0, 4));
+                    decadeEnd = decadeStart + 9;
+                } else if (!dateMonth && !standaloneYear && !decadeStart && /^\d{4}$/.test(w) && words.length >= 1) {
+                    standaloneYear = parseInt(w);
+                    remainingWords.push(w);
+                } else {
+                    remainingWords.push(w);
+                }
+            }
+
+            // If we detected a date pattern, search date columns
+            let dateIds: number[] = [];
+            if (dateMonth) {
+                const dateClauses: string[] = ['month = ?'];
+                const dateParams: (number | string)[] = [dateMonth];
+                if (dateDay) { dateClauses.push('day = ?'); dateParams.push(dateDay); }
+                if (dateYear) { dateClauses.push('year = ?'); dateParams.push(dateYear); }
+                if (remainingWords.length > 0) {
+                    for (const rw of remainingWords) {
+                        const rwq = wordLike(rw);
+                        dateClauses.push(`(${F('title')} LIKE ? OR ${F('description')} LIKE ? OR ${F('creator')} LIKE ? OR ${F('tags')} LIKE ? OR ${F('metadata')} LIKE ?)`);
+                        dateParams.push(rwq, rwq, rwq, rwq, rwq);
+                    }
+                }
+                const dateSql = `SELECT id FROM Entry WHERE ${dateClauses.join(' AND ')}`;
+                const dateResults = await prisma.$queryRawUnsafe<{ id: number }[]>(dateSql, ...dateParams);
+                dateIds = dateResults.map(r => r.id);
+            }
+
+            // Decade search: "1930s" → year 1930-1939
+            if (decadeStart && decadeEnd) {
+                const decadeClauses: string[] = ['year >= ? AND year <= ?'];
+                const decadeParams: (number | string)[] = [decadeStart, decadeEnd];
+                if (remainingWords.length > 0) {
+                    for (const rw of remainingWords) {
+                        const rwq = wordLike(rw);
+                        decadeClauses.push(`(${F('title')} LIKE ? OR ${F('description')} LIKE ? OR ${F('creator')} LIKE ? OR ${F('tags')} LIKE ? OR ${F('metadata')} LIKE ?)`);
+                        decadeParams.push(rwq, rwq, rwq, rwq, rwq);
+                    }
+                }
+                const decadeSql = `SELECT id FROM Entry WHERE ${decadeClauses.join(' AND ')}`;
+                const decadeResults = await prisma.$queryRawUnsafe<{ id: number }[]>(decadeSql, ...decadeParams);
+                const decadeMatchIds = decadeResults.map(r => r.id);
+                const existing = new Set(dateIds);
+                for (const id of decadeMatchIds) { if (!existing.has(id)) dateIds.push(id); }
+            }
+
+            // Standalone year search: "1886" → also check year column
+            if (standaloneYear) {
+                const yearResults = await prisma.$queryRawUnsafe<{ id: number }[]>(
+                    `SELECT id FROM Entry WHERE year = ?`, standaloneYear
+                );
+                const yearMatchIds = yearResults.map(r => r.id);
+                const existing = new Set(dateIds);
+                for (const id of yearMatchIds) { if (!existing.has(id)) dateIds.push(id); }
+            }
 
             if (words.length <= 1) {
                 const q = wordLike(searchTerm);
-                const sql = `SELECT id FROM Entry WHERE ${F('title')} LIKE ? OR ${F('description')} LIKE ? OR ${F('creator')} LIKE ? OR ${F('tags')} LIKE ?`;
-                const results = await prisma.$queryRawUnsafe<{ id: number }[]>(sql, q, q, q, q);
-                where.id = { in: results.map(r => r.id) };
+                const sql = `SELECT id FROM Entry WHERE ${F('title')} LIKE ? OR ${F('description')} LIKE ? OR ${F('creator')} LIKE ? OR ${F('tags')} LIKE ? OR ${F('metadata')} LIKE ?`;
+                const results = await prisma.$queryRawUnsafe<{ id: number }[]>(sql, q, q, q, q, q);
+                const textIds = results.map(r => r.id);
+                if (dateIds.length > 0) {
+                    const allIds = [...dateIds, ...textIds.filter(id => !dateIds.includes(id))];
+                    where.id = { in: allIds };
+                } else {
+                    where.id = { in: textIds };
+                }
             } else {
-                // Multi-word — each word must prefix-match somewhere across the entry's fields
+                // Multi-word — each word must match somewhere across entry fields (AND logic)
                 const wordClauses = words.map(() =>
-                    `(${F('title')} LIKE ? OR ${F('description')} LIKE ? OR ${F('creator')} LIKE ? OR ${F('tags')} LIKE ?)`
+                    `(${F('title')} LIKE ? OR ${F('description')} LIKE ? OR ${F('creator')} LIKE ? OR ${F('tags')} LIKE ? OR ${F('metadata')} LIKE ?)`
                 ).join(' AND ');
                 const wordParams: string[] = [];
                 for (const w of words) {
                     const wq = wordLike(w);
-                    wordParams.push(wq, wq, wq, wq); // 4 fields per word
+                    wordParams.push(wq, wq, wq, wq, wq); // 5 fields per word
                 }
                 const sql = `SELECT id FROM Entry WHERE ${wordClauses}`;
                 const results = await prisma.$queryRawUnsafe<{ id: number }[]>(sql, ...wordParams);
-                where.id = { in: results.map(r => r.id) };
+                const textIds = results.map(r => r.id);
+                if (dateIds.length > 0) {
+                    const allIds = [...dateIds, ...textIds.filter(id => !dateIds.includes(id))];
+                    where.id = { in: allIds };
+                } else {
+                    where.id = { in: textIds };
+                }
             }
         }
 
@@ -2386,29 +2581,78 @@ Generate research suggestions to enrich this entry.`;
             if (trimmed.startsWith('https://') || trimmed.startsWith('http://')) return trimmed;
             return '';
         };
+        const sanitizeConfidence = (c: unknown): string => {
+            if (typeof c === 'string' && ['high', 'medium', 'low'].includes(c)) return c;
+            return 'medium';
+        };
+
         const sanitized: Record<string, unknown> = {};
-        if (typeof suggestions.description === 'string') sanitized.description = suggestions.description;
-        if (typeof suggestions.quickFacts === 'string') sanitized.quickFacts = suggestions.quickFacts;
-        if (typeof suggestions.keyPeople === 'string') sanitized.keyPeople = suggestions.keyPeople;
-        if (typeof suggestions.additionalNotes === 'string') sanitized.additionalNotes = suggestions.additionalNotes;
-        if (typeof suggestions.wikipediaUrl === 'string') sanitized.wikipediaUrl = sanitizeUrl(suggestions.wikipediaUrl);
-        if (Array.isArray(suggestions.suggestedTags)) {
-            sanitized.suggestedTags = suggestions.suggestedTags.filter((t: unknown) => typeof t === 'string').slice(0, 5);
+
+        // expandedDescription: { text, confidence }
+        if (suggestions.expandedDescription && typeof suggestions.expandedDescription === 'object') {
+            sanitized.expandedDescription = {
+                text: typeof suggestions.expandedDescription.text === 'string' ? suggestions.expandedDescription.text : '',
+                confidence: sanitizeConfidence(suggestions.expandedDescription.confidence),
+            };
         }
-        if (Array.isArray(suggestions.relatedLinks)) {
-            sanitized.relatedLinks = suggestions.relatedLinks
+
+        // bulletPoints: [{ text, confidence }]
+        if (Array.isArray(suggestions.bulletPoints)) {
+            sanitized.bulletPoints = suggestions.bulletPoints
+                .filter((bp: unknown) => typeof bp === 'object' && bp !== null)
+                .map((bp: Record<string, unknown>) => ({
+                    text: typeof bp.text === 'string' ? bp.text : '',
+                    confidence: sanitizeConfidence(bp.confidence),
+                }))
+                .filter((bp: { text: string }) => bp.text !== '');
+        }
+
+        // wikipediaUrl: { url, summary, confidence } or null
+        if (suggestions.wikipediaUrl && typeof suggestions.wikipediaUrl === 'object') {
+            const url = sanitizeUrl(suggestions.wikipediaUrl.url);
+            if (url) {
+                sanitized.wikipediaUrl = {
+                    url,
+                    summary: typeof suggestions.wikipediaUrl.summary === 'string' ? suggestions.wikipediaUrl.summary : '',
+                    confidence: sanitizeConfidence(suggestions.wikipediaUrl.confidence),
+                };
+            } else {
+                sanitized.wikipediaUrl = null;
+            }
+        } else {
+            sanitized.wikipediaUrl = null;
+        }
+
+        // externalLinks: [{ label, url, confidence }]
+        if (Array.isArray(suggestions.externalLinks)) {
+            sanitized.externalLinks = suggestions.externalLinks
                 .filter((link: unknown) => typeof link === 'object' && link !== null)
                 .map((link: Record<string, unknown>) => ({
                     label: typeof link.label === 'string' ? link.label : '',
                     url: sanitizeUrl(link.url),
+                    confidence: sanitizeConfidence(link.confidence),
                 }))
                 .filter((link: { url: string }) => link.url !== '');
         }
-        if (typeof suggestions.confidence === 'object' && suggestions.confidence !== null) {
-            sanitized.confidence = Object.fromEntries(
-                Object.entries(suggestions.confidence as Record<string, unknown>)
-                    .filter(([, v]) => typeof v === 'string' && ['high', 'medium', 'low'].includes(v as string))
-            );
+
+        // suggestedTags: [{ tag, confidence }]
+        if (Array.isArray(suggestions.suggestedTags)) {
+            sanitized.suggestedTags = suggestions.suggestedTags
+                .filter((t: unknown) => typeof t === 'object' && t !== null)
+                .map((t: Record<string, unknown>) => ({
+                    tag: typeof t.tag === 'string' ? t.tag : '',
+                    confidence: sanitizeConfidence(t.confidence),
+                }))
+                .filter((t: { tag: string }) => t.tag !== '')
+                .slice(0, 5);
+        }
+
+        // keyPeopleOrgs: { text, confidence }
+        if (suggestions.keyPeopleOrgs && typeof suggestions.keyPeopleOrgs === 'object') {
+            sanitized.keyPeopleOrgs = {
+                text: typeof suggestions.keyPeopleOrgs.text === 'string' ? suggestions.keyPeopleOrgs.text : '',
+                confidence: sanitizeConfidence(suggestions.keyPeopleOrgs.confidence),
+            };
         }
 
         res.json(sanitized);
