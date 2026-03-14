@@ -188,8 +188,12 @@ function HomePage() {
               <div className="w-10 h-10 rounded-full border-4 border-white/5 border-t-red-500 animate-spin"></div>
             </div>
           ) : entries.length === 0 ? (
-            <div className="text-center py-20 text-gray-500">
-              <p className="text-lg">No entries found</p>
+            <div className="text-center py-20 text-gray-400">
+              <p className="text-lg">
+                {searchQuery
+                  ? <>No entries found for "<span className="text-white/70">{searchQuery}</span>"</>
+                  : 'No entries found'}
+              </p>
               {searchQuery && <p className="text-sm mt-2">Try adjusting your search terms</p>}
             </div>
           ) : (

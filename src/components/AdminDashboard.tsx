@@ -370,7 +370,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
               <div className="w-10 h-10 rounded-full border-4 border-white/5 border-t-red-500 animate-spin"></div>
             </div>
           ) : entries.length === 0 ? (
-            <div className="text-center py-10 text-gray-500">No entries found</div>
+            <div className="text-center py-10 text-gray-400">
+              {search.trim()
+                ? <>No entries found for "<span className="text-white/70">{search.trim()}</span>"</>
+                : 'No entries found'}
+            </div>
           ) : (
             <div ref={scrollRef} className="max-h-[calc(100vh-380px)] overflow-y-auto">
               {entries.map(entry => (
