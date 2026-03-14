@@ -4,7 +4,69 @@ A unified, searchable platform for labor history, quotes, music, films, and futu
 
 **Search "Lawrence" and get the 1912 strike, related songs, relevant quotes, and related films — all in one place.**
 
-## Quick Start
+**Live at https://labor-database.supersoul.top**
+
+---
+
+## Deploy to Any Server (Coolify)
+
+This app is fully portable. Coolify deploys from git, the Docker container handles everything else. If you have a backup ZIP, you can stand up a complete instance in minutes.
+
+### 1. Create the App
+
+In Coolify: **New Application → Git Repository**
+- Repository: `https://github.com/Catskill909/labor-database`
+- Branch: `main`
+- Build Pack: **Dockerfile** (auto-detected)
+- Enable auto-deploy on push
+
+### 2. Add Two Persistent Volumes
+
+Without these, data is wiped on every deploy.
+
+| Volume Name | Mount Path | What It Stores |
+|-------------|-----------|----------------|
+| `labor_db_data` | `/app/data` | SQLite database |
+| `labor_db_uploads` | `/app/uploads` | Uploaded images & posters |
+
+In Coolify: **Configuration → Persistent Storage → Add** each volume.
+
+### 3. Set Environment Variables
+
+In Coolify: **Configuration → Environment Variables**
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `ADMIN_PASSWORD` | **Yes** | Protects the admin dashboard |
+| `CORS_ORIGIN` | Recommended | Your domain (e.g. `https://your-domain.com`). Unset = allow all |
+| `TMDB_API_KEY` | No | Film search + poster auto-fill |
+| `GENIUS_API_KEY` | No | Music search + songwriter/lyrics auto-fill |
+| `GOOGLE_AI_API_KEY` | No | AI research assistant (Gemini) |
+
+That's it. `DATABASE_URL`, `PORT`, and `NODE_ENV` are pre-set in the Dockerfile — don't override them.
+
+### 4. Deploy & Import Data
+
+Hit **Deploy**. The container automatically runs migrations and seeds categories.
+
+To import your data:
+1. Go to `https://your-domain.com/admin`
+2. Log in with your `ADMIN_PASSWORD`
+3. **Import → Upload your backup ZIP**
+
+Done. All entries and images are restored.
+
+### Backup & Portability
+
+- **Export:** Admin → Export → Full Backup (ZIP) — includes all data + images
+- **Import:** Admin → Import → Upload ZIP — restores everything
+- **Move to new server:** Export ZIP from old instance, deploy fresh, import ZIP
+
+The backup ZIP is the single artifact needed to recreate the entire database anywhere.
+
+---
+
+## Local Development
 
 ```bash
 # Install dependencies
@@ -22,10 +84,26 @@ npm run import:films
 # Enrich films with TMDB data (posters, cast, trailers)
 npm run enrich:films
 
-# Start dev server
+# Start dev server → http://localhost:3001
 ./dev.sh
-# → http://localhost:3001
 ```
+
+In local dev, admin login is required but any password works when `ADMIN_PASSWORD` is not set.
+
+---
+
+## Features
+
+- **On This Day** — Landing page shows today's labor history, quotes, and year-matched films/music with calendar navigation
+- **Unified Search** — One search bar across all categories
+- **Category Browse** — History, Quotes, Music, Films with category-specific filters and sorting
+- **Public Submissions** — 3-step wizard for community contributions (admin review queue)
+- **Admin Dashboard** — Stats, preview/edit modals, publish workflow, image management
+- **Film Enrichment** — TMDB API for posters, cast, trailers with YouTube embeds
+- **Music Search** — Genius API for songwriter credits, LRCLIB for lyrics, YouTube auto-discovery
+- **Tag System** — 35 canonical tags based on Library of Congress labor subject headings
+- **AI Research** — Gemini-powered research assistant with confidence indicators (admin-only)
+- **Multi-Format Export** — JSON, XLSX, CSV, and full ZIP (data + images)
 
 ## Tech Stack
 
@@ -35,281 +113,99 @@ npm run enrich:films
 | Backend | Express 5 + tsx |
 | Database | SQLite + Prisma ORM |
 | Film Data | TMDB API (server-side proxy) |
-| Music Data | Genius API (metadata) + LRCLIB API (lyrics) + YouTube search |
-| AI Research | Google Gemini 2.0 Flash (admin-only AI research assistant) |
+| Music Data | Genius API + LRCLIB API + YouTube search |
+| AI Research | Google Gemini 2.0 Flash |
 | Deployment | Docker → Coolify (auto-deploy from `main`) |
 
 Same architecture as the [Labor Landmarks Map](https://github.com/Catskill909/labor-map).
 
-## Project Structure
+---
+
+## Reference
+
+### Project Structure
 
 ```
 ├── server/index.ts          # Express API (CRUD, auth, search, TMDB proxy, Genius, export, tags)
-├── server/tags.ts           # Tag taxonomy, normalization map, auto-tag keyword engine
+├── server/tags.ts           # Tag taxonomy, normalization, auto-tag keyword engine
 ├── src/
 │   ├── App.tsx              # Main React app
-│   └── components/
-│       ├── EntryGrid.tsx    # Category-specific card layouts (film posters, etc.)
-│       ├── EntryDetail.tsx  # Modal detail view (film: 2-col poster+metadata layout)
-│       ├── FilterBar.tsx    # Category-specific filters + tag multi-select dropdown
-│       ├── TmdbSearch.tsx   # TMDB typeahead search component
-│       ├── MusicSearch.tsx  # Genius API typeahead search component
-│       ├── ExportModal.tsx  # Multi-format export modal (JSON, XLSX, CSV, ZIP)
-│       ├── ImportModal.tsx  # ZIP/JSON import modal with format selection
-│       ├── ImageDropzone.tsx # Drag-and-drop image upload
-│       ├── SubmissionWizard.tsx  # Submission wizard (public + admin mode)
-│       ├── AdminDashboard.tsx   # Admin dashboard (stats, table, preview/edit/submitter modals)
-│       ├── AiSandbox.tsx        # 2-panel AI research editor (Gemini-powered)
-│       ├── ResearchFieldsSection.tsx  # Collapsible research fields (Wikipedia, links, notes)
-│       ├── RelatedLinksEditor.tsx     # Editable link pair list (label + URL)
-│       └── TagSelector.tsx      # Inline tag selector (35 canonical tags, grouped, 5-tag limit)
+│   └── components/          # React components (EntryGrid, EntryDetail, FilterBar, AdminDashboard, etc.)
 ├── prisma/
-│   ├── schema.prisma        # Database schema
+│   ├── schema.prisma        # Database schema (unified Entry model)
 │   └── seed.ts              # Default categories
-├── scripts/
-│   ├── import-history.ts    # CSV → database
-│   ├── import-quotes.ts
-│   ├── import-music.ts
-│   ├── import-films.ts      # WordPress XML → database
-│   ├── enrich-films-tmdb.ts # TMDB enrichment (posters, cast, trailers)
-│   └── download-film-images.ts  # WordPress poster download
-├── docs/
-│   ├── csv/                 # Source CSV files from Wix export
-│   ├── film-data-dev.md     # Film import & TMDB integration notes
-│   └── screenshots/         # Original Wix site reference images
+├── scripts/                 # Import & enrichment scripts
 ├── Dockerfile               # Multi-stage production build
-├── docker-compose.yml       # Local Docker with persistent volumes
-├── deployment-checklist.md     # Coolify production deployment guide & backup procedures
-├── database-client-project.md  # Full project planning doc & roadmap
+├── docker-entrypoint.sh     # Startup: migrate → seed → serve
 └── CLAUDE.md                # AI coding session guardrails
 ```
 
-## Data
+### Data Model
 
-All content lives in a unified `Entry` table with category-specific metadata stored as JSON:
+All content lives in a unified `Entry` table with category-specific metadata stored as JSON. Future categories (plays, poetry, etc.) can be added without schema changes.
 
 | Category | Entries | Source | Enrichment |
 |----------|---------|--------|------------|
 | History  | 1,411   | Wix CSV export | — |
 | Quotes   | 1,916   | Wix CSV export | — |
-| Music    | 435     | Wix CSV export | Genius API (100 enriched with songwriter/year) + YouTube URLs (349/435) |
-| Films    | 2,192   | WordPress XML export | TMDB API (1,292 enriched, 1,255 with posters) |
+| Music    | 435     | Wix CSV export | Genius API + YouTube URLs |
+| Films    | 2,192   | WordPress XML export | TMDB API (posters, cast, trailers) |
 
-Future categories (plays, poetry, etc.) can be added without schema changes.
+### API Endpoints
 
-## Scripts
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/health` | GET | Health check (200/503) |
+| `/api/entries` | GET | List/search/filter entries |
+| `/api/entries/:id` | GET | Single entry detail |
+| `/api/entries` | POST | Public submission (goes to review queue) |
+| `/api/on-this-day` | GET | Entries for a date, grouped by category |
+| `/api/categories` | GET | List active categories |
+| `/api/tags` | GET | Tag list with counts |
+| `/api/tmdb/search` | GET | TMDB film search |
+| `/api/music/search` | GET | Genius music search |
+| `/api/admin/*` | Various | Admin CRUD, export, import, AI research (auth required) |
 
-```bash
-npm run dev:fullstack    # Start frontend + backend
-npm run build            # Production build (tsc + vite)
-npm run import:history   # Import history CSV
-npm run import:quotes    # Import quotes CSV
-npm run import:music     # Import music CSV
-npm run import:films     # Import films from WordPress XML
-npm run import:all       # Import all CSVs (history, quotes, music)
-npm run enrich:films     # Enrich films with TMDB data + download posters
-npm run download:film-images  # Download poster images from WordPress
-npx tsc --noEmit         # Type-check before committing
-```
-
-### TMDB Enrichment
-
-The `enrich:films` script searches TMDB for each film entry and populates:
-- Director, writers, cast, runtime, country, genre
-- YouTube trailer IDs
-- Poster images (downloaded + thumbnailed via Sharp)
-- Original descriptions preserved as curator notes
+### Scripts
 
 ```bash
-npm run enrich:films              # Full run (~10 min for 2,192 films)
-npm run enrich:films -- --dry-run # Preview matches without writing
-npm run enrich:films -- --limit 50 # Test with subset
-npm run enrich:films -- --no-posters # Skip poster downloads
+npm run dev:fullstack        # Start frontend + backend
+npm run build                # Production build (tsc + vite)
+npm run import:all           # Import all CSVs (history, quotes, music)
+npm run import:films         # Import films from WordPress XML
+npm run enrich:films         # Enrich films with TMDB data + posters
+npx tsc --noEmit             # Type-check before committing
 ```
 
-Idempotent — safe to re-run (skips entries already enriched with `tmdbId`).
+### Container Startup
 
-## Deployment
-
-**Live at https://labor-database.supersoul.top** (deployed March 2, 2026)
-
-Docker-based deployment via Coolify with auto-deploy from `main`. Two persistent volumes preserve data across deploys.
-
-### Quick Reference
-
-```
-Production URL:     https://labor-database.supersoul.top
-Admin URL:          https://labor-database.supersoul.top/admin
-Health Check:       GET /api/health
-Container Port:     3001
-Auto-deploy:        Push to main → Coolify builds + deploys
-Backup:             Admin → Export → Full Backup (ZIP)
-Restore:            Admin → Import → Upload ZIP
-Recovery:           Reset DB → Import ZIP → Done
-```
-
-### Persistent Volumes (CRITICAL)
-
-**Without both volumes, ALL DATA AND IMAGES ARE LOST on every deploy.**
-
-| Volume | Mount Path | Purpose |
-|--------|-----------|---------|
-| `labor_db_data` | `/app/data` | SQLite database (5,954 entries) |
-| `labor_db_uploads` | `/app/uploads` | Uploaded images (~153 MB posters) |
-
-### Environment Variables
-
-| Variable | Required | Notes |
-|----------|----------|-------|
-| `ADMIN_PASSWORD` | **Yes** | Protects `/admin` dashboard and all `/api/admin/*` endpoints |
-| `TMDB_API_KEY` | No | Enables TMDB film search/enrichment in forms |
-| `GENIUS_API_KEY` | No | Enables Genius music search (songwriter, lyrics, year auto-fill) |
-| `GOOGLE_AI_API_KEY` | No | Enables AI research assistant (Gemini 2.0 Flash) in admin panel |
-| `CORS_ORIGIN` | No | Restricts CORS to specified origin. If unset, allows all origins |
-
-Pre-set in Dockerfile (do NOT override): `DATABASE_URL`, `PORT=3001`, `NODE_ENV=production`
-
-### Container Startup Sequence
-
-On every deploy, the container runs:
-1. `prisma migrate deploy` — applies any pending database migrations
-2. `prisma/seed.ts` — seeds default categories (idempotent — skips if categories exist)
-3. `tsx server/index.ts` — starts the Express server on port 3001
-
-### CODE vs DATA
-
-- **Code changes** → `git push` → Coolify auto-deploys (database untouched)
-- **Data changes** → Admin panel (add/edit/delete entries, backup/restore)
-- Always ask: "Is this a CODE problem or a DATA problem?"
-
-### Data Migration
-
-To migrate data to a new/empty instance:
-1. **SOURCE:** Admin → Export → Full Backup (ZIP)
-2. **TARGET:** Admin → Import → Upload that ZIP (progress bar shows upload + processing)
-3. Verify entry counts + images display correctly
-
-The ZIP import uses SSE streaming with batch processing — handles large backups (~160MB) without proxy timeout.
+On every deploy, `docker-entrypoint.sh` runs:
+1. `prisma migrate deploy` — applies pending migrations (idempotent)
+2. `prisma/seed.ts` — seeds default categories (idempotent)
+3. `tsx server/index.ts` — starts Express on port 3001
 
 ### Security
 
-- **Health check** — `GET /api/health` verifies DB connectivity (200/503)
-- **CORS** — Restricted via `CORS_ORIGIN` env var; unset allows all (dev)
+- **Admin auth** — all `/api/admin/*` endpoints require `ADMIN_PASSWORD`
+- **CORS** — restricted via `CORS_ORIGIN` env var
 - **Rate limiting** — general (100/min), auth (5/min), uploads (10/min), search (30/min)
-- **Admin auth** — Login required everywhere. Server allows all if `ADMIN_PASSWORD` unset (dev)
-- **Bundle optimization** — EntryDetail, SubmissionWizard, AdminDashboard lazy-loaded via `React.lazy()`
+- **Health check** — `GET /api/health` for monitoring
 
 ### Troubleshooting
 
 | Problem | Fix |
 |---------|-----|
-| "WARNING: No existing database found" | Volume not mounted — check Persistent Storage |
+| "No existing database found" | Persistent volume not mounted |
 | Site shows no data | Import your backup ZIP via Admin |
-| Images not showing | Volume `labor_db_uploads` not mounted, or images not imported |
-| Admin login not working | `ADMIN_PASSWORD` not set in Coolify env vars |
-| Build fails | Run `npx tsc --noEmit` locally before pushing |
-| **YouTube Error 153** | See [YouTube Embed Fix](#youtube-embed-fix) below |
+| Images not showing | `labor_db_uploads` volume not mounted |
+| Admin login not working | `ADMIN_PASSWORD` not set in env vars |
+| Build fails | Run `npx tsc --noEmit` locally first |
 
-### YouTube Embed Fix
+### Documentation
 
-**Problem**: YouTube embeds show "Error 153: Video player configuration error" in production but work locally.
-
-**Root Cause**: Helmet's default `Referrer-Policy: no-referrer` header strips referrer info that YouTube requires to validate embeds.
-
-**Why Local Works**: Vite dev server sends no security headers. Production Express + Helmet sends restrictive headers.
-
-**Solution** (already applied in `server/index.ts`):
-```typescript
-app.use(helmet({
-    // ... CSP config ...
-    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },  // ← This fixes YouTube
-}));
-```
-
-Also using `youtube-nocookie.com` for embed URLs (more reliable than `youtube.com`).
-
-**Note**: `ERR_BLOCKED_BY_CLIENT` errors on `log_event` and `generate_204` are caused by ad blockers and are harmless — they only block YouTube's telemetry, not video playback.
-
-See [deployment-checklist.md](deployment-checklist.md) for the complete step-by-step setup guide.
-
-## Admin Panel
-
-Navigate to `/admin` and log in with the `ADMIN_PASSWORD`.
-
-Features:
-- **Dashboard** — Labor Landmarks-style UI with stats cards (Published / Review Queue), segmented category tabs, table layout with column headers
-- **Stats cards as filters** — click Published or Review Queue cards to filter entries by status (ring highlight when active)
-- **Preview modal** — eye icon opens a read-only detail view (reuses public EntryDetail component for all categories)
-- **Category-specific edit forms** — 2-column layout for History and Quotes (core fields left, research fields right), single column for Music and Film. Unsaved changes guard with amber confirm modal
-- **AI Research Tool** — "Enhance with AI" button opens a full-screen 2-panel editor (AiSandbox). Left panel shows live record with structured research fields; right panel shows Gemini-generated suggestions with confidence indicators. Settings for output length (Short/Detailed) and tone (Factual/Narrative). Category-aware: quotes show read-only quote text, history/quote use structured fields (Quick Facts, Key People & Organizations, Additional Notes)
-- **Admin entry creation** — "Add to Database" button opens the submission wizard in admin mode (skips contact info step)
-- **Submitter info** — purple icon appears only on user-submitted entries, shows name/email/comment in modal
-- **Image management** — view existing images, upload new ones, delete with hover-to-remove
-- **Custom tooltips** — instant-appearing styled tooltips on all action buttons
-- **Multi-format export** — Export modal: Full Backup (JSON + images ZIP), Data Only (JSON), Spreadsheet (XLSX with one sheet per category), CSV. Category filter for targeted exports
-- **Import modal** — Import modal with format selection (Full Backup ZIP or Data Only JSON), merge warning, guided file upload
-- **Reset DB** — Destructive reset with type-to-confirm ("RESET") safety dialog, itemized deletion preview (entry count, images, records)
-- **Music search** — Genius API typeahead in music forms (submission wizard + edit modal), auto-fills songwriter, lyrics, year, and YouTube URL
-
-In local dev, admin login is always required but any password works if `ADMIN_PASSWORD` is not set.
-
-## API
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/health` | GET | Health check — returns `{"status":"ok"}` (200) or `{"status":"error"}` (503) |
-| `/api/entries` | GET | List entries (filter by `category`, `search`, `month`, `day`, `year`, `creator`, `genre`, `tag`) |
-| `/api/entries/filter-options` | GET | Distinct filter values for dropdowns (genres, years) |
-| `/api/entries/:id` | GET | Single entry with full image URLs |
-| `/api/entries` | POST | Public submission (unpublished) |
-| `/api/on-this-day` | GET | Entries for a date, grouped by category (`?month=&day=&tag=`) |
-| `/api/on-this-day/calendar` | GET | Calendar dot data for a month (`?month=`) |
-| `/api/categories` | GET | List active categories |
-| `/api/tmdb/search` | GET | Search TMDB by title (server-side proxy) |
-| `/api/tmdb/movie/:tmdbId` | GET | Full TMDB movie details + credits + videos |
-| `/api/tmdb/download-poster` | POST | Download TMDB poster and attach to entry (admin auth required) |
-| `/api/music/search` | GET | Search Genius for songs (`?query=`) |
-| `/api/music/details/:geniusId` | GET | Fetch songwriter, year from Genius API + lyrics from LRCLIB + YouTube URL |
-| `/api/admin/entries` | GET | Admin: list with submitter info + pagination |
-| `/api/admin/entries` | POST | Admin: create entry (published, no submitter info) |
-| `/api/admin/entries/:id` | PUT | Admin: update entry |
-| `/api/admin/entries/:id/publish` | PATCH | Admin: toggle publish status |
-| `/api/admin/entries/:id` | DELETE | Admin: delete entry |
-| `/api/admin/export` | GET | Admin: multi-format export (`?format=json\|xlsx\|csv\|full&category=`) |
-| `/api/admin/import` | POST | Admin: JSON import with smart merge |
-| `/api/admin/import-zip` | POST | Admin: ZIP import (data + images) with ID remapping |
-| `/api/admin/reset` | DELETE | Admin: wipe all entries + images (type-to-confirm in UI) |
-| `/api/tags` | GET | Tag list with counts, grouped by theme/industry/social (`?category=`) |
-| `/api/admin/tags/normalize` | POST | Admin: normalize tags to canonical taxonomy |
-| `/api/admin/tags/auto-tag` | POST | Admin: auto-tag entries via keyword matching (`{dryRun: true}` for preview) |
-| `/api/admin/tags/stats` | GET | Admin: tag coverage statistics by category |
-| `/api/admin/ai/enhance` | POST | Admin: AI research enhancement via Gemini (rate limited: 20/min) |
-
-## Features
-
-- **On This Day** — Landing tab shows today's labor history, quotes, and year-matched films/music. Calendar picker, date navigation (arrows/keyboard), sectioned card grid
-- **Unified Search** — One search bar across all categories. Search "Lawrence" and get the 1912 strike, songs, quotes, and films
-- **Category Browse** — Filter by History, Quotes, Music, Films with category-specific filter bars
-- **Public Submissions** — 3-step wizard (pick category → category-specific form → contact info). Double-click protected with spinner
-- **Admin Dashboard** — Stats cards, preview modal, category-specific edit forms, submitter info, custom tooltips, table layout
-- **Film Enrichment** — TMDB API integration for posters, cast, trailers. YouTube embed via react-player
-- **Music Search** — Genius API for songwriter credits and year, LRCLIB API for lyrics, YouTube URL auto-discovery
-- **Multi-Format Export** — Export modal with JSON, XLSX (spreadsheet), CSV, and full ZIP (data + images) formats. Category filtering
-- **Tag System** — 35 canonical tags in 3 groups (Theme, Industry, Social Dimension) based on Library of Congress labor subject headings. Tag filter dropdown in browse views (AND logic). Clickable tag pills navigate to filtered browse
-- **Tag Selector UI** — Modern inline tag selector in all submission and edit forms. All 35 tags always visible grouped by category, one-click toggle selection, 5-tag limit with counter. No hidden dropdowns — fully discoverable UI
-- **AI Research Tool** — Gemini 2.0 Flash-powered research assistant. 2-panel editor: live record (left) + AI suggestions with confidence indicators (right). Generates expanded descriptions, quick facts, Wikipedia URLs, external links, suggested tags, and key people/organizations. Category-aware prompts. All suggestions are curator-reviewed before saving. Research fields (Wikipedia, Related Links, Quick Facts, Key People, Additional Notes) stored in metadata JSON — no schema migration needed
-
-## Documentation
-
-- [**deployment-checklist.md**](deployment-checklist.md) — Coolify production deployment guide, backup procedures, data migration, environment variables
-- [**database-client-project.md**](database-client-project.md) — Full project planning doc: vision, architecture, schema, phased roadmap, client Q&A, session work logs
-- [**CLAUDE.md**](CLAUDE.md) — AI coding session guardrails and pre-push checklist
-- [**ai-research-tool.md**](ai-research-tool.md) — AI Research Tool feature spec and client-facing proposal
-- [**ai-research-tool-dev.md**](ai-research-tool-dev.md) — AI Research Tool dev planning, architecture audit, and implementation status
-- [**docs/film-data-dev.md**](docs/film-data-dev.md) — Film import, TMDB integration, and enrichment notes
-- [**docs/on-this-day-dev.md**](docs/on-this-day-dev.md) — Phase 4 planning, design decisions, calendar package research
-- [**audio-data-update.md**](audio-data-update.md) — Music enrichment planning (Genius API + YouTube search)
-- [**export-data.dev.md**](export-data.dev.md) — Export feature brainstorming (formats, migration strategy)
+- [deployment-checklist.md](deployment-checklist.md) — Detailed Coolify setup & backup procedures
+- [database-client-project.md](database-client-project.md) — Project planning & roadmap
+- [CLAUDE.md](CLAUDE.md) — AI coding session guardrails
 
 ## License
 
