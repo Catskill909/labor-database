@@ -297,17 +297,17 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         </div>
 
         {/* ── Stats Cards ── */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_3fr] gap-6 mb-8">
           <div
             onClick={() => setFilterPublished(filterPublished === 'true' ? '' : 'true')}
-            className={`bg-zinc-900 border p-6 rounded-2xl cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${filterPublished === 'true' ? 'border-green-500/40 ring-1 ring-green-500/20' : 'border-white/5'}`}
+            className={`bg-zinc-900 border px-5 py-4 rounded-2xl cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${filterPublished === 'true' ? 'border-green-500/40 ring-1 ring-green-500/20' : 'border-white/5'}`}
           >
             <p className="text-sm text-gray-500 mb-1">Published</p>
             <p className="text-3xl font-bold">{publishedCount}</p>
           </div>
           <div
             onClick={() => setFilterPublished(filterPublished === 'false' ? '' : 'false')}
-            className={`bg-zinc-900 border p-6 rounded-2xl relative cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${filterPublished === 'false' ? 'border-red-500/40 ring-1 ring-red-500/20' : 'border-white/5'}`}
+            className={`bg-zinc-900 border px-5 py-4 rounded-2xl relative cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${filterPublished === 'false' ? 'border-red-500/40 ring-1 ring-red-500/20' : 'border-white/5'}`}
           >
             <p className="text-sm text-gray-500 mb-1">Review Queue</p>
             <p className={`text-3xl font-bold ${unpublishedCount > 0 ? 'text-red-500' : 'text-gray-400'}`}>{unpublishedCount}</p>
@@ -315,7 +315,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
               <div className="absolute top-4 right-4 w-3 h-3 bg-red-500 rounded-full animate-pulse" />
             )}
           </div>
-          <div className="bg-zinc-900 border border-white/5 p-6 rounded-2xl flex items-center gap-4">
+          <div className="bg-zinc-900 border border-white/5 px-5 py-4 rounded-2xl flex items-center gap-4">
             <Search size={20} className="text-gray-500 shrink-0" />
             <input
               type="text"
