@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Trash2, Eye, EyeOff, Download, Upload, Search, X, UserRound, Mail, MessageSquare, Edit2, Database, LogOut, AlertTriangle, Code2 } from 'lucide-react';
+import { Plus, Trash2, Eye, EyeOff, Download, Upload, Search, X, UserRound, Mail, MessageSquare, Edit2, Database, LogOut, AlertTriangle, Code2, Sparkles, Check, HelpCircle } from 'lucide-react';
 import { SortDropdown, ADMIN_SORT_OPTIONS } from './FilterBar.tsx';
-import type { Entry, Category } from '../types.ts';
+import type { Entry, Category, RelatedLink } from '../types.ts';
+import { getRelatedLinks, parseSections, rebuildMoreResearch, parseMetadata } from '../types.ts';
 import ImageDropzone from './ImageDropzone.tsx';
 import SubmissionWizard from './SubmissionWizard.tsx';
 import EntryDetail from './EntryDetail.tsx';
@@ -12,6 +13,10 @@ import ImportModal from './ImportModal.tsx';
 import ApiModal from './ApiModal.tsx';
 import TagSelector from './TagSelector.tsx';
 import ConfirmModal from './ConfirmModal.tsx';
+import ResearchFieldsSection from './ResearchFieldsSection.tsx';
+import RelatedLinksEditor from './RelatedLinksEditor.tsx';
+import AiSandbox from './AiSandbox.tsx';
+import AdminHelpPanel from './AdminHelpPanel.tsx';
 
 const PAGE_SIZE = 60;
 
@@ -53,7 +58,10 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [filterPublished, setFilterPublished] = useState<string>('');
   const [search, setSearch] = useState('');
-  const [sort, setSort] = useState('newest');
+  const [sort, setSort] = useState('');
+  // Reset sort to category default when category changes
+  const adminSortOptions = ADMIN_SORT_OPTIONS[selectedCategory] || ADMIN_SORT_OPTIONS.default;
+  const effectiveSort = sort && adminSortOptions.some(o => o.value === sort) ? sort : adminSortOptions[0]?.value || 'newest';
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -66,7 +74,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const offsetRef = useRef(0);
-  const [refreshKey] = useState(0);
+
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -83,11 +91,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     if (selectedCategory) params.set('category', selectedCategory);
     if (filterPublished) params.set('isPublished', filterPublished);
     if (search.trim()) params.set('search', search.trim());
-    if (sort && sort !== 'newest') params.set('sort', sort);
+    if (effectiveSort) params.set('sort', effectiveSort);
     params.set('limit', String(PAGE_SIZE));
     params.set('offset', String(offset));
     return params;
-  }, [selectedCategory, filterPublished, search, sort]);
+  }, [selectedCategory, filterPublished, search, effectiveSort]);
 
   // Initial fetch when filters change
   useEffect(() => {
@@ -112,7 +120,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         console.error('Failed to fetch entries:', err);
         setLoading(false);
       });
-  }, [selectedCategory, filterPublished, search, buildParams, refreshKey]);
+  }, [selectedCategory, filterPublished, search, buildParams]);
 
   // Load more
   const loadMore = useCallback(() => {
@@ -123,7 +131,12 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     fetch(`/api/admin/entries?${params}`, { headers: getAdminHeaders() })
       .then(res => res.json())
       .then(data => {
-        setEntries(prev => [...prev, ...data]);
+        // Deduplicate by ID to prevent React key warnings
+        setEntries(prev => {
+          const existingIds = new Set(prev.map(e => e.id));
+          const newEntries = data.filter((e: Entry) => !existingIds.has(e.id));
+          return [...prev, ...newEntries];
+        });
         offsetRef.current += data.length;
         setHasMore(data.length >= PAGE_SIZE);
         setLoadingMore(false);
@@ -207,6 +220,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [showExportModal, setShowExportModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showApiModal, setShowApiModal] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetting, setResetting] = useState(false);
 
@@ -215,7 +229,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     try {
       const res = await fetch('/api/admin/reset', {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}` },
+        headers: { 'Authorization': `Bearer ${sessionStorage.getItem('adminToken') || ''}` },
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Reset failed');
@@ -267,9 +281,9 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             <button onClick={() => setShowImportModal(true)} className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-white/5 text-gray-300 font-bold rounded-xl transition-all hover:scale-105 active:scale-95">
               <Upload size={16} /> Import
             </button>
-            <a href="/" className="px-4 py-2.5 text-sm text-gray-400 hover:text-white transition-colors font-medium">
-              View Site
-            </a>
+            <button onClick={() => setShowHelp(true)} className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-white/5 text-gray-300 font-bold rounded-xl transition-all hover:scale-105 active:scale-95">
+              <HelpCircle size={16} /> Help
+            </button>
             {onLogout && (
               <button
                 onClick={onLogout}
@@ -334,9 +348,9 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
           </div>
           <div className="ml-auto">
             <SortDropdown
-              value={sort}
+              value={effectiveSort}
               onChange={setSort}
-              options={ADMIN_SORT_OPTIONS}
+              options={adminSortOptions}
             />
           </div>
         </div>
@@ -344,10 +358,10 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         {/* ── Entry Table ── */}
         <div className="bg-zinc-900 border border-white/5 rounded-2xl overflow-hidden">
           {/* Column headers */}
-          <div className="hidden md:grid grid-cols-[1fr_120px_100px_auto] gap-4 px-6 py-3 border-b border-white/5 bg-zinc-800/50">
+          <div className="hidden md:grid grid-cols-[1fr_100px_90px_250px] gap-4 px-6 py-3 border-b border-white/5 bg-zinc-800/50">
             <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Entry</span>
-            <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Category</span>
-            <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Status</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-gray-500 text-center">Category</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-gray-500 text-center">Status</span>
             <span className="text-xs font-bold uppercase tracking-wider text-gray-500 text-right">Actions</span>
           </div>
 
@@ -361,24 +375,60 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             <div ref={scrollRef} className="max-h-[calc(100vh-380px)] overflow-y-auto">
               {entries.map(entry => (
                 <AnimatedRow key={entry.id}>
-                  <div className="grid grid-cols-1 md:grid-cols-[1fr_120px_100px_auto] gap-2 md:gap-4 items-center px-6 py-4 border-b border-white/5 hover:bg-white/5 transition-colors group">
+                  <div className="grid grid-cols-1 md:grid-cols-[1fr_100px_90px_250px] gap-2 md:gap-4 items-center px-6 py-4 border-b border-white/5 hover:bg-white/5 transition-colors group">
                     {/* Entry info */}
                     <div className="min-w-0">
-                      <p className="font-bold text-sm uppercase tracking-wide group-hover:text-red-400 transition-colors truncate">
-                        {entry.title}
-                      </p>
-                      <p className="text-xs text-gray-500 truncate mt-0.5">{entry.description}</p>
+                      {entry.category === 'history' ? (
+                        <>
+                          <p className="font-bold text-sm text-amber-400 group-hover:text-amber-300 transition-colors">
+                            {[
+                              entry.month ? ['January','February','March','April','May','June','July','August','September','October','November','December'][entry.month - 1] : '',
+                              entry.day ? `${entry.day},` : '',
+                              entry.year ? String(entry.year) : '',
+                            ].filter(Boolean).join(' ') || 'No date'}
+                          </p>
+                          <p className="text-xs text-gray-300 truncate mt-0.5">{entry.description}</p>
+                        </>
+                      ) : entry.category === 'quote' ? (
+                        <>
+                          <p className="font-bold text-sm text-sky-400 group-hover:text-sky-300 transition-colors">
+                            {entry.creator || 'Unknown Author'}
+                          </p>
+                          <p className="text-xs text-gray-300 truncate mt-0.5 italic">{entry.description}</p>
+                        </>
+                      ) : entry.category === 'music' ? (
+                        <>
+                          <p className="font-bold text-sm text-emerald-400 group-hover:text-emerald-300 transition-colors truncate">
+                            {entry.title}
+                          </p>
+                          <p className="text-xs text-gray-300 truncate mt-0.5">{entry.creator || 'Unknown Artist'}</p>
+                        </>
+                      ) : entry.category === 'film' ? (
+                        <>
+                          <p className="font-bold text-sm text-violet-400 group-hover:text-violet-300 transition-colors truncate">
+                            {entry.title}{entry.year ? ` (${entry.year})` : ''}
+                          </p>
+                          <p className="text-xs text-gray-300 truncate mt-0.5">{entry.creator || 'Unknown Director'}</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="font-bold text-sm uppercase tracking-wide group-hover:text-red-400 transition-colors truncate">
+                            {entry.title}
+                          </p>
+                          <p className="text-xs text-gray-300 truncate mt-0.5">{entry.description}</p>
+                        </>
+                      )}
                     </div>
 
                     {/* Category badge */}
-                    <div>
+                    <div className="text-center">
                       <span className="px-2 py-0.5 rounded-full bg-zinc-800 text-[10px] font-medium text-gray-400 uppercase">
                         {entry.category}
                       </span>
                     </div>
 
                     {/* Status */}
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center justify-center gap-1.5">
                       <div className={`w-2 h-2 rounded-full ${entry.isPublished ? 'bg-green-500' : 'bg-amber-500'}`} />
                       <span className={`text-xs ${entry.isPublished ? 'text-green-400' : 'text-amber-400'}`}>
                         {entry.isPublished ? 'Published' : 'Pending'}
@@ -398,6 +448,12 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       ) : (
                         <div className="w-[34px]" />
                       )}
+                      <div
+                        className={`p-2 ${parseMetadata(entry).aiEnhanced ? 'text-amber-500/70' : 'invisible'}`}
+                        data-tooltip={parseMetadata(entry).aiEnhanced ? 'Researched' : undefined}
+                      >
+                        <Sparkles size={12} />
+                      </div>
                       <button
                         onClick={() => setPreviewEntry(entry)}
                         className="p-2 bg-zinc-800 text-gray-400 hover:text-blue-400 hover:bg-zinc-700 rounded-lg transition-all"
@@ -577,6 +633,9 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         <ApiModal onClose={() => setShowApiModal(false)} />
       )}
 
+      {/* Help Panel */}
+      <AdminHelpPanel isOpen={showHelp} onClose={() => setShowHelp(false)} />
+
       {submitterInfoEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setSubmitterInfoEntry(null)} />
@@ -695,8 +754,48 @@ function EditEntryModal({ entry, categories, onClose, onSaved }: {
   const [musicRunTime, setMusicRunTime] = useState(meta.runTime || '');
   const [musicLyrics, setMusicLyrics] = useState(meta.lyrics || '');
 
-  // Quote-specific fields (pre-filled from metadata)
-  const [quoteSource, setQuoteSource] = useState(meta.source || '');
+  // Research fields (all categories, pre-filled from metadata)
+  const [wikipediaUrl, setWikipediaUrl] = useState(meta.wikipediaUrl || '');
+  const [relatedLinks, setRelatedLinks] = useState<RelatedLink[]>(getRelatedLinks(meta));
+  const [moreResearch, setMoreResearch] = useState(meta.moreResearch || '');
+
+  // Structured research sections (admin edit for history/quote)
+  const isHistory = entry.category === 'history';
+  const initialSections = parseSections(meta.moreResearch || '');
+  const [quickFacts, setQuickFacts] = useState(initialSections.quickFacts);
+  const [keyPeople, setKeyPeople] = useState(initialSections.keyPeople);
+  const [additionalNotes, setAdditionalNotes] = useState(initialSections.additionalNotes);
+
+  const updateQuickFacts = (v: string) => { setQuickFacts(v); setMoreResearch(rebuildMoreResearch(v, keyPeople, additionalNotes)); };
+  const updateKeyPeople = (v: string) => { setKeyPeople(v); setMoreResearch(rebuildMoreResearch(quickFacts, v, additionalNotes)); };
+  const updateAdditionalNotes = (v: string) => { setAdditionalNotes(v); setMoreResearch(rebuildMoreResearch(quickFacts, keyPeople, v)); };
+
+  // AI Sandbox & enhancement tracking
+  const [showAiSandbox, setShowAiSandbox] = useState(false);
+  const [aiEnhanced, setAiEnhanced] = useState(!!meta.aiEnhanced);
+
+  // Unsaved changes guard
+  const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false);
+  const hasUnsavedChanges = () => {
+    return title !== entry.title ||
+      description !== entry.description ||
+      creator !== (entry.creator || '') ||
+      month !== String(entry.month || '') ||
+      day !== String(entry.day || '') ||
+      year !== String(entry.year || '') ||
+      tags !== (entry.tags || '') ||
+      sourceUrl !== (entry.sourceUrl || '') ||
+      wikipediaUrl !== (meta.wikipediaUrl || '') ||
+      moreResearch !== (meta.moreResearch || '') ||
+      relatedLinks.length !== getRelatedLinks(meta).length;
+  };
+  const handleCloseAttempt = () => {
+    if (hasUnsavedChanges()) {
+      setShowUnsavedConfirm(true);
+    } else {
+      onClose();
+    }
+  };
 
   const handleMusicSelect = (song: MusicDetails) => {
     setTitle(song.title);
@@ -728,34 +827,42 @@ function EditEntryModal({ entry, categories, onClose, onSaved }: {
     setSaving(true);
     try {
       // Build metadata per category
-      let metadata: string | null = entry.metadata;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let categoryMeta: Record<string, any> = { ...meta };
       if (isFilm) {
-        const filmMeta: Record<string, string> = { ...meta };
-        if (filmCast) filmMeta.cast = filmCast; else delete filmMeta.cast;
-        if (filmWriters) filmMeta.writers = filmWriters; else delete filmMeta.writers;
-        if (filmRuntime) filmMeta.duration = filmRuntime; else delete filmMeta.duration;
-        if (filmCountry) filmMeta.country = filmCountry; else delete filmMeta.country;
-        if (filmGenre) filmMeta.genre = filmGenre; else delete filmMeta.genre;
-        if (filmComment) filmMeta.comment = filmComment; else delete filmMeta.comment;
+        if (filmCast) categoryMeta.cast = filmCast; else delete categoryMeta.cast;
+        if (filmWriters) categoryMeta.writers = filmWriters; else delete categoryMeta.writers;
+        if (filmRuntime) categoryMeta.duration = filmRuntime; else delete categoryMeta.duration;
+        if (filmCountry) categoryMeta.country = filmCountry; else delete categoryMeta.country;
+        if (filmGenre) categoryMeta.genre = filmGenre; else delete categoryMeta.genre;
+        if (filmComment) categoryMeta.comment = filmComment; else delete categoryMeta.comment;
         if (sourceUrl) {
           const ytMatch = sourceUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-          if (ytMatch) filmMeta.youtubeId = ytMatch[1];
+          if (ytMatch) categoryMeta.youtubeId = ytMatch[1];
         }
-        metadata = Object.keys(filmMeta).length > 0 ? JSON.stringify(filmMeta) : null;
       } else if (isMusic) {
-        const musicMeta: Record<string, string> = { ...meta };
-        if (musicPerformer) musicMeta.performer = musicPerformer; else delete musicMeta.performer;
-        if (musicSongwriter) musicMeta.writer = musicSongwriter; else delete musicMeta.writer;
-        if (musicGenre) musicMeta.genre = musicGenre; else delete musicMeta.genre;
-        if (musicRunTime) musicMeta.runTime = musicRunTime; else delete musicMeta.runTime;
-        if (musicLyrics) musicMeta.lyrics = musicLyrics; else delete musicMeta.lyrics;
-        if (sourceUrl) musicMeta.locationUrl = sourceUrl; else delete musicMeta.locationUrl;
-        metadata = Object.keys(musicMeta).length > 0 ? JSON.stringify(musicMeta) : null;
+        if (musicPerformer) categoryMeta.performer = musicPerformer; else delete categoryMeta.performer;
+        if (musicSongwriter) categoryMeta.writer = musicSongwriter; else delete categoryMeta.writer;
+        if (musicGenre) categoryMeta.genre = musicGenre; else delete categoryMeta.genre;
+        if (musicRunTime) categoryMeta.runTime = musicRunTime; else delete categoryMeta.runTime;
+        if (musicLyrics) categoryMeta.lyrics = musicLyrics; else delete categoryMeta.lyrics;
+        if (sourceUrl) categoryMeta.locationUrl = sourceUrl; else delete categoryMeta.locationUrl;
       } else if (isQuote) {
-        const quoteMeta: Record<string, string> = { ...meta };
-        if (quoteSource) quoteMeta.source = quoteSource; else delete quoteMeta.source;
-        metadata = Object.keys(quoteMeta).length > 0 ? JSON.stringify(quoteMeta) : null;
+        // No quote-specific metadata fields (source removed)
       }
+
+      // Merge research fields for all categories
+      if (wikipediaUrl) categoryMeta.wikipediaUrl = wikipediaUrl; else delete categoryMeta.wikipediaUrl;
+      if (relatedLinks.length > 0) categoryMeta.relatedLinks = relatedLinks; else delete categoryMeta.relatedLinks;
+      if (moreResearch) categoryMeta.moreResearch = moreResearch; else delete categoryMeta.moreResearch;
+
+      // AI enhancement tracking
+      if (aiEnhanced) {
+        categoryMeta.aiEnhanced = true;
+        if (!categoryMeta.aiEnhancedAt) categoryMeta.aiEnhancedAt = new Date().toISOString();
+      }
+
+      const metadata = Object.keys(categoryMeta).length > 0 ? JSON.stringify(categoryMeta) : null;
 
       const res = await fetch(`/api/admin/entries/${entry.id}`, {
         method: 'PUT',
@@ -778,6 +885,7 @@ function EditEntryModal({ entry, categories, onClose, onSaved }: {
         }
         await fetch(`/api/entries/${entry.id}/images`, {
           method: 'POST',
+          headers: { 'Authorization': `Bearer ${sessionStorage.getItem('adminToken') || ''}` },
           body: formData,
         });
       }
@@ -795,194 +903,303 @@ function EditEntryModal({ entry, categories, onClose, onSaved }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-lg max-h-[85vh] overflow-y-auto bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-2xl p-6">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={handleCloseAttempt} />
+      <div className={`relative w-full ${(isHistory || isQuote) ? 'max-w-4xl' : 'max-w-lg'} max-h-[90vh] overflow-y-auto bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-2xl p-6`}>
         <div className="flex items-center justify-between mb-1">
-          <h3 className="text-lg font-bold">Edit Entry</h3>
-          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg"><X size={18} /></button>
+          <div className="flex items-center gap-3">
+            <h3 className="text-lg font-bold">Edit Entry</h3>
+            <button
+              type="button"
+              onClick={() => setShowAiSandbox(true)}
+              className={`ml-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                aiEnhanced
+                  ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/20'
+                  : 'bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/20'
+              }`}
+              data-tooltip={aiEnhanced ? 'Researched — click to re-scan' : 'Research with AI'}
+            >
+              <Sparkles size={12} />
+              <span className="hidden sm:inline">{aiEnhanced ? 'Researched' : 'Research'}</span>
+              {aiEnhanced && <Check size={10} className="text-red-400" />}
+            </button>
+          </div>
+          <button onClick={handleCloseAttempt} className="p-2 hover:bg-white/5 rounded-lg"><X size={18} /></button>
         </div>
         <p className="text-xs uppercase tracking-wider font-semibold text-red-400 mb-4">
           {categories.find(c => c.slug === category)?.label || category}
         </p>
 
-        <div className="space-y-3">
-
-          {/* ── QUOTE ── */}
-          {isQuote && (
-            <>
-              <FieldLabel label="Author">
-                <input type="text" value={creator} onChange={e => setCreator(e.target.value)} className={inputClass} />
-              </FieldLabel>
-              <FieldLabel label="Source — book title, speech, article">
-                <input type="text" value={quoteSource} onChange={e => setQuoteSource(e.target.value)} className={inputClass} />
-              </FieldLabel>
-              <FieldLabel label="Quote">
-                <textarea value={description} onChange={e => setDescription(e.target.value)} rows={5} className={inputClass} />
-              </FieldLabel>
-              <FieldLabel label="Tags">
-                <TagSelector value={tags} onChange={setTags} />
-              </FieldLabel>
-              <FieldLabel label="Source URL">
-                <input type="text" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} className={inputClass} />
-              </FieldLabel>
-            </>
-          )}
-
-          {/* ── MUSIC ── */}
-          {isMusic && (
-            <>
-              <MusicSearch onSelect={handleMusicSelect} />
-              <FieldLabel label="Song Title">
-                <input type="text" value={title} onChange={e => setTitle(e.target.value)} className={inputClass} />
-              </FieldLabel>
-              <FieldLabel label="Performer">
-                <input type="text" value={musicPerformer} onChange={e => setMusicPerformer(e.target.value)} className={inputClass} />
-              </FieldLabel>
-              <FieldLabel label="Songwriter">
-                <input type="text" value={musicSongwriter} onChange={e => setMusicSongwriter(e.target.value)} className={inputClass} />
-              </FieldLabel>
-              <FieldLabel label="URL — YouTube, Spotify, etc.">
-                <input type="text" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} className={inputClass} />
-              </FieldLabel>
-              <div className="grid grid-cols-3 gap-2">
-                <FieldLabel label="Genre">
-                  <input type="text" value={musicGenre} onChange={e => setMusicGenre(e.target.value)} className={inputClass} />
-                </FieldLabel>
-                <FieldLabel label="Run Time">
-                  <input type="text" value={musicRunTime} onChange={e => setMusicRunTime(e.target.value)} className={inputClass} />
-                </FieldLabel>
-                <FieldLabel label="Year">
-                  <input type="number" value={year} onChange={e => setYear(e.target.value)} className={inputClass} />
-                </FieldLabel>
-              </div>
-              <FieldLabel label="Keywords / Lyrics">
-                <textarea value={musicLyrics} onChange={e => setMusicLyrics(e.target.value)} rows={4} className={inputClass} />
-              </FieldLabel>
-              <FieldLabel label="Tags">
-                <TagSelector value={tags} onChange={setTags} />
-              </FieldLabel>
-            </>
-          )}
-
-          {/* ── HISTORY ── */}
-          {!isFilm && !isMusic && !isQuote && (
-            <>
-              <FieldLabel label="Title">
-                <input type="text" value={title} onChange={e => setTitle(e.target.value)} className={inputClass} />
-              </FieldLabel>
-              <div className="grid grid-cols-3 gap-2">
-                <FieldLabel label="Month">
-                  <input type="number" value={month} onChange={e => setMonth(e.target.value)} className={inputClass} />
-                </FieldLabel>
-                <FieldLabel label="Day">
-                  <input type="number" value={day} onChange={e => setDay(e.target.value)} className={inputClass} />
-                </FieldLabel>
-                <FieldLabel label="Year">
-                  <input type="number" value={year} onChange={e => setYear(e.target.value)} className={inputClass} />
-                </FieldLabel>
-              </div>
-              <FieldLabel label="Description">
-                <textarea value={description} onChange={e => setDescription(e.target.value)} rows={5} className={inputClass} />
-              </FieldLabel>
-              <FieldLabel label="Tags">
-                <TagSelector value={tags} onChange={setTags} />
-              </FieldLabel>
-              <FieldLabel label="Source URL">
-                <input type="text" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} className={inputClass} />
-              </FieldLabel>
-            </>
-          )}
-
-          {/* ── FILM ── */}
-          {isFilm && (
-            <>
-              <FieldLabel label="Title">
-                <input type="text" value={title} onChange={e => setTitle(e.target.value)} className={inputClass} />
-              </FieldLabel>
-              <FieldLabel label="Director(s)">
-                <input type="text" value={creator} onChange={e => setCreator(e.target.value)} className={inputClass} />
-              </FieldLabel>
-              <FieldLabel label="Writer(s)">
-                <input type="text" value={filmWriters} onChange={e => setFilmWriters(e.target.value)} className={inputClass} />
-              </FieldLabel>
-              <FieldLabel label="Cast / Starring">
-                <input type="text" value={filmCast} onChange={e => setFilmCast(e.target.value)} className={inputClass} />
-              </FieldLabel>
-              <div className="grid grid-cols-3 gap-2">
-                <FieldLabel label="Runtime">
-                  <input type="text" placeholder="e.g. 95m" value={filmRuntime} onChange={e => setFilmRuntime(e.target.value)} className={inputClass} />
-                </FieldLabel>
-                <FieldLabel label="Country">
-                  <input type="text" value={filmCountry} onChange={e => setFilmCountry(e.target.value)} className={inputClass} />
-                </FieldLabel>
-                <FieldLabel label="Year">
-                  <input type="number" value={year} onChange={e => setYear(e.target.value)} className={inputClass} />
-                </FieldLabel>
-              </div>
-              <FieldLabel label="Genre">
-                <input type="text" placeholder="e.g. Documentary, Drama" value={filmGenre} onChange={e => setFilmGenre(e.target.value)} className={inputClass} />
-              </FieldLabel>
-              <FieldLabel label="Synopsis">
-                <textarea value={description} onChange={e => setDescription(e.target.value)} rows={4} className={inputClass} />
-              </FieldLabel>
-              <FieldLabel label="Comments / Notes">
-                <textarea placeholder="Original curator notes, additional context" value={filmComment} onChange={e => setFilmComment(e.target.value)} rows={3} className={inputClass} />
-              </FieldLabel>
-              <FieldLabel label="Trailer URL (YouTube, Vimeo)">
-                <input type="text" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} className={inputClass} />
-              </FieldLabel>
-              <FieldLabel label="Tags">
-                <TagSelector value={tags} onChange={setTags} />
-              </FieldLabel>
-            </>
-          )}
-
-          {/* Existing images */}
-          {existingImages.length > 0 && (
-            <div>
-              <label className="text-xs text-gray-400 block mb-1.5">Current Images</label>
-              <div className="grid grid-cols-3 gap-2">
-                {existingImages.map(img => (
-                  <div key={img.id} className="relative group rounded-lg overflow-hidden bg-black/20 aspect-square">
-                    <img
-                      src={img.thumbnailUrl || img.url}
-                      alt={img.caption || 'Entry image'}
-                      className="w-full h-full object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteImage(img.id)}
-                      disabled={deletingImageId === img.id}
-                      className="absolute top-1 right-1 p-1 bg-black/70 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600/80 disabled:opacity-50"
-                    >
-                      {deletingImageId === img.id ? (
-                        <div className="w-3 h-3 border border-white/50 border-t-white rounded-full animate-spin" />
-                      ) : (
-                        <X size={12} className="text-white" />
-                      )}
-                    </button>
+        {/* ── HISTORY or QUOTE — 2-column layout ── */}
+        {(isHistory || isQuote) ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Left column: core fields */}
+            <div className="space-y-3">
+              {isHistory && (
+                <>
+                  <div className="grid grid-cols-3 gap-2">
+                    <FieldLabel label="Month">
+                      <input type="number" value={month} onChange={e => setMonth(e.target.value)} className={inputClass} />
+                    </FieldLabel>
+                    <FieldLabel label="Day">
+                      <input type="number" value={day} onChange={e => setDay(e.target.value)} className={inputClass} />
+                    </FieldLabel>
+                    <FieldLabel label="Year">
+                      <input type="number" value={year} onChange={e => setYear(e.target.value)} className={inputClass} />
+                    </FieldLabel>
                   </div>
-                ))}
+                  <FieldLabel label="Description">
+                    <textarea value={description} onChange={e => setDescription(e.target.value)} rows={5} className={inputClass} />
+                  </FieldLabel>
+                  <FieldLabel label="Tags">
+                    <TagSelector value={tags} onChange={setTags} />
+                  </FieldLabel>
+                </>
+              )}
+              {isQuote && (
+                <>
+                  <FieldLabel label="Author">
+                    <input type="text" value={creator} onChange={e => setCreator(e.target.value)} className={inputClass} />
+                  </FieldLabel>
+                  <FieldLabel label="Quote">
+                    <textarea value={description} onChange={e => setDescription(e.target.value)} rows={6} className={inputClass} />
+                  </FieldLabel>
+                  <FieldLabel label="Tags">
+                    <TagSelector value={tags} onChange={setTags} />
+                  </FieldLabel>
+                </>
+              )}
+
+              {/* Images */}
+              {existingImages.length > 0 && (
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1.5">Current Images</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {existingImages.map(img => (
+                      <div key={img.id} className="relative group rounded-lg overflow-hidden bg-black/20 aspect-square">
+                        <img src={img.thumbnailUrl || img.url} alt={img.caption || 'Entry image'} className="w-full h-full object-cover" />
+                        <button type="button" onClick={() => handleDeleteImage(img.id)} disabled={deletingImageId === img.id}
+                          className="absolute top-1 right-1 p-1 bg-black/70 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600/80 disabled:opacity-50">
+                          {deletingImageId === img.id ? <div className="w-3 h-3 border border-white/50 border-t-white rounded-full animate-spin" /> : <X size={12} className="text-white" />}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div>
+                <label className="text-xs text-gray-400 block mb-1.5">{existingImages.length > 0 ? 'Add More Images' : 'Upload Images'}</label>
+                <ImageDropzone files={imageFiles} setFiles={setImageFiles} maxFiles={5} />
               </div>
             </div>
-          )}
 
-          {/* Upload new images */}
-          <div>
-            <label className="text-xs text-gray-400 block mb-1.5">
-              {existingImages.length > 0 ? 'Add More Images' : 'Upload Images'}
-            </label>
-            <ImageDropzone files={imageFiles} setFiles={setImageFiles} maxFiles={5} />
+            {/* Right column: research & links */}
+            <div className="space-y-3">
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">Research & Links</p>
+              <FieldLabel label="Wikipedia Link">
+                <input type="url" placeholder="https://en.wikipedia.org/wiki/..." value={wikipediaUrl} onChange={e => setWikipediaUrl(e.target.value)} className={inputClass} />
+              </FieldLabel>
+              <FieldLabel label="Related Links">
+                <RelatedLinksEditor links={relatedLinks} onChange={setRelatedLinks} />
+              </FieldLabel>
+              <FieldLabel label="Quick Facts">
+                <textarea placeholder={isQuote ? "Key facts about this person or quote..." : "Bullet points, key facts about this event..."} value={quickFacts} onChange={e => updateQuickFacts(e.target.value)} rows={4} className={inputClass} />
+              </FieldLabel>
+              <FieldLabel label="Key People & Organizations">
+                <textarea placeholder="People and organizations involved..." value={keyPeople} onChange={e => updateKeyPeople(e.target.value)} rows={4} className={inputClass} />
+              </FieldLabel>
+              <FieldLabel label="Additional Notes">
+                <textarea placeholder="Additional curator notes, context..." value={additionalNotes} onChange={e => updateAdditionalNotes(e.target.value)} rows={3} className={inputClass} />
+              </FieldLabel>
+            </div>
           </div>
-        </div>
+        ) : (
+          /* ── Non-history/quote categories: single column ── */
+          <div className="space-y-3">
+
+            {/* ── MUSIC ── */}
+            {isMusic && (
+              <>
+                <MusicSearch onSelect={handleMusicSelect} />
+                <FieldLabel label="Song Title">
+                  <input type="text" value={title} onChange={e => setTitle(e.target.value)} className={inputClass} />
+                </FieldLabel>
+                <FieldLabel label="Performer">
+                  <input type="text" value={musicPerformer} onChange={e => setMusicPerformer(e.target.value)} className={inputClass} />
+                </FieldLabel>
+                <FieldLabel label="Songwriter">
+                  <input type="text" value={musicSongwriter} onChange={e => setMusicSongwriter(e.target.value)} className={inputClass} />
+                </FieldLabel>
+                <FieldLabel label="URL — YouTube, Spotify, etc.">
+                  <input type="text" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} className={inputClass} />
+                </FieldLabel>
+                <div className="grid grid-cols-3 gap-2">
+                  <FieldLabel label="Genre">
+                    <input type="text" value={musicGenre} onChange={e => setMusicGenre(e.target.value)} className={inputClass} />
+                  </FieldLabel>
+                  <FieldLabel label="Run Time">
+                    <input type="text" value={musicRunTime} onChange={e => setMusicRunTime(e.target.value)} className={inputClass} />
+                  </FieldLabel>
+                  <FieldLabel label="Year">
+                    <input type="number" value={year} onChange={e => setYear(e.target.value)} className={inputClass} />
+                  </FieldLabel>
+                </div>
+                <FieldLabel label="Keywords / Lyrics">
+                  <textarea value={musicLyrics} onChange={e => setMusicLyrics(e.target.value)} rows={4} className={inputClass} />
+                </FieldLabel>
+                <FieldLabel label="Tags">
+                  <TagSelector value={tags} onChange={setTags} />
+                </FieldLabel>
+              </>
+            )}
+
+            {/* ── FILM ── */}
+            {isFilm && (
+              <>
+                <FieldLabel label="Title">
+                  <input type="text" value={title} onChange={e => setTitle(e.target.value)} className={inputClass} />
+                </FieldLabel>
+                <FieldLabel label="Director(s)">
+                  <input type="text" value={creator} onChange={e => setCreator(e.target.value)} className={inputClass} />
+                </FieldLabel>
+                <FieldLabel label="Writer(s)">
+                  <input type="text" value={filmWriters} onChange={e => setFilmWriters(e.target.value)} className={inputClass} />
+                </FieldLabel>
+                <FieldLabel label="Cast / Starring">
+                  <input type="text" value={filmCast} onChange={e => setFilmCast(e.target.value)} className={inputClass} />
+                </FieldLabel>
+                <div className="grid grid-cols-3 gap-2">
+                  <FieldLabel label="Runtime">
+                    <input type="text" placeholder="e.g. 95m" value={filmRuntime} onChange={e => setFilmRuntime(e.target.value)} className={inputClass} />
+                  </FieldLabel>
+                  <FieldLabel label="Country">
+                    <input type="text" value={filmCountry} onChange={e => setFilmCountry(e.target.value)} className={inputClass} />
+                  </FieldLabel>
+                  <FieldLabel label="Year">
+                    <input type="number" value={year} onChange={e => setYear(e.target.value)} className={inputClass} />
+                  </FieldLabel>
+                </div>
+                <FieldLabel label="Genre">
+                  <input type="text" placeholder="e.g. Documentary, Drama" value={filmGenre} onChange={e => setFilmGenre(e.target.value)} className={inputClass} />
+                </FieldLabel>
+                <FieldLabel label="Synopsis">
+                  <textarea value={description} onChange={e => setDescription(e.target.value)} rows={4} className={inputClass} />
+                </FieldLabel>
+                <FieldLabel label="Comments / Notes">
+                  <textarea placeholder="Original curator notes, additional context" value={filmComment} onChange={e => setFilmComment(e.target.value)} rows={3} className={inputClass} />
+                </FieldLabel>
+                <FieldLabel label="Trailer URL (YouTube, Vimeo)">
+                  <input type="text" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} className={inputClass} />
+                </FieldLabel>
+                <FieldLabel label="Tags">
+                  <TagSelector value={tags} onChange={setTags} />
+                </FieldLabel>
+              </>
+            )}
+
+            {/* Research & Links (non-history) */}
+            <ResearchFieldsSection
+              wikipediaUrl={wikipediaUrl} onWikipediaUrlChange={setWikipediaUrl}
+              relatedLinks={relatedLinks} onRelatedLinksChange={setRelatedLinks}
+              moreResearch={moreResearch} onMoreResearchChange={setMoreResearch}
+              defaultExpanded
+            />
+
+            {/* Existing images */}
+            {existingImages.length > 0 && (
+              <div>
+                <label className="text-xs text-gray-400 block mb-1.5">Current Images</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {existingImages.map(img => (
+                    <div key={img.id} className="relative group rounded-lg overflow-hidden bg-black/20 aspect-square">
+                      <img src={img.thumbnailUrl || img.url} alt={img.caption || 'Entry image'} className="w-full h-full object-cover" />
+                      <button type="button" onClick={() => handleDeleteImage(img.id)} disabled={deletingImageId === img.id}
+                        className="absolute top-1 right-1 p-1 bg-black/70 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600/80 disabled:opacity-50">
+                        {deletingImageId === img.id ? <div className="w-3 h-3 border border-white/50 border-t-white rounded-full animate-spin" /> : <X size={12} className="text-white" />}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Upload new images */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-1.5">{existingImages.length > 0 ? 'Add More Images' : 'Upload Images'}</label>
+              <ImageDropzone files={imageFiles} setFiles={setImageFiles} maxFiles={5} />
+            </div>
+          </div>
+        )}
 
         <div className="flex justify-end gap-2 mt-6">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
+          <button onClick={handleCloseAttempt} className="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
           <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg">
             {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
       </div>
+
+      {/* AI Sandbox overlay */}
+      {showAiSandbox && (
+        <AiSandbox
+          entry={entry}
+          onClose={() => setShowAiSandbox(false)}
+          onSave={(updates) => {
+            setDescription(updates.description);
+            setTags(updates.tags);
+            setWikipediaUrl(updates.wikipediaUrl);
+            setRelatedLinks(updates.relatedLinks);
+            setMoreResearch(updates.moreResearch);
+            setAiEnhanced(true);
+            // Re-parse structured sections for history/quote admin edit
+            if (isHistory || isQuote) {
+              const sections = parseSections(updates.moreResearch);
+              setQuickFacts(sections.quickFacts);
+              setKeyPeople(sections.keyPeople);
+              setAdditionalNotes(sections.additionalNotes);
+            }
+            setShowAiSandbox(false);
+          }}
+        />
+      )}
+
+      {/* Unsaved changes confirm modal */}
+      {showUnsavedConfirm && (
+        <div className="fixed inset-0 z-[55] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowUnsavedConfirm(false)} />
+          <div className="relative w-full max-w-sm bg-[var(--card)] border-2 border-amber-600/50 rounded-xl shadow-2xl overflow-hidden">
+            <div className="px-5 py-4 border-b bg-amber-600/10 border-amber-600/20">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-amber-600 shadow-lg shadow-amber-600/30">
+                  <AlertTriangle size={18} className="text-white" />
+                </div>
+                <h3 className="text-lg font-bold text-amber-400">Unsaved Changes</h3>
+              </div>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-sm text-gray-300 leading-relaxed">
+                You have unsaved changes to this entry. Closing now will discard all your edits.
+              </p>
+            </div>
+            <div className="flex justify-end gap-3 px-5 py-4 border-t border-white/5 bg-white/[0.02]">
+              <button
+                onClick={() => setShowUnsavedConfirm(false)}
+                className="px-4 py-2 text-sm text-gray-400 hover:text-white font-medium transition-colors"
+              >
+                Keep Editing
+              </button>
+              <button
+                onClick={() => {
+                  setShowUnsavedConfirm(false);
+                  onClose();
+                }}
+                className="flex items-center gap-2 px-5 py-2 text-white text-sm font-bold rounded-lg bg-amber-600 hover:bg-amber-700 transition-all"
+              >
+                Discard Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

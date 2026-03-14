@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Header from './components/Header.tsx';
 import CategoryNav from './components/CategoryNav.tsx';
-import FilterBar from './components/FilterBar.tsx';
+import FilterBar, { SORT_OPTIONS } from './components/FilterBar.tsx';
 import EntryGrid from './components/EntryGrid.tsx';
 import AdminLogin from './components/AdminLogin.tsx';
 import OnThisDayView from './components/OnThisDayView.tsx';
@@ -10,7 +10,6 @@ import OnThisDayView from './components/OnThisDayView.tsx';
 const EntryDetail = lazy(() => import('./components/EntryDetail.tsx'));
 const SubmissionWizard = lazy(() => import('./components/SubmissionWizard.tsx'));
 const AdminDashboard = lazy(() => import('./components/AdminDashboard.tsx'));
-const AiSandboxDemo = lazy(() => import('./components/AiSandboxDemo.tsx'));
 import type { Entry, Category } from './types.ts';
 
 const PAGE_SIZE = 60;
@@ -21,7 +20,7 @@ function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('on-this-day');
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<Record<string, string>>({});
-  const [sort, setSort] = useState('newest');
+  const [sort, setSort] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -46,11 +45,15 @@ function HomePage() {
       .catch(err => console.error('Failed to fetch counts:', err));
   }, []);
 
-  // Reset filters and sort when category changes
+  // Reset filters when category changes
   useEffect(() => {
     setFilters({});
-    setSort('newest');
+    setSort('');
   }, [selectedCategory]);
+
+  // Derive effective sort from category — if sort is empty or invalid for current category, use first option
+  const catSortOptions = SORT_OPTIONS[selectedCategory];
+  const effectiveSort = sort && catSortOptions?.some(o => o.value === sort) ? sort : catSortOptions?.[0]?.value || 'newest';
 
   // Build query params (shared between initial fetch and load-more)
   const buildParams = useCallback((offset: number) => {
@@ -60,11 +63,11 @@ function HomePage() {
     for (const [key, value] of Object.entries(filters)) {
       if (value) params.set(key, value);
     }
-    if (sort && sort !== 'newest') params.set('sort', sort);
+    if (effectiveSort) params.set('sort', effectiveSort);
     params.set('limit', String(PAGE_SIZE));
     params.set('offset', String(offset));
     return params;
-  }, [selectedCategory, searchQuery, filters, sort]);
+  }, [selectedCategory, searchQuery, filters, effectiveSort]);
 
   // Initial fetch when category, search, or filters change (skip for On This Day)
   useEffect(() => {
@@ -101,7 +104,12 @@ function HomePage() {
     fetch(`/api/entries?${params}`)
       .then(r => r.json())
       .then(data => {
-        setEntries(prev => [...prev, ...data]);
+        // Deduplicate by ID to prevent React key warnings
+        setEntries(prev => {
+          const existingIds = new Set(prev.map(e => e.id));
+          const newEntries = data.filter((e: Entry) => !existingIds.has(e.id));
+          return [...prev, ...newEntries];
+        });
         offsetRef.current += data.length;
         setHasMore(data.length >= PAGE_SIZE);
         setLoadingMore(false);
@@ -162,7 +170,7 @@ function HomePage() {
           category={selectedCategory}
           filters={filters}
           setFilters={setFilters}
-          sort={sort}
+          sort={effectiveSort}
           onSortChange={setSort}
         />
       )}
@@ -189,6 +197,7 @@ function HomePage() {
               <EntryGrid
                 entries={entries}
                 onSelectEntry={setSelectedEntry}
+                searchQuery={searchQuery}
               />
 
               {loadingMore && (
@@ -281,15 +290,6 @@ function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/admin" element={<AdminRoute />} />
-        <Route path="/ai-demo" element={
-          <Suspense fallback={
-            <div className="flex items-center justify-center min-h-screen bg-[#0a0a0a]">
-              <div className="w-10 h-10 rounded-full border-4 border-white/5 border-t-red-500 animate-spin"></div>
-            </div>
-          }>
-            <AiSandboxDemo />
-          </Suspense>
-        } />
       </Routes>
     </Router>
   );

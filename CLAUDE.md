@@ -32,6 +32,7 @@
   - `ADMIN_PASSWORD` — required, protects admin dashboard and all `/api/admin/*` endpoints
   - `TMDB_API_KEY` — optional, enables TMDB film search/enrichment in submission forms
   - `GENIUS_API_KEY` — optional, enables Genius music search/lyrics/YouTube enrichment in submission forms
+  - `GOOGLE_AI_API_KEY` — optional, enables AI research assistant (Gemini 2.0 Flash) in admin panel
   - `CORS_ORIGIN` — optional, restricts CORS to specified origin (e.g. `https://your-domain.com`). If unset, allows all origins.
 - **Pre-set in Dockerfile (do NOT override unless intentional):**
   - `DATABASE_URL=file:/app/data/dev.db`
@@ -116,6 +117,53 @@
 
 ## Known Issues
 - Large JS chunks from react-player (~992KB dash.all.min, ~521KB hls) — lazy-loaded via code splitting, only fetched when viewing entry detail with video
+
+## Helmet & CORS Gotchas (Production vs Local)
+
+### Why Local Works But Production Breaks
+
+**Local dev**: Vite dev server (`npm run dev`) sends NO security headers. Everything loads.
+
+**Production**: Express + Helmet sends restrictive security headers. Things break if not configured correctly.
+
+### Issue 1: YouTube Embed Error 153 (Fixed March 2026)
+- **Symptom:** YouTube embeds show "Video player configuration error" in production
+- **Cause:** Helmet's default `Referrer-Policy: no-referrer` strips referrer info YouTube needs
+- **Fix:** `referrerPolicy: { policy: 'strict-origin-when-cross-origin' }` in helmet config
+- **Also:** Use `youtube-nocookie.com` for embed URLs
+
+### Issue 2: Images Blocked — ERR_BLOCKED_BY_RESPONSE.NotSameOrigin (Fixed March 2026)
+- **Symptom:** `/uploads/entries/` images fail to load with CORS error in console
+- **Cause:** `express.static()` doesn't inherit Helmet's `crossOriginResourcePolicy: false` — it needs explicit headers
+- **Fix:** Add `setHeaders` to static file serving:
+  ```js
+  app.use('/uploads', express.static(path.join(__dirname, '../uploads'), {
+    setHeaders: (res) => {
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    }
+  }));
+  ```
+- **Why it happens:** Browser enforces CORP (Cross-Origin Resource Policy). Without explicit `cross-origin` header, images from `/uploads` are blocked when page is served from a different origin or behind reverse proxy.
+
+### Issue 3: Migrations Skipped on Existing DB (Fixed March 2026)
+- **Symptom:** Schema changes don't apply to production after deploy
+- **Cause:** `docker-entrypoint.sh` only ran migrations if DB didn't exist
+- **Fix:** Always run `prisma migrate deploy` — it's idempotent (only applies pending migrations)
+
+### Current Helmet Config (server/index.ts)
+```js
+app.use(helmet({
+  contentSecurityPolicy: { /* YouTube, TMDB, Genius allowed */ },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },  // YouTube fix
+  crossOriginResourcePolicy: false,  // Allow images cross-origin
+  crossOriginEmbedderPolicy: false,  // Allow embeds
+}));
+
+// ALSO required for /uploads static files:
+app.use('/uploads', express.static(..., {
+  setHeaders: (res) => { res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin'); }
+}));
+```
 
 ## External API Notes
 

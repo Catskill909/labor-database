@@ -36,6 +36,7 @@ npm run enrich:films
 | Database | SQLite + Prisma ORM |
 | Film Data | TMDB API (server-side proxy) |
 | Music Data | Genius API (metadata) + LRCLIB API (lyrics) + YouTube search |
+| AI Research | Google Gemini 2.0 Flash (admin-only AI research assistant) |
 | Deployment | Docker → Coolify (auto-deploy from `main`) |
 
 Same architecture as the [Labor Landmarks Map](https://github.com/Catskill909/labor-map).
@@ -58,6 +59,9 @@ Same architecture as the [Labor Landmarks Map](https://github.com/Catskill909/la
 │       ├── ImageDropzone.tsx # Drag-and-drop image upload
 │       ├── SubmissionWizard.tsx  # Submission wizard (public + admin mode)
 │       ├── AdminDashboard.tsx   # Admin dashboard (stats, table, preview/edit/submitter modals)
+│       ├── AiSandbox.tsx        # 2-panel AI research editor (Gemini-powered)
+│       ├── ResearchFieldsSection.tsx  # Collapsible research fields (Wikipedia, links, notes)
+│       ├── RelatedLinksEditor.tsx     # Editable link pair list (label + URL)
 │       └── TagSelector.tsx      # Inline tag selector (35 canonical tags, grouped, 5-tag limit)
 ├── prisma/
 │   ├── schema.prisma        # Database schema
@@ -160,6 +164,7 @@ Recovery:           Reset DB → Import ZIP → Done
 | `ADMIN_PASSWORD` | **Yes** | Protects `/admin` dashboard and all `/api/admin/*` endpoints |
 | `TMDB_API_KEY` | No | Enables TMDB film search/enrichment in forms |
 | `GENIUS_API_KEY` | No | Enables Genius music search (songwriter, lyrics, year auto-fill) |
+| `GOOGLE_AI_API_KEY` | No | Enables AI research assistant (Gemini 2.0 Flash) in admin panel |
 | `CORS_ORIGIN` | No | Restricts CORS to specified origin. If unset, allows all origins |
 
 Pre-set in Dockerfile (do NOT override): `DATABASE_URL`, `PORT=3001`, `NODE_ENV=production`
@@ -235,7 +240,8 @@ Features:
 - **Dashboard** — Labor Landmarks-style UI with stats cards (Published / Review Queue), segmented category tabs, table layout with column headers
 - **Stats cards as filters** — click Published or Review Queue cards to filter entries by status (ring highlight when active)
 - **Preview modal** — eye icon opens a read-only detail view (reuses public EntryDetail component for all categories)
-- **Category-specific edit forms** — edit fields match the submission wizard per category (Quote: Author/Source/Quote, Music: Title/Performer/Songwriter/URL/Genre/RunTime/Lyrics, Film: all TMDB fields, History: Title/Date/Description)
+- **Category-specific edit forms** — 2-column layout for History and Quotes (core fields left, research fields right), single column for Music and Film. Unsaved changes guard with amber confirm modal
+- **AI Research Tool** — "Enhance with AI" button opens a full-screen 2-panel editor (AiSandbox). Left panel shows live record with structured research fields; right panel shows Gemini-generated suggestions with confidence indicators. Settings for output length (Short/Detailed) and tone (Factual/Narrative). Category-aware: quotes show read-only quote text, history/quote use structured fields (Quick Facts, Key People & Organizations, Additional Notes)
 - **Admin entry creation** — "Add to Database" button opens the submission wizard in admin mode (skips contact info step)
 - **Submitter info** — purple icon appears only on user-submitted entries, shows name/email/comment in modal
 - **Image management** — view existing images, upload new ones, delete with hover-to-remove
@@ -277,6 +283,7 @@ In local dev, admin login is always required but any password works if `ADMIN_PA
 | `/api/admin/tags/normalize` | POST | Admin: normalize tags to canonical taxonomy |
 | `/api/admin/tags/auto-tag` | POST | Admin: auto-tag entries via keyword matching (`{dryRun: true}` for preview) |
 | `/api/admin/tags/stats` | GET | Admin: tag coverage statistics by category |
+| `/api/admin/ai/enhance` | POST | Admin: AI research enhancement via Gemini (rate limited: 20/min) |
 
 ## Features
 
@@ -290,12 +297,15 @@ In local dev, admin login is always required but any password works if `ADMIN_PA
 - **Multi-Format Export** — Export modal with JSON, XLSX (spreadsheet), CSV, and full ZIP (data + images) formats. Category filtering
 - **Tag System** — 35 canonical tags in 3 groups (Theme, Industry, Social Dimension) based on Library of Congress labor subject headings. Tag filter dropdown in browse views (AND logic). Clickable tag pills navigate to filtered browse
 - **Tag Selector UI** — Modern inline tag selector in all submission and edit forms. All 35 tags always visible grouped by category, one-click toggle selection, 5-tag limit with counter. No hidden dropdowns — fully discoverable UI
+- **AI Research Tool** — Gemini 2.0 Flash-powered research assistant. 2-panel editor: live record (left) + AI suggestions with confidence indicators (right). Generates expanded descriptions, quick facts, Wikipedia URLs, external links, suggested tags, and key people/organizations. Category-aware prompts. All suggestions are curator-reviewed before saving. Research fields (Wikipedia, Related Links, Quick Facts, Key People, Additional Notes) stored in metadata JSON — no schema migration needed
 
 ## Documentation
 
 - [**deployment-checklist.md**](deployment-checklist.md) — Coolify production deployment guide, backup procedures, data migration, environment variables
 - [**database-client-project.md**](database-client-project.md) — Full project planning doc: vision, architecture, schema, phased roadmap, client Q&A, session work logs
 - [**CLAUDE.md**](CLAUDE.md) — AI coding session guardrails and pre-push checklist
+- [**ai-research-tool.md**](ai-research-tool.md) — AI Research Tool feature spec and client-facing proposal
+- [**ai-research-tool-dev.md**](ai-research-tool-dev.md) — AI Research Tool dev planning, architecture audit, and implementation status
 - [**docs/film-data-dev.md**](docs/film-data-dev.md) — Film import, TMDB integration, and enrichment notes
 - [**docs/on-this-day-dev.md**](docs/on-this-day-dev.md) — Phase 4 planning, design decisions, calendar package research
 - [**audio-data-update.md**](audio-data-update.md) — Music enrichment planning (Genius API + YouTube search)

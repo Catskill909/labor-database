@@ -12,46 +12,68 @@ interface SortOption {
   label: string;
 }
 
-const SORT_OPTIONS: Record<string, SortOption[]> = {
+export const SORT_OPTIONS: Record<string, SortOption[]> = {
+  history: [
+    { value: 'event-date-oldest', label: 'Event Date (oldest)' },
+    { value: 'event-date-newest', label: 'Event Date (newest)' },
+    { value: 'newest', label: 'Date Added (newest)' },
+    { value: 'oldest', label: 'Date Added (oldest)' },
+  ],
+  quote: [
+    { value: 'creator-asc', label: 'Author A–Z' },
+    { value: 'creator-desc', label: 'Author Z–A' },
+    { value: 'newest', label: 'Date Added (newest)' },
+    { value: 'oldest', label: 'Date Added (oldest)' },
+  ],
+  music: [
+    { value: 'title-asc', label: 'Title A–Z' },
+    { value: 'creator-asc', label: 'Artist A–Z' },
+    { value: 'newest', label: 'Date Added (newest)' },
+    { value: 'oldest', label: 'Date Added (oldest)' },
+  ],
+  film: [
+    { value: 'title-asc', label: 'Title A–Z' },
+    { value: 'creator-asc', label: 'Director A–Z' },
+    { value: 'newest', label: 'Date Added (newest)' },
+    { value: 'oldest', label: 'Date Added (oldest)' },
+  ],
+};
+
+export const ADMIN_SORT_OPTIONS: Record<string, SortOption[]> = {
   history: [
     { value: 'newest', label: 'Date Added (newest)' },
     { value: 'oldest', label: 'Date Added (oldest)' },
     { value: 'event-date-newest', label: 'Event Date (newest)' },
     { value: 'event-date-oldest', label: 'Event Date (oldest)' },
-    { value: 'title-asc', label: 'Title A–Z' },
   ],
   quote: [
     { value: 'newest', label: 'Date Added (newest)' },
     { value: 'oldest', label: 'Date Added (oldest)' },
     { value: 'creator-asc', label: 'Author A–Z' },
     { value: 'creator-desc', label: 'Author Z–A' },
-    { value: 'title-asc', label: 'Title A–Z' },
   ],
   music: [
     { value: 'newest', label: 'Date Added (newest)' },
     { value: 'oldest', label: 'Date Added (oldest)' },
     { value: 'title-asc', label: 'Title A–Z' },
+    { value: 'title-desc', label: 'Title Z–A' },
     { value: 'creator-asc', label: 'Artist A–Z' },
-    { value: 'year-newest', label: 'Year (newest)' },
-    { value: 'year-oldest', label: 'Year (oldest)' },
+    { value: 'creator-desc', label: 'Artist Z–A' },
   ],
   film: [
     { value: 'newest', label: 'Date Added (newest)' },
     { value: 'oldest', label: 'Date Added (oldest)' },
     { value: 'title-asc', label: 'Title A–Z' },
-    { value: 'creator-asc', label: 'Director A–Z' },
-    { value: 'year-newest', label: 'Year (newest)' },
-    { value: 'year-oldest', label: 'Year (oldest)' },
+    { value: 'title-desc', label: 'Title Z–A' },
+  ],
+  default: [
+    { value: 'newest', label: 'Date Added (newest)' },
+    { value: 'oldest', label: 'Date Added (oldest)' },
+    { value: 'title-asc', label: 'Title A–Z' },
+    { value: 'title-desc', label: 'Title Z–A' },
+    { value: 'category-asc', label: 'Category A–Z' },
   ],
 };
-
-export const ADMIN_SORT_OPTIONS: SortOption[] = [
-  { value: 'newest', label: 'Date Added (newest)' },
-  { value: 'oldest', label: 'Date Added (oldest)' },
-  { value: 'title-asc', label: 'Title A–Z' },
-  { value: 'title-desc', label: 'Title Z–A' },
-  { value: 'category-asc', label: 'Category A–Z' },
-];
 
 export function SortDropdown({ value, onChange, options }: {
   value: string;
@@ -78,7 +100,7 @@ export function SortDropdown({ value, onChange, options }: {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className={`flex items-center gap-1.5 ${selectClass} ${value !== 'newest' ? 'border-red-500/50 text-white' : ''}`}
+        className={`flex items-center gap-1.5 ${selectClass} ${value !== options[0]?.value ? 'border-red-500/50 text-white' : ''}`}
       >
         <ArrowUpDown size={12} />
         <span className="hidden sm:inline">{current.label}</span>

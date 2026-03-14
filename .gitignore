@@ -44,6 +44,9 @@ deployment-checklist.md
 # Security audit (contains internal findings)
 app-audit.md
 
+# Claude Code tooling
+.claude/
+
 # Dev/scratch files
 prisma/dev.db.backup-pre-enrichment
 scripts/yt-enrich.mjs

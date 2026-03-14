@@ -5,42 +5,83 @@
 
 ---
 
-## Demo Status (March 7, 2026)
+## Phase 1 Integration Status (March 12, 2026)
 
-✅ **Proof of concept complete** — standalone demo at `/ai-demo`
+✅ **Phase 1 complete** — AI research tool fully integrated into production app
 
-### What's Built
+### Demo (March 7)
+
+Original proof of concept at `/ai-demo` with `AiSandboxDemo.tsx` using sample entries. All demo limitations resolved in Phase 1 integration.
+
+### Phase 1 Integration (March 12)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| `POST /api/ai/enhance` endpoint | ✅ Done | Uses Gemini 2.0 Flash, category-aware prompts |
-| `AiSandboxDemo.tsx` | ✅ Done | 2-panel editor with sample entries |
-| `/ai-demo` route | ✅ Done | Accessible without auth for demo purposes |
-| Gemini API integration | ✅ Done | `@google/generative-ai` package added |
+| `POST /api/admin/ai/enhance` endpoint | ✅ Done | Moved from `/api/ai/enhance`, added `adminAuth` + rate limit (20/min) |
+| `AiSandbox.tsx` | ✅ Done | Full-screen 2-panel editor, launched from admin EditEntryModal |
+| Gemini API integration | ✅ Done | `@google/generative-ai`, Gemini 2.0 Flash |
 | Category-aware prompts | ✅ Done | History, quote, music, film |
-| Creator/author research | ✅ Done | AI researches Joe Hill, Florence Reece, etc. |
-| Quick Facts (3-12) | ✅ Done | Scales with event significance |
-| Canonical tags | ✅ Done | Uses `CANONICAL_TAGS` from `server/tags.ts` |
-| Confidence indicators | ✅ Done | High/medium/low with color coding |
-| Settings (length/tone) | ✅ Done | Short vs detailed, factual vs narrative |
-
-### Demo Limitations (Deferred to Integration)
-
-- Tag editing uses simple badges (not `TagSelector`)
-- Links not editable after adding
-- No database persistence
-- Sample entries only (not real DB entries)
+| Settings (length/tone) | ✅ Done | Short vs Detailed, Factual vs Narrative — paired toggle buttons |
+| Confidence indicators | ✅ Done | 🟢/🟡/🔴 per suggestion block |
+| Structured research fields | ✅ Done | Quick Facts, Key People & Organizations, Additional Notes — shared `parseSections`/`rebuildMoreResearch` in `types.ts` |
+| Category-aware AI routing | ✅ Done | Quotes: "Context & Background" → Additional Notes (quote text read-only). History/Quote: structured fields in left panel. Music/Film: single More Research textarea |
+| Button labels match targets | ✅ Done | "Add to Quick Facts", "Add to Key People", "Add to Additional Notes" |
+| "Added!" persistent feedback | ✅ Done | Comma-separated tracking, resets only on new scan |
+| Unsaved changes guard | ✅ Done | Amber confirm modal on EditEntryModal close |
+| 2-column admin edit (History) | ✅ Done | Left: core fields. Right: research & links |
+| 2-column admin edit (Quote) | ✅ Done | Left: Author, Quote, Tags, Images. Right: research & links |
+| Public display (EntryDetail) | ✅ Done | Wikipedia, Related Links, Quick Facts, Key People, Additional Notes — with section merging for dedup |
+| Quote blockquote styling | ✅ Done | `text-lg`, red left border accent, author attribution inline |
+| Research fields in SubmissionWizard | ✅ Done | Collapsible "Research & Links" section (Wikipedia, Related Links, More Research) for all categories |
+| Source/Source URL removed from Quote | ✅ Done | Removed from admin edit, public submission, and AI sandbox |
+| Source URL removed from History admin | ✅ Done | Removed from 2-column edit layout |
+| Admin table "Researched" badge | ✅ Done | Gold Sparkles icon in action row, fixed-width (no column shift), tooltip "Researched" |
+| Edit modal "Researched" indicator | ✅ Done | Button label: "Researched" (red) / "Research" (purple). No "AI" in user-facing labels |
+| Column header alignment fix | ✅ Done | Fixed grid template, centered Category/Status headers, fixed-width Actions column (250px) |
 
 ### Files Added/Modified
 
 ```
-src/components/AiSandboxDemo.tsx  — NEW (standalone demo component)
-src/App.tsx                       — Added /ai-demo route
-server/index.ts                   — Added /api/ai/enhance endpoint + Gemini import
-package.json                      — Added @google/generative-ai dependency
-.env                              — Added GOOGLE_AI_API_KEY
-ai-demo-setup.md                  — NEW (setup instructions)
+src/components/AiSandbox.tsx              — NEW (2-panel AI editor, z-60 overlay)
+src/components/ResearchFieldsSection.tsx  — NEW (collapsible research fields wrapper)
+src/components/RelatedLinksEditor.tsx     — NEW (editable link pair list)
+src/types.ts                              — Added parseSections(), rebuildMoreResearch(), RelatedLink interface
+src/components/AdminDashboard.tsx         — 2-column edit for History/Quote, structured research fields, AI button, unsaved changes guard
+src/components/EntryDetail.tsx            — ResearchDisplay component, parseResearchSections() with section merging, quote blockquote styling
+src/components/SubmissionWizard.tsx       — Research fields for all categories, removed Source from Quote
+src/App.tsx                               — Lazy-load AiSandbox
+server/index.ts                           — POST /api/admin/ai/enhance (adminAuth + aiLimiter)
+package.json                              — @google/generative-ai dependency
+.env                                      — GOOGLE_AI_API_KEY
 ```
+
+### Data Model
+
+All research fields stored in existing `metadata` JSON column — **no Prisma migration required**.
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `wikipediaUrl` | `string` | Verified Wikipedia article URL |
+| `relatedLinks` | `{label, url}[]` | Array of labeled external links (max 10) |
+| `moreResearch` | `string` | Serialized structured sections with explicit headers |
+
+The `moreResearch` field uses a deterministic section format:
+```
+Quick Facts:
+• bullet point 1
+• bullet point 2
+
+Key People & Organizations:
+• Person/org 1
+• Person/org 2
+
+Additional Notes:
+Prose text, context, background...
+```
+
+Shared utilities in `src/types.ts`:
+- `parseSections(text)` → `{ quickFacts, keyPeople, additionalNotes }`
+- `rebuildMoreResearch(facts, people, notes)` → serialized string with explicit headers
 
 ---
 
@@ -96,9 +137,7 @@ The `metadata` JSON field already holds category-specific data (film: director/c
 
 ---
 
-## Existing Interface Audit
-
-Audited March 5, 2026. These are the current form fields in each interface that will need the new research fields added.
+## Interface Audit (Updated March 12, 2026)
 
 ### SubmissionWizard.tsx (Public + Admin "Add to Database")
 
@@ -108,86 +147,78 @@ Audited March 5, 2026. These are the current form fields in each interface that 
 
 | Category | Step 2 Fields |
 |----------|---------------|
-| **History** | Month/Day/Year grid, Description textarea, Tags |
-| **Quote** | Author, Source (book/speech/article), Quote textarea, Tags |
-| **Music** | MusicSearch (Genius lookup), Song Title, Performer, Songwriter, URL, Genre/RunTime/Year grid, Lyrics textarea, Tags |
-| **Film** | TmdbSearch (TMDB lookup), Title, Director, Writers, Cast, Runtime/Country/Year grid, Genre, Synopsis textarea, Trailer URL, Tags, Comments, Poster image (admin only) |
+| **History** | Month/Day/Year grid, Description textarea, Tags, + Research & Links (collapsible) |
+| **Quote** | Author, Quote textarea, Tags, + Research & Links (collapsible) |
+| **Music** | MusicSearch (Genius lookup), Song Title, Performer, Songwriter, URL, Genre/RunTime/Year grid, Lyrics textarea, Tags, + Research & Links (collapsible) |
+| **Film** | TmdbSearch (TMDB lookup), Title, Director, Writers, Cast, Runtime/Country/Year grid, Genre, Synopsis textarea, Trailer URL, Tags, Comments, Poster image (admin only), + Research & Links (collapsible) |
 
-**Where new fields go:** Add below Tags for all categories:
+**Research & Links** uses `ResearchFieldsSection` component (collapsible, collapsed by default for public):
 - Wikipedia Link (text input, optional)
-- Related Links (add/remove link pairs, optional)
-- More Research (textarea, optional)
+- Related Links (`RelatedLinksEditor` — add/remove label+URL pairs, optional)
+- More Research (textarea, optional — flat format for public submissions)
 
-**State variables to add:**
-```typescript
-const [wikipediaUrl, setWikipediaUrl] = useState('');
-const [relatedLinks, setRelatedLinks] = useState<{label: string, url: string}[]>([]);
-const [moreResearch, setMoreResearch] = useState('');
-```
-
-**handleSubmit changes:** Include new fields in the metadata JSON object before sending to API.
+**Removed:** Source field from Quote form (not displayed on site)
 
 ---
 
-### EditEntryModal (inside AdminDashboard.tsx, lines 654–988)
+### EditEntryModal (inside AdminDashboard.tsx)
 
-**Architecture:** Single modal with category-aware form. Parses existing `metadata` JSON on load, rebuilds it on save.
+**Architecture:** Category-aware modal. 2-column layout for History and Quote (max-w-4xl), single column for Music and Film (max-w-lg). Parses `metadata` JSON on load, rebuilds on save. "Enhance with AI" button in header opens AiSandbox overlay (z-60). Unsaved changes guard with amber confirm modal (z-55).
 
 **Current fields by category:**
 
-| Category | Fields |
-|----------|--------|
-| **Quote** | Author, Source, Quote textarea, Tags, Source URL |
-| **Music** | MusicSearch, Song Title, Performer, Songwriter, URL, Genre/RunTime/Year grid, Lyrics textarea, Tags |
-| **Film** | Title, Director, Writers, Cast, Runtime/Country/Year grid, Genre, Synopsis textarea, Comments, Trailer URL, Tags, Image management |
-| **History** | Title, Month/Day/Year grid, Description textarea, Tags, Source URL |
+| Category | Layout | Left Column | Right Column |
+|----------|--------|-------------|--------------|
+| **History** | 2-column | Title, Month/Day/Year, Description, Tags, Images | Wikipedia, Related Links, Quick Facts, Key People & Orgs, Additional Notes |
+| **Quote** | 2-column | Author, Quote, Tags, Images | Wikipedia, Related Links, Quick Facts, Key People & Orgs, Additional Notes |
+| **Music** | 1-column | MusicSearch, Title, Performer, Songwriter, URL, Genre/RunTime/Year, Lyrics, Tags, + Research & Links (collapsible), Images |  |
+| **Film** | 1-column | Title, Director, Writers, Cast, Runtime/Country/Year, Genre, Synopsis, Comments, Trailer URL, Tags, + Research & Links (collapsible), Images |  |
 
-**Where new fields go:** Add after the category-specific fields, before Image management:
-- Wikipedia Link (text input, pre-filled from `meta.wikipediaUrl`)
-- Related Links (editable list, pre-filled from `meta.relatedLinks`)
-- More Research (textarea, pre-filled from `meta.moreResearch`)
-- **"Enhance with AI" button** in the modal header → opens AiSandbox
+**Structured research fields** (History/Quote right column): `parseSections()` parses `moreResearch` into `quickFacts`, `keyPeople`, `additionalNotes` on mount. `rebuildMoreResearch()` recombines on every change. Both imported from `types.ts`.
 
-**State variables to add:**
-```typescript
-const [wikipediaUrl, setWikipediaUrl] = useState(meta.wikipediaUrl || '');
-const [relatedLinks, setRelatedLinks] = useState(meta.relatedLinks || []);
-const [moreResearch, setMoreResearch] = useState(meta.moreResearch || '');
-```
+**AiSandbox onSave callback:** Updates all state including re-parsing moreResearch into structured fields for History/Quote.
 
-**handleSave changes:** For ALL categories, merge new fields into the metadata object before JSON.stringify.
+**Removed:** Source/Source URL from History and Quote edit forms.
 
 ---
 
-### EntryDetail.tsx (Public detail view, lines 193–350)
+### EntryDetail.tsx (Public detail view)
 
-**Architecture:** Modal with category-aware rendering. `FilmDetail` component for films (2-column poster layout), `EntryDetail` for all others.
+**Architecture:** Modal with category-aware rendering. `FilmDetail` for films (2-column poster layout), generic `EntryDetail` for all others.
 
-**Where new sections go:** After the existing description/content area, before tags:
-- **Wikipedia section** — Wikipedia icon + clickable link (conditional: only if `metadata.wikipediaUrl` exists)
-- **Related Links section** — Labeled list of clickable external links (conditional: only if `metadata.relatedLinks` has items)
-- **More Context section** — Expandable accordion with research text (conditional: only if `metadata.moreResearch` has content)
+**Quote styling:** `text-lg` italic with red left border accent (`border-l-2 border-red-500/40`), author attribution inline. Visually distinct from research metadata below.
 
-**parseMetadata update needed:** The `parseMetadata()` function in `src/types.ts` needs to extract the new fields from the JSON.
+**Research display** (`ResearchDisplay` component, rendered after description/before tags):
+- **Wikipedia** — BookOpen icon + clickable link (slate gray, emerald icon)
+- **Related Links** — Link2 icon + labeled external links
+- **Quick Facts** — Lightbulb icon (amber) + bullet list (`<ul>`)
+- **Key People & Organizations** — Users icon (amber) + bullet list
+- **Additional Notes** — FileText icon (purple) + prose text
+
+**Section parsing:** `parseResearchSections()` splits `moreResearch` by header lines matching `/^[A-Z][^•\-*\n]{3,60}:$/`. Merges duplicate sections with same normalized title, deduplicates individual lines. Auto-titles untitled sections: bullet content → "Quick Facts", prose → "Additional Notes".
+
+**Conditional rendering:** Sections only appear if they have content. Subtle divider line before research block. No empty placeholders on entries without research data.
 
 ---
 
-## Phase 1: Core AI Editor
+## Phase 1: Core AI Editor ✅ COMPLETE
 
-### 1.1 — Google Gemini API Integration
+### 1.1 — Google Gemini API Integration ✅
 
 **Package:** `@google/generative-ai` (official Google SDK)
 
-**Backend endpoint:** `POST /api/admin/ai/enhance`
+**Backend endpoint:** `POST /api/admin/ai/enhance` (protected by `adminAuth` + `aiLimiter` at 20 req/min)
 
 ```
 Request:
 {
-  entryId: number,
+  entryId?: number,        // loads entry from DB if provided
+  title?: string,          // OR pass raw fields
+  description?: string,
+  category?: string,
   settings: {
     outputLength: "short" | "detailed",
-    tone: "factual" | "narrative",
-    linkSources: "major" | "all"
+    tone: "factual" | "narrative"
   }
 }
 
@@ -202,119 +233,66 @@ Response:
 }
 ```
 
-**System prompt strategy:** Category-aware prompts that instruct Gemini to:
-- Stay factual and historically accurate
-- Only suggest Wikipedia links it can verify
-- Use the existing 35 canonical tag names when suggesting tags
-- Mark confidence levels based on source material strength
+### 1.2 — AiSandbox.tsx Component ✅
 
-### 1.2 — AiSandbox.tsx Component
+Full-screen overlay (z-60) with 2-panel layout. Red accent theme (distinct from purple "Enhance with AI" button in EditEntryModal).
 
-**New file:** `src/components/AiSandbox.tsx`
+**Header:** Entry title, category badge, Length/Tone toggle buttons, Scan/Regenerate button, close button.
 
-The core 2-panel interface:
+**Left panel (Live Record):**
+- Title (read-only)
+- Description (editable) — **read-only for Quotes** (labeled "Quote (read-only)")
+- Tags (removable pills with count)
+- Research & Links section (Wikipedia input, RelatedLinksEditor)
+- **History/Quote:** Structured fields — Quick Facts, Key People & Organizations, Additional Notes (3 separate textareas, synced with `moreResearch` via shared `parseSections`/`rebuildMoreResearch`)
+- **Music/Film:** Single More Research textarea
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Enhance with AI: "1912 Lawrence Textile Strike"                │
-│                                                                 │
-│  ┌── Scan Settings ──────────────────────────────────────────┐  │
-│  │ Length: [Short ○ | ● Detailed]  Tone: [● Factual | ○ Nar] │  │
-│  │ Sources: [● Major only | ○ Include smaller sites]          │  │
-│  │                              [🔍 Scan with AI] [♻ Regen]  │  │
-│  └────────────────────────────────────────────────────────────┘  │
-│                                                                 │
-│  ┌── LEFT: Live Record ──────┐  ┌── RIGHT: AI Suggestions ──┐  │
-│  │                            │  │                            │  │
-│  │ Title: [Lawrence Textile ] │  │ 🟢 Expanded Description    │  │
-│  │                            │  │ ┌────────────────────────┐ │  │
-│  │ Description:               │  │ │ The 1912 Lawrence...   │ │  │
-│  │ ┌────────────────────────┐ │  │ │ [editable textarea]    │ │  │
-│  │ │ Current short text...  │ │  │ └────────────────────────┘ │  │
-│  │ └────────────────────────┘ │  │ [+ Add to Description]     │  │
-│  │                            │  │ [📋 Copy]                  │  │
-│  │ Wikipedia: [____________] │  │                            │  │
-│  │                            │  │ 🟢 Wikipedia               │  │
-│  │ Related Links:             │  │ en.wikipedia.org/wiki/...  │  │
-│  │  (none yet)                │  │ "The strike began when..." │  │
-│  │                            │  │ [+ Add to Wikipedia]       │  │
-│  │ More Research:             │  │                            │  │
-│  │ ┌────────────────────────┐ │  │ 🟡 Suggested Tags          │  │
-│  │ │ (empty)                │ │  │ [Strikes] [Women] [Textile]│  │
-│  │ └────────────────────────┘ │  │ [+ Add Tags]               │  │
-│  │                            │  │                            │  │
-│  │ Tags: [Mining] [1910s]     │  │ 🟡 Key People & Orgs       │  │
-│  │                            │  │ ┌────────────────────────┐ │  │
-│  │                            │  │ │ • Elizabeth Gurley Flynn│ │  │
-│  │                            │  │ │ • IWW                  │ │  │
-│  │                            │  │ │ [editable]             │ │  │
-│  │                            │  │ └────────────────────────┘ │  │
-│  │                            │  │ [+ Add to More Research]   │  │
-│  │                            │  │ [📋 Copy]                  │  │
-│  └────────────────────────────┘  └────────────────────────────┘  │
-│                                                                 │
-│  [Preview Card ▼]                    [Cancel]  [Save & Publish] │
-└─────────────────────────────────────────────────────────────────┘
-```
+**Right panel (AI Suggestions):**
+
+| Card | Button Label (History/Quote) | Button Label (Music/Film) | Routes To |
+|------|------------------------------|---------------------------|-----------|
+| Expanded Description / Context & Background | Add to Additional Notes | Add to Description | `description` or `additionalNotes` |
+| Quick Facts | Add to Quick Facts | Add to More Research | `quickFacts` or `moreResearch` |
+| Wikipedia | Add to Wikipedia | Add to Wikipedia | `wikipediaUrl` |
+| External Links | Add Links | Add Links | `relatedLinks` |
+| Suggested Tags | staging → Add Tags | staging → Add Tags | `tags` (5 max) |
+| Key People & Organizations | Add to Key People | Add to More Research | `keyPeople` or `moreResearch` |
 
 **Key behaviors:**
-- Right panel blocks are **editable textareas** — curator can rewrite before clicking [+ Add]
-- [+ Add] moves content to the corresponding left panel field with visual animation
-- Left panel fields are always directly editable regardless of AI
-- "Save & Publish" writes all left panel fields to the database in one API call
-- "Cancel" discards all unsaved changes (confirmation dialog if changes exist)
+- "Added!" feedback persists (comma-separated tracking, resets only on new scan)
+- "Apply to Record" passes updates to EditEntryModal state → re-parses structured fields for History/Quote
+- Discard confirm modal if changes exist
+- All suggestion cards use neutral `bg-white/[0.03] border-white/10` styling
 
-### 1.3 — Metadata TypeScript Interface Update
+### 1.3 — Shared Utilities in types.ts ✅
 
 ```typescript
-// Shared metadata fields (all categories)
-interface BaseMetadata {
-  wikipediaUrl?: string;
-  relatedLinks?: { label: string; url: string }[];
-  moreResearch?: string;
-  aiEnhanced?: boolean;
-  aiEnhancedAt?: string;
-}
+// Parse moreResearch into structured sections
+parseSections(text: string): { quickFacts: string; keyPeople: string; additionalNotes: string }
 
-// Category-specific metadata extends BaseMetadata
-interface FilmMetadata extends BaseMetadata {
-  director?: string;
-  writers?: string;
-  cast?: string;
-  runtime?: string;
-  country?: string;
-  trailerUrl?: string;
-  // ... existing film fields
-}
-
-// Similar for MusicMetadata, QuoteMetadata, etc.
+// Rebuild moreResearch from structured sections — all sections get explicit headers
+rebuildMoreResearch(facts: string, people: string, notes: string): string
 ```
 
 ---
 
-## Phase 2: Public Display
+## Phase 2: Public Display ✅ COMPLETE
 
-### 2.1 — EntryDetail.tsx Updates
+### 2.1 — EntryDetail.tsx ✅
 
-Add three new sections to the public entry detail modal, rendered conditionally:
+Public detail modal renders research data via `ResearchDisplay` component (see Interface Audit above for full details). All sections conditional — entries without research data are unaffected.
 
-**Wikipedia section:**
-- Wikipedia icon + clickable link
-- Only renders if `metadata.wikipediaUrl` exists
+### 2.2 — Admin Dashboard Research Tracking ✅ PARTIAL
 
-**Related Links section:**
-- Labeled list of external links with icons
-- Only renders if `metadata.relatedLinks` has items
+**Implemented:**
+- Gold Sparkles badge in admin table action row for researched entries (fixed-width, no column shift)
+- "Researched" / "Research" button indicator in edit modal header (red/purple color states)
+- No "AI" language in any user-facing labels — keeps the human curation focus
 
-**More Research section:**
-- Expandable "More Context" accordion
-- Only renders if `metadata.moreResearch` has content
-
-### 2.2 — Admin Dashboard Enhancement Tracking
-
-Add to the admin stats cards:
-- "AI Enhanced: X / Y entries" with progress bar per category
-- Filter: show only un-enhanced entries (helps the team prioritize)
+**Next up:**
+- "Needs Review" filter in admin table — filter pill alongside Published/Pending, shows only entries where `metadata.aiEnhanced` is not true
+- Server: `reviewed` query param on `GET /api/admin/entries` (values: `yes`, `no`, or omitted for all)
+- Stats cards with per-category progress (future, lower priority)
 
 ---
 

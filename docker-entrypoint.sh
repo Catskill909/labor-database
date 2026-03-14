@@ -4,14 +4,21 @@
 if [ ! -f /app/data/dev.db ]; then
     echo '========================================'
     echo 'WARNING: No existing database found at /app/data/dev.db'
-    echo 'Running initial migration...'
+    echo 'A new database will be created.'
     echo '========================================'
-    npx prisma migrate deploy || true
-    npx tsx prisma/seed.ts || true
-else
-    echo "Existing database found - skipping migrations (already applied)"
 fi
 
-# Just start the server - migrations are already done
+# ALWAYS run migrations - prisma migrate deploy only applies pending migrations
+# This is safe and idempotent, and ensures schema changes reach production
+echo "Running database migrations..."
+npx prisma migrate deploy || {
+    echo "Migration failed - starting server anyway (may have issues)"
+}
+
+# Seed default categories (idempotent - skips if already exists)
+echo "Checking seed data..."
+npx tsx prisma/seed.ts || true
+
+# Start the server
 echo "Starting server on port 3001..."
 exec tsx server/index.ts

@@ -108,9 +108,10 @@ export default function AiSandboxDemo() {
     setError(null);
     
     try {
-      const response = await fetch('/api/ai/enhance', {
+      const token = sessionStorage.getItem('adminToken') || '';
+      const response = await fetch('/api/admin/ai/enhance', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
           title: selectedEntry.title,
           description: selectedEntry.description,

@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { X, ChevronRight, ChevronLeft, Check } from 'lucide-react';
-import type { Category } from '../types.ts';
+import type { Category, RelatedLink } from '../types.ts';
 import ImageDropzone from './ImageDropzone.tsx';
 import TmdbSearch from './TmdbSearch.tsx';
 import type { TmdbMovieDetails } from './TmdbSearch.tsx';
 import MusicSearch from './MusicSearch.tsx';
 import type { MusicDetails } from './MusicSearch.tsx';
 import TagSelector from './TagSelector.tsx';
+import ResearchFieldsSection from './ResearchFieldsSection.tsx';
 
 interface SubmissionWizardProps {
   categories: Category[];
@@ -50,8 +51,10 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
   const [tmdbPosterPreview, setTmdbPosterPreview] = useState<string | null>(null);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
 
-  // Quote-specific
-  const [quoteDetail, setQuoteDetail] = useState('');
+  // Research fields (all categories)
+  const [wikipediaUrl, setWikipediaUrl] = useState('');
+  const [relatedLinks, setRelatedLinks] = useState<RelatedLink[]>([]);
+  const [moreResearch, setMoreResearch] = useState('');
 
   // Contact
   const [submitterName, setSubmitterName] = useState('');
@@ -89,7 +92,8 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      let metadata: Record<string, string> = {};
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let metadata: Record<string, any> = {};
       let entryTitle = title;
       let entryCreator = creator;
 
@@ -110,7 +114,7 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
         metadata = { writer: songwriter, performer, genre, runTime, locationUrl: sourceUrl, lyrics };
         if (!entryCreator && performer) entryCreator = performer;
       } else if (selectedCategory === 'quote') {
-        metadata = { source: quoteDetail };
+        metadata = {};
         if (!entryTitle && description) {
           entryTitle = description.substring(0, 80) + (description.length > 80 ? '...' : '');
         }
@@ -120,6 +124,11 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
           entryTitle = description.substring(0, 80) + (description.length > 80 ? '...' : '');
         }
       }
+
+      // Merge research fields into metadata for all categories
+      if (wikipediaUrl) metadata.wikipediaUrl = wikipediaUrl;
+      if (relatedLinks.length > 0) metadata.relatedLinks = relatedLinks;
+      if (moreResearch) metadata.moreResearch = moreResearch;
 
       const body: Record<string, unknown> = {
         category: selectedCategory,
@@ -134,7 +143,9 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
         sourceUrl: sourceUrl || null,
       };
 
-      if (!isAdmin) {
+      if (isAdmin) {
+        body.isPublished = false;
+      } else {
         body.submitterName = submitterName || null;
         body.submitterEmail = submitterEmail || null;
         body.submitterComment = submitterComment || null;
@@ -195,8 +206,12 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
           <div className="w-16 h-16 bg-green-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
             <Check size={32} className="text-green-400" />
           </div>
-          <h3 className="text-lg font-bold mb-2">Thank You!</h3>
-          <p className="text-sm text-gray-400">Your submission has been received and will be reviewed by an admin before publishing.</p>
+          <h3 className="text-lg font-bold mb-2">{isAdmin ? 'Entry Saved' : 'Thank You!'}</h3>
+          <p className="text-sm text-gray-400">
+            {isAdmin
+              ? 'Entry has been saved as unpublished. Use the publish toggle in the admin dashboard to make it live.'
+              : 'Your submission has been received and will be reviewed by an admin before publishing.'}
+          </p>
         </div>
       </div>
     );
@@ -255,13 +270,17 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
                 <label className="text-xs text-gray-400 block mb-1.5">Tags <span className="text-gray-600">(optional, max 5)</span></label>
                 <TagSelector value={tags} onChange={setTags} />
               </div>
+              <ResearchFieldsSection
+                wikipediaUrl={wikipediaUrl} onWikipediaUrlChange={setWikipediaUrl}
+                relatedLinks={relatedLinks} onRelatedLinksChange={setRelatedLinks}
+                moreResearch={moreResearch} onMoreResearchChange={setMoreResearch}
+              />
             </div>
           )}
 
           {step === 2 && selectedCategory === 'quote' && (
             <div className="space-y-3">
               <input type="text" placeholder="Author" value={creator} onChange={e => setCreator(e.target.value)} className="input-field" />
-              <input type="text" placeholder="Source — book title, speech, article, etc." value={quoteDetail} onChange={e => setQuoteDetail(e.target.value)} className="input-field" />
               <textarea
                 placeholder="Quote"
                 value={description}
@@ -273,6 +292,11 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
                 <label className="text-xs text-gray-400 block mb-1.5">Tags <span className="text-gray-600">(optional, max 5)</span></label>
                 <TagSelector value={tags} onChange={setTags} />
               </div>
+              <ResearchFieldsSection
+                wikipediaUrl={wikipediaUrl} onWikipediaUrlChange={setWikipediaUrl}
+                relatedLinks={relatedLinks} onRelatedLinksChange={setRelatedLinks}
+                moreResearch={moreResearch} onMoreResearchChange={setMoreResearch}
+              />
             </div>
           )}
 
@@ -299,6 +323,11 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
                 <label className="text-xs text-gray-400 block mb-1.5">Tags <span className="text-gray-600">(optional, max 5)</span></label>
                 <TagSelector value={tags} onChange={setTags} />
               </div>
+              <ResearchFieldsSection
+                wikipediaUrl={wikipediaUrl} onWikipediaUrlChange={setWikipediaUrl}
+                relatedLinks={relatedLinks} onRelatedLinksChange={setRelatedLinks}
+                moreResearch={moreResearch} onMoreResearchChange={setMoreResearch}
+              />
             </div>
           )}
 
@@ -370,6 +399,11 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
                 <label className="text-xs text-gray-400 block mb-1.5">Tags <span className="text-gray-600">(optional, max 5)</span></label>
                 <TagSelector value={tags} onChange={setTags} />
               </div>
+              <ResearchFieldsSection
+                wikipediaUrl={wikipediaUrl} onWikipediaUrlChange={setWikipediaUrl}
+                relatedLinks={relatedLinks} onRelatedLinksChange={setRelatedLinks}
+                moreResearch={moreResearch} onMoreResearchChange={setMoreResearch}
+              />
               <div>
                 <label className="text-xs text-gray-400 block mb-1">Comments / Notes <span className="text-gray-600">(optional)</span></label>
                 <textarea

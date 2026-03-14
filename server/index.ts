@@ -85,7 +85,7 @@ const port = process.env.PORT || 3001;
 const prisma = new PrismaClient();
 
 // Enable WAL mode for better concurrent read/write performance
-prisma.$executeRawUnsafe('PRAGMA journal_mode=WAL').catch(() => {});
+prisma.$executeRawUnsafe('PRAGMA journal_mode=WAL').catch(() => { });
 
 const corsOrigin = process.env.CORS_ORIGIN;
 app.use(cors(corsOrigin ? { origin: corsOrigin, credentials: true } : undefined));
@@ -95,7 +95,7 @@ app.use(helmet({
             ...helmet.contentSecurityPolicy.getDefaultDirectives(),
             "frame-src": ["'self'", "https://www.youtube.com", "https://www.youtube-nocookie.com"],
             "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://www.youtube.com", "https://www.google.com"],
-            "img-src": ["'self'", "data:", "*", "https://image.tmdb.org", "https://i.ytimg.com", "https://images.genius.com"],
+            "img-src": ["'self'", "data:", "https://image.tmdb.org", "https://i.ytimg.com", "https://images.genius.com"],
             // Fix YouTube embed Error 153 in production: allow YouTube player API calls
             "connect-src": ["'self'", "https://www.youtube.com", "https://*.youtube.com", "https://*.googlevideo.com", "https://*.google.com"],
             "child-src": ["'self'", "blob:", "https://www.youtube.com"],
@@ -147,6 +147,14 @@ const searchLimiter = rateLimit({
     message: { error: 'Too many search requests, please try again later' },
 });
 
+const aiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many AI requests, please try again later' },
+});
+
 app.use('/api', generalLimiter);
 
 // Image uploads directory — Coolify persistent storage mounts here in production
@@ -181,9 +189,12 @@ const zipUpload = multer({
     }
 });
 
-// Serve uploaded images as static files
-// Serve uploaded images as static files
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Serve uploaded images as static files with CORS headers for cross-origin access
+app.use('/uploads', express.static(path.join(__dirname, '../uploads'), {
+    setHeaders: (res) => {
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    }
+}));
 
 // Admin Authentication Middleware
 const adminAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -312,7 +323,9 @@ app.post('/api/admin/verify-password', authLimiter, (req, res) => {
         return res.json({ success: true, message: 'No admin password configured on server' });
     }
 
-    if (password === adminPassword) {
+    const passwordMatch = password.length === adminPassword.length &&
+        crypto.timingSafeEqual(Buffer.from(password), Buffer.from(adminPassword));
+    if (passwordMatch) {
         res.json({ success: true });
     } else {
         res.status(401).json({ success: false, error: 'Invalid password' });
@@ -454,11 +467,13 @@ app.get('/api/tmdb/movie/:tmdbId', searchLimiter, async (req, res) => {
 });
 
 // Download TMDB poster and attach to entry
-// No auth — called by both public submission and admin edit
-// Safe: only downloads from TMDB CDN and attaches to an existing entry
+// Admin auth required — only admin can download posters from TMDB CDN
 app.post('/api/tmdb/download-poster', adminAuth, uploadLimiter, async (req, res) => {
     const { entryId, posterPath } = req.body;
     if (!entryId || !posterPath) return res.status(400).json({ error: 'entryId and posterPath required' });
+    if (typeof posterPath !== 'string' || !/^\/[a-zA-Z0-9]+\.jpg$/.test(posterPath)) {
+        return res.status(400).json({ error: 'Invalid poster path format' });
+    }
 
     try {
         const imgUrl = `${TMDB_IMG}/w500${posterPath}`;
@@ -820,7 +835,7 @@ app.get('/api/entries', async (req, res) => {
             const searchTerm = creator.trim();
             const q = `%${searchTerm}%`;
             const exactTitle = searchTerm;
-            
+
             // Search ALL fields with ranking (exact title first, then title contains, then other fields)
             const results: { id: number; rank: number }[] = await prisma.$queryRaw`
                 SELECT id,
@@ -890,30 +905,58 @@ app.get('/api/entries', async (req, res) => {
 
         // For search: use raw SQL with LIKE (case-insensitive in SQLite)
         // Rank results: exact title match > title contains > creator > description > tags/metadata
+        // Whole-word search: "rat" matches "rat" but NOT "ratification" or "generation"
+        // Normalize punctuation to spaces, pad with spaces, then match ' word '
         let searchIds: number[] | null = null;
         if (search && typeof search === 'string') {
             const searchTerm = search.trim();
-            const q = `%${searchTerm}%`;
-            const exactTitle = searchTerm; // For exact match comparison
-            
-            const results: { id: number; rank: number }[] = await prisma.$queryRaw`
-                SELECT id,
-                    CASE 
-                        WHEN LOWER(title) = LOWER(${exactTitle}) THEN 1
-                        WHEN title LIKE ${q} THEN 2
-                        WHEN creator LIKE ${q} THEN 3
-                        WHEN description LIKE ${q} THEN 4
+            const words = searchTerm.split(/\s+/).filter(Boolean);
+            // Helper: whole-word LIKE pattern
+            const wordLike = (w: string) => `% ${w} %`;
+            // Field expression: replace common punctuation with spaces, pad both sides
+            const F = (col: string) => `(' ' || REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(${col}, ',', ' '), '.', ' '), ';', ' '), ':', ' '), '"', ' '), '''', ' ') || ' ')`;
+
+            if (words.length <= 1) {
+                // Single word — ranked search with prefix matching
+                const q = wordLike(searchTerm);
+                const exactTitle = searchTerm;
+                const sql = `SELECT id,
+                    CASE
+                        WHEN LOWER(title) = LOWER(?) THEN 1
+                        WHEN ${F('title')} LIKE ? THEN 2
+                        WHEN ${F('creator')} LIKE ? THEN 3
+                        WHEN ${F('description')} LIKE ? THEN 4
                         ELSE 5
                     END as rank
-                FROM Entry
-                WHERE title LIKE ${q}
-                   OR description LIKE ${q}
-                   OR creator LIKE ${q}
-                   OR tags LIKE ${q}
-                   OR metadata LIKE ${q}
-                ORDER BY rank ASC
-            `;
-            searchIds = results.map(r => r.id);
+                    FROM Entry
+                    WHERE ${F('title')} LIKE ?
+                       OR ${F('description')} LIKE ?
+                       OR ${F('creator')} LIKE ?
+                       OR ${F('tags')} LIKE ?
+                       OR ${F('metadata')} LIKE ?
+                    ORDER BY rank ASC`;
+                const results = await prisma.$queryRawUnsafe<{ id: number; rank: number }[]>(
+                    sql, exactTitle, q, q, q, q, q, q, q, q
+                );
+                searchIds = results.map(r => r.id);
+            } else {
+                // Multi-word — each word must prefix-match somewhere across the entry's fields (AND logic)
+                // Rank by how many words appear in title (best), then creator, then description
+                const wordClauses = words.map(() =>
+                    `(${F('title')} LIKE ? OR ${F('description')} LIKE ? OR ${F('creator')} LIKE ? OR ${F('tags')} LIKE ? OR ${F('metadata')} LIKE ?)`
+                ).join(' AND ');
+                const wordParams: string[] = [];
+                for (const w of words) {
+                    const wq = wordLike(w);
+                    wordParams.push(wq, wq, wq, wq, wq); // 5 fields per word
+                }
+                // Rank: count how many words hit the title (lower = better match)
+                const titleHits = words.map(() => `(CASE WHEN ${F('title')} LIKE ? THEN 1 ELSE 0 END)`).join(' + ');
+                const titleHitParams = words.map(w => wordLike(w));
+                const sql = `SELECT id, (${words.length} - (${titleHits})) as rank FROM Entry WHERE ${wordClauses} ORDER BY rank ASC`;
+                const results = await prisma.$queryRawUnsafe<{ id: number; rank: number }[]>(sql, ...titleHitParams, ...wordParams);
+                searchIds = results.map(r => r.id);
+            }
         }
 
         // Preserve search ranking order
@@ -931,6 +974,7 @@ app.get('/api/entries', async (req, res) => {
 
         // Sort param (ignored if search ranking is active)
         const sort = req.query.sort as string | undefined;
+        const isEventDateSort = sort === 'event-date-newest' || sort === 'event-date-oldest';
         const sortMap: Record<string, object | object[]> = {
             'newest': { createdAt: 'desc' },
             'oldest': { createdAt: 'asc' },
@@ -938,22 +982,61 @@ app.get('/api/entries', async (req, res) => {
             'title-desc': { title: 'desc' },
             'creator-asc': { creator: 'asc' },
             'creator-desc': { creator: 'desc' },
-            'year-newest': [{ year: 'desc' }, { createdAt: 'desc' }],
-            'year-oldest': [{ year: 'asc' }, { createdAt: 'asc' }],
-            'event-date-newest': [{ year: 'desc' }, { month: 'desc' }, { day: 'desc' }],
-            'event-date-oldest': [{ year: 'asc' }, { month: 'asc' }, { day: 'asc' }],
         };
-        const orderBy = (sort && sortMap[sort]) || { createdAt: 'desc' };
+        const orderBy = (!isEventDateSort && sort && sortMap[sort]) || { createdAt: 'desc' };
 
         // Skip Prisma ordering if we have ranked IDs (we'll re-sort after fetch)
         const useRanking = searchRankedIds || filterRankedIds;
-        let entries = await prisma.entry.findMany({
-            where,
-            orderBy: useRanking ? undefined : (orderBy as Prisma.EntryOrderByWithRelationInput | Prisma.EntryOrderByWithRelationInput[]),
-            include: { images: { orderBy: { sortOrder: 'asc' } } },
-            take: limit ? parseInt(limit as string) : undefined,
-            skip: offset ? parseInt(offset as string) : undefined,
-        });
+        const takeParsed = limit ? parseInt(limit as string) : undefined;
+        const skipParsed = offset ? parseInt(offset as string) : undefined;
+
+        type PublicEntryWithImages = Prisma.EntryGetPayload<{ include: { images: true } }>;
+        let entries: PublicEntryWithImages[];
+
+        if (isEventDateSort && !useRanking) {
+            // Use raw SQL for event date sort to handle NULLs properly
+            const clauses: string[] = ['isPublished = 1'];
+            const sqlParams: any[] = [];
+            if (where.category) { clauses.push('category = ?'); sqlParams.push(where.category); }
+            if (where.month) { clauses.push('month = ?'); sqlParams.push(where.month); }
+            if (where.day) { clauses.push('day = ?'); sqlParams.push(where.day); }
+            if (where.year) { clauses.push('year = ?'); sqlParams.push(where.year); }
+            if ((where.id as { in?: number[] })?.in) {
+                const ids = (where.id as { in: number[] }).in;
+                clauses.push(`id IN (${ids.map(() => '?').join(',')})`);
+                sqlParams.push(...ids);
+            }
+            const whereClause = `WHERE ${clauses.join(' AND ')}`;
+            const dir = sort === 'event-date-newest' ? 'DESC' : 'ASC';
+            const nullPos = sort === 'event-date-newest' ? '9999' : '0';
+
+            let orderSql = `SELECT id FROM Entry ${whereClause} ORDER BY COALESCE(year, ${nullPos}) ${dir}, COALESCE(month, ${nullPos}) ${dir}, COALESCE(day, ${nullPos}) ${dir}`;
+            const limitSqlParams = [...sqlParams];
+            if (takeParsed !== undefined) { orderSql += ` LIMIT ?`; limitSqlParams.push(takeParsed); }
+            if (skipParsed !== undefined) { orderSql += ` OFFSET ?`; limitSqlParams.push(skipParsed); }
+
+            const orderedIds = await prisma.$queryRawUnsafe<{ id: number }[]>(orderSql, ...limitSqlParams);
+            const idList = orderedIds.map(r => r.id);
+
+            if (idList.length > 0) {
+                const fullEntries = await prisma.entry.findMany({
+                    where: { id: { in: idList } },
+                    include: { images: { orderBy: { sortOrder: 'asc' } } },
+                });
+                const idOrder = new Map(idList.map((id, i) => [id, i]));
+                entries = fullEntries.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
+            } else {
+                entries = [];
+            }
+        } else {
+            entries = await prisma.entry.findMany({
+                where,
+                orderBy: useRanking ? undefined : (orderBy as Prisma.EntryOrderByWithRelationInput | Prisma.EntryOrderByWithRelationInput[]),
+                include: { images: { orderBy: { sortOrder: 'asc' } } },
+                take: takeParsed,
+                skip: skipParsed,
+            });
+        }
 
         // Re-sort entries by ranking (search ranking takes priority, then filter ranking)
         const rankedIds = searchRankedIds || filterRankedIds;
@@ -977,7 +1060,7 @@ app.get('/api/entries', async (req, res) => {
             const sanitized = sanitizeEntryForJson(rest);
             return {
                 ...sanitized,
-                images: rest.images.map((img) => ({
+                images: e.images.map((img: { filename: string; [key: string]: unknown }) => ({
                     ...img,
                     url: `${baseUrl}/uploads/entries/${img.filename}`,
                     thumbnailUrl: `${baseUrl}/uploads/entries/thumb_${img.filename}`
@@ -1165,41 +1248,108 @@ app.get('/api/admin/entries', adminAuth, async (req, res) => {
             where.isPublished = isPublished === 'true';
         }
         if (search && typeof search === 'string') {
-            const q = `%${search.trim()}%`;
-            const results: { id: number }[] = await prisma.$queryRaw`
-                SELECT id FROM Entry
-                WHERE title LIKE ${q}
-                   OR description LIKE ${q}
-                   OR creator LIKE ${q}
-                   OR tags LIKE ${q}
-            `;
-            where.id = { in: results.map(r => r.id) };
+            const searchTerm = search.trim();
+            const words = searchTerm.split(/\s+/).filter(Boolean);
+            const wordLike = (w: string) => `% ${w} %`;
+            const F = (col: string) => `(' ' || REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(${col}, ',', ' '), '.', ' '), ';', ' '), ':', ' '), '"', ' '), '''', ' ') || ' ')`;
+
+            if (words.length <= 1) {
+                const q = wordLike(searchTerm);
+                const sql = `SELECT id FROM Entry WHERE ${F('title')} LIKE ? OR ${F('description')} LIKE ? OR ${F('creator')} LIKE ? OR ${F('tags')} LIKE ?`;
+                const results = await prisma.$queryRawUnsafe<{ id: number }[]>(sql, q, q, q, q);
+                where.id = { in: results.map(r => r.id) };
+            } else {
+                // Multi-word — each word must prefix-match somewhere across the entry's fields
+                const wordClauses = words.map(() =>
+                    `(${F('title')} LIKE ? OR ${F('description')} LIKE ? OR ${F('creator')} LIKE ? OR ${F('tags')} LIKE ?)`
+                ).join(' AND ');
+                const wordParams: string[] = [];
+                for (const w of words) {
+                    const wq = wordLike(w);
+                    wordParams.push(wq, wq, wq, wq); // 4 fields per word
+                }
+                const sql = `SELECT id FROM Entry WHERE ${wordClauses}`;
+                const results = await prisma.$queryRawUnsafe<{ id: number }[]>(sql, ...wordParams);
+                where.id = { in: results.map(r => r.id) };
+            }
         }
 
         // Sort param (admin)
         const sort = req.query.sort as string | undefined;
+        const isEventDateSort = sort === 'event-date-newest' || sort === 'event-date-oldest';
         const adminSortMap: Record<string, object | object[]> = {
             'newest': [{ isPublished: 'asc' }, { createdAt: 'desc' }],
             'oldest': [{ isPublished: 'asc' }, { createdAt: 'asc' }],
             'title-asc': [{ isPublished: 'asc' }, { title: 'asc' }],
             'title-desc': [{ isPublished: 'asc' }, { title: 'desc' }],
+            'creator-asc': [{ isPublished: 'asc' }, { creator: 'asc' }],
+            'creator-desc': [{ isPublished: 'asc' }, { creator: 'desc' }],
             'category-asc': [{ isPublished: 'asc' }, { category: 'asc' }, { title: 'asc' }],
         };
-        const adminOrderBy = (sort && adminSortMap[sort]) || [{ isPublished: 'asc' }, { createdAt: 'desc' }];
+        const adminOrderBy = (!isEventDateSort && sort && adminSortMap[sort]) || [{ isPublished: 'asc' }, { createdAt: 'desc' }];
 
         const take = limit ? parseInt(limit as string) : undefined;
         const skip = offset ? parseInt(offset as string) : undefined;
 
-        const [entries, total] = await Promise.all([
-            prisma.entry.findMany({
-                where,
-                orderBy: adminOrderBy as Prisma.EntryOrderByWithRelationInput[],
-                include: { images: { orderBy: { sortOrder: 'asc' } } },
-                ...(take !== undefined && { take }),
-                ...(skip !== undefined && { skip }),
-            }),
-            prisma.entry.count({ where }),
-        ]);
+        type EntryWithImages = Prisma.EntryGetPayload<{ include: { images: true } }>;
+        let entries: EntryWithImages[];
+        let total: number;
+
+        if (isEventDateSort) {
+            // Use raw SQL for event date sort to handle NULLs properly
+            // Build WHERE clause fragments from the Prisma where object
+            const clauses: string[] = [];
+            const params: any[] = [];
+            if (where.category) { clauses.push('category = ?'); params.push(where.category); }
+            if (where.isPublished !== undefined) { clauses.push('isPublished = ?'); params.push(where.isPublished ? 1 : 0); }
+            if (where.id && typeof where.id === 'object' && 'in' in where.id && where.id.in) {
+                clauses.push(`id IN (${(where.id.in as number[]).map(() => '?').join(',')})`);
+                params.push(...(where.id.in as number[]));
+            }
+            const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+            const dir = sort === 'event-date-newest' ? 'DESC' : 'ASC';
+            const nullPos = sort === 'event-date-newest' ? '9999' : '0';
+
+            // Count total
+            const countResult = await prisma.$queryRawUnsafe<{ cnt: number }[]>(
+                `SELECT COUNT(*) as cnt FROM Entry ${whereClause}`,
+                ...params
+            );
+            total = Number(countResult[0]?.cnt ?? 0);
+
+            // Get ordered IDs — unpublished first, then by year/month/day with NULLs last (newest) or first (oldest)
+            let orderSql = `SELECT id FROM Entry ${whereClause} ORDER BY isPublished ASC, COALESCE(year, ${nullPos}) ${dir}, COALESCE(month, ${nullPos}) ${dir}, COALESCE(day, ${nullPos}) ${dir}`;
+            const limitParams = [...params];
+            if (take !== undefined) { orderSql += ` LIMIT ?`; limitParams.push(take); }
+            if (skip !== undefined) { orderSql += ` OFFSET ?`; limitParams.push(skip); }
+
+            const orderedIds = await prisma.$queryRawUnsafe<{ id: number }[]>(orderSql, ...limitParams);
+            const idList = orderedIds.map(r => r.id);
+
+            if (idList.length > 0) {
+                // Fetch full entries
+                const fullEntries = await prisma.entry.findMany({
+                    where: { id: { in: idList } },
+                    include: { images: { orderBy: { sortOrder: 'asc' } } },
+                });
+                // Re-sort to match the raw SQL order
+                const idOrder = new Map(idList.map((id, i) => [id, i]));
+                entries = fullEntries.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
+            } else {
+                entries = [];
+            }
+        } else {
+            [entries, total] = await Promise.all([
+                prisma.entry.findMany({
+                    where,
+                    orderBy: adminOrderBy as Prisma.EntryOrderByWithRelationInput[],
+                    include: { images: { orderBy: { sortOrder: 'asc' } } },
+                    ...(take !== undefined && { take }),
+                    ...(skip !== undefined && { skip }),
+                }),
+                prisma.entry.count({ where }),
+            ]);
+        }
         const protocol = req.headers['x-forwarded-proto'] || req.protocol;
         const host = req.headers['x-forwarded-host'] || req.get('host');
         const baseUrl = `${protocol}://${host}`;
@@ -1207,7 +1357,7 @@ app.get('/api/admin/entries', adminAuth, async (req, res) => {
             const sanitized = sanitizeEntryForJson(e);
             return {
                 ...sanitized,
-                images: e.images.map(img => ({
+                images: e.images.map((img: { filename: string; [key: string]: unknown }) => ({
                     ...img,
                     url: `${baseUrl}/uploads/entries/${img.filename}`,
                     thumbnailUrl: `${baseUrl}/uploads/entries/thumb_${img.filename}`
@@ -2130,18 +2280,31 @@ app.delete('/api/admin/reset', adminAuth, async (_req, res) => {
 
 // ==================== AI RESEARCH DEMO ====================
 
-const genAI = process.env.GOOGLE_AI_API_KEY 
+const genAI = process.env.GOOGLE_AI_API_KEY
     ? new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY)
     : null;
 
-// Standalone AI enhance endpoint for demo (no auth, no database)
-app.post('/api/ai/enhance', async (req, res) => {
+// AI enhance endpoint — admin-only with rate limiting
+app.post('/api/admin/ai/enhance', adminAuth, aiLimiter, async (req, res) => {
     if (!genAI) {
-        return res.status(500).json({ error: 'GOOGLE_AI_API_KEY not configured. See ai-demo-setup.md for instructions.' });
+        return res.status(500).json({ error: 'GOOGLE_AI_API_KEY not configured. Set GOOGLE_AI_API_KEY environment variable.' });
     }
 
-    const { title, description, category, creator, settings } = req.body;
-    
+    let { title, description, category, creator } = req.body;
+    const { settings, entryId } = req.body;
+
+    // If entryId provided, load entry from DB
+    if (entryId) {
+        const entry = await prisma.entry.findUnique({ where: { id: Number(entryId) } });
+        if (!entry) {
+            return res.status(404).json({ error: 'Entry not found' });
+        }
+        title = title || entry.title;
+        description = description || entry.description;
+        category = category || entry.category;
+        creator = creator || entry.creator;
+    }
+
     if (!title || !category) {
         return res.status(400).json({ error: 'Title and category are required' });
     }
@@ -2156,12 +2319,12 @@ app.post('/api/ai/enhance', async (req, res) => {
         film: 'Find cast and crew info, the real-world labor story behind the film, and critical reception.'
     };
 
-    const lengthInstruction = outputLength === 'short' 
-        ? 'Keep responses brief (2-3 sentences per section).' 
+    const lengthInstruction = outputLength === 'short'
+        ? 'Keep responses brief (2-3 sentences per section).'
         : 'Provide detailed responses (5-10 sentences per section).';
-    
-    const toneInstruction = tone === 'factual' 
-        ? 'Use an encyclopedic, factual tone.' 
+
+    const toneInstruction = tone === 'factual'
+        ? 'Use an encyclopedic, factual tone.'
         : 'Use a narrative, storytelling tone.';
 
     const systemPrompt = `You are a research assistant for the Labor Arts & Culture Database. Your job is to help curators enrich database entries about labor history, union movements, and workers' rights.
@@ -2188,7 +2351,7 @@ Available tags (use ONLY these exact names): ${CANONICAL_TAGS.join(', ')}.`;
 
     try {
         const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-        
+
         const prompt = `Research this ${category} entry for the Labor Database:
 
 Title: ${title}
@@ -2206,20 +2369,52 @@ Generate research suggestions to enrich this entry.`;
         });
 
         const responseText = result.response.text();
-        
+
         // Parse JSON from response (handle potential markdown code blocks)
         let jsonText = responseText;
         const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
         if (jsonMatch) {
             jsonText = jsonMatch[1];
         }
-        
+
         const suggestions = JSON.parse(jsonText.trim());
-        res.json(suggestions);
+
+        // Sanitize AI response — validate shape and strip dangerous URLs
+        const sanitizeUrl = (url: unknown): string => {
+            if (typeof url !== 'string') return '';
+            const trimmed = url.trim();
+            if (trimmed.startsWith('https://') || trimmed.startsWith('http://')) return trimmed;
+            return '';
+        };
+        const sanitized: Record<string, unknown> = {};
+        if (typeof suggestions.description === 'string') sanitized.description = suggestions.description;
+        if (typeof suggestions.quickFacts === 'string') sanitized.quickFacts = suggestions.quickFacts;
+        if (typeof suggestions.keyPeople === 'string') sanitized.keyPeople = suggestions.keyPeople;
+        if (typeof suggestions.additionalNotes === 'string') sanitized.additionalNotes = suggestions.additionalNotes;
+        if (typeof suggestions.wikipediaUrl === 'string') sanitized.wikipediaUrl = sanitizeUrl(suggestions.wikipediaUrl);
+        if (Array.isArray(suggestions.suggestedTags)) {
+            sanitized.suggestedTags = suggestions.suggestedTags.filter((t: unknown) => typeof t === 'string').slice(0, 5);
+        }
+        if (Array.isArray(suggestions.relatedLinks)) {
+            sanitized.relatedLinks = suggestions.relatedLinks
+                .filter((link: unknown) => typeof link === 'object' && link !== null)
+                .map((link: Record<string, unknown>) => ({
+                    label: typeof link.label === 'string' ? link.label : '',
+                    url: sanitizeUrl(link.url),
+                }))
+                .filter((link: { url: string }) => link.url !== '');
+        }
+        if (typeof suggestions.confidence === 'object' && suggestions.confidence !== null) {
+            sanitized.confidence = Object.fromEntries(
+                Object.entries(suggestions.confidence as Record<string, unknown>)
+                    .filter(([, v]) => typeof v === 'string' && ['high', 'medium', 'low'].includes(v as string))
+            );
+        }
+
+        res.json(sanitized);
     } catch (error: unknown) {
-        const errMsg = error instanceof Error ? error.message : String(error);
-        console.error('AI enhance error:', errMsg, error);
-        res.status(500).json({ error: `AI error: ${errMsg}` });
+        console.error('AI enhance error:', error instanceof Error ? error.message : String(error), error);
+        res.status(500).json({ error: 'AI research enhancement failed. Please try again.' });
     }
 });
 

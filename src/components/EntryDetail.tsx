@@ -1,6 +1,7 @@
-import { X, ExternalLink, Calendar, User, Clock, Globe, Play, MessageSquare } from 'lucide-react';
-import type { Entry } from '../types.ts';
-import { parseMetadata, formatEntryDate } from '../types.ts';
+import { useState } from 'react';
+import { X, ExternalLink, Calendar, User, Clock, Globe, Play, MessageSquare, BookOpen, Link2, Users, Lightbulb, FileText } from 'lucide-react';
+import type { Entry, RelatedLink } from '../types.ts';
+import { parseMetadata, formatEntryDate, getRelatedLinks } from '../types.ts';
 
 interface EntryDetailProps {
   entry: Entry;
@@ -22,9 +23,157 @@ function formatFullDate(entry: Pick<Entry, 'month' | 'day' | 'year'>): string {
 // History: title is just a truncated description, so don't show it separately
 const isHistoryOrQuote = (cat: string) => cat === 'history' || cat === 'quote';
 
+// Parse moreResearch text into sections by detecting header lines like "Key People & Organizations:"
+// Merges duplicate sections with the same normalized title
+function parseResearchSections(text: string): { title: string | null; content: string }[] {
+  const lines = text.split('\n');
+  const sections: { title: string | null; content: string }[] = [];
+  let currentTitle: string | null = null;
+  let currentLines: string[] = [];
+
+  for (const line of lines) {
+    // Detect section headers: lines ending with ":" that are short and not bullet points
+    const trimmed = line.trim();
+    const isHeader = /^[A-Z][^•\-*\n]{3,60}:$/.test(trimmed);
+    if (isHeader) {
+      // Save previous section
+      if (currentLines.length > 0 || currentTitle) {
+        sections.push({ title: currentTitle, content: currentLines.join('\n').trim() });
+      }
+      currentTitle = trimmed.replace(/:$/, '');
+      currentLines = [];
+    } else {
+      currentLines.push(line);
+    }
+  }
+  // Save last section
+  if (currentLines.length > 0 || currentTitle) {
+    sections.push({ title: currentTitle, content: currentLines.join('\n').trim() });
+  }
+
+  // Merge sections with the same normalized title (e.g., duplicate "Quick Facts")
+  const merged: { title: string | null; content: string }[] = [];
+  const titleMap = new Map<string, number>(); // normalized title → index in merged array
+  for (const section of sections) {
+    const key = section.title ? section.title.toLowerCase().replace(/\s+/g, ' ').trim() : null;
+    if (key && titleMap.has(key)) {
+      const idx = titleMap.get(key)!;
+      // Append content, deduplicating lines
+      const existingLines = new Set(merged[idx].content.split('\n').map(l => l.trim()).filter(Boolean));
+      const newLines = section.content.split('\n').map(l => l.trim()).filter(Boolean);
+      const uniqueNew = newLines.filter(l => !existingLines.has(l));
+      if (uniqueNew.length > 0) {
+        merged[idx].content = merged[idx].content + '\n' + uniqueNew.join('\n');
+      }
+    } else {
+      if (key) titleMap.set(key, merged.length);
+      merged.push({ ...section });
+    }
+  }
+  return merged.filter(s => s.content.trim() || s.title);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function ResearchDisplay({ meta }: { meta: Record<string, any> }) {
+  const wikipediaUrl = typeof meta.wikipediaUrl === 'string' ? meta.wikipediaUrl : '';
+  const links: RelatedLink[] = getRelatedLinks(meta);
+  const moreResearch = typeof meta.moreResearch === 'string' ? meta.moreResearch : '';
+
+  if (!wikipediaUrl && links.length === 0 && !moreResearch) return null;
+
+  const researchSections = moreResearch ? parseResearchSections(moreResearch) : [];
+
+  return (
+    <div className="space-y-4">
+      {/* Wikipedia */}
+      {wikipediaUrl && (
+        <div>
+          <h4 className="text-sm font-semibold text-gray-200 flex items-center gap-2 mb-1.5">
+            <BookOpen size={14} className="text-emerald-400" />
+            Wikipedia
+          </h4>
+          <a
+            href={wikipediaUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 transition-colors"
+          >
+            <ExternalLink size={12} />
+            {wikipediaUrl.replace(/^https?:\/\/(en\.)?wikipedia\.org\/wiki\//, '').replace(/_/g, ' ')}
+          </a>
+        </div>
+      )}
+
+      {/* Related Links */}
+      {links.length > 0 && (
+        <div>
+          <h4 className="text-sm font-semibold text-gray-200 flex items-center gap-2 mb-1.5">
+            <Link2 size={14} className="text-emerald-400" />
+            Related Links
+          </h4>
+          <div className="flex flex-col gap-1.5">
+            {links.map((link, i) => (
+              <a
+                key={i}
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                <ExternalLink size={12} />
+                {link.label || link.url}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Research sections — each with its own header */}
+      {researchSections.map((section, i) => {
+        // Detect if content looks like bullet points (starts with • or -)
+        const isBulletContent = section.content && /^[•\-*]/m.test(section.content);
+        // Auto-title untitled sections: bullet points → "Quick Facts", plain text → "Additional Notes"
+        const title = section.title || (isBulletContent ? 'Quick Facts' : (section.content ? 'Additional Notes' : null));
+
+        return (
+          <div key={i}>
+            {title && (
+              <h4 className="text-sm font-semibold text-gray-200 flex items-center gap-2 mb-1.5">
+                {title.toLowerCase().includes('people') || title.toLowerCase().includes('organization')
+                  ? <Users size={14} className="text-amber-400" />
+                  : title.toLowerCase().includes('fact')
+                    ? <Lightbulb size={14} className="text-amber-400" />
+                    : title.toLowerCase().includes('note') || title.toLowerCase().includes('context') || title.toLowerCase().includes('background')
+                      ? <FileText size={14} className="text-purple-400" />
+                      : <FileText size={14} className="text-emerald-400" />
+                }
+                {title}
+              </h4>
+            )}
+            {section.content && (
+              isBulletContent ? (
+                <ul className="text-sm leading-relaxed text-gray-300 space-y-1.5 list-disc list-outside ml-4">
+                  {section.content.split('\n').filter(line => line.trim()).map((line, j) => (
+                    <li key={j}>{line.replace(/^[•\-*]\s*/, '')}</li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="text-sm leading-relaxed text-gray-300 whitespace-pre-wrap">
+                  {section.content}
+                </div>
+              )
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function FilmDetail({ entry, onClose, onTagClick }: EntryDetailProps) {
   const meta = parseMetadata(entry);
   const posterUrl = entry.images?.[0]?.url || entry.images?.[0]?.thumbnailUrl || null;
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -69,11 +218,16 @@ function FilmDetail({ entry, onClose, onTagClick }: EntryDetailProps) {
             {/* Left column: Poster */}
             {posterUrl && (
               <div className="shrink-0 md:w-56">
-                <img
-                  src={posterUrl}
-                  alt={entry.title}
-                  className="w-full rounded-lg shadow-lg object-cover"
-                />
+                <button
+                  onClick={() => setLightboxUrl(posterUrl)}
+                  className="rounded-lg overflow-hidden cursor-zoom-in hover:ring-2 hover:ring-white/30 transition-all"
+                >
+                  <img
+                    src={posterUrl}
+                    alt={entry.title}
+                    className="w-full rounded-lg shadow-lg object-cover"
+                  />
+                </button>
               </div>
             )}
 
@@ -83,7 +237,7 @@ function FilmDetail({ entry, onClose, onTagClick }: EntryDetailProps) {
               {meta.genre && (
                 <div className="flex flex-wrap gap-1.5">
                   {meta.genre.split(',').map((g: string, i: number) => (
-                    <span key={i} className="px-2.5 py-1 bg-red-600/15 text-red-400 text-xs font-medium rounded-full">
+                    <span key={i} className="px-2.5 py-1 bg-slate-400/20 text-slate-300 text-xs font-medium rounded-full">
                       {g.trim()}
                     </span>
                   ))}
@@ -153,6 +307,11 @@ function FilmDetail({ entry, onClose, onTagClick }: EntryDetailProps) {
             </div>
           )}
 
+          {/* Research: Wikipedia, Related Links, More Context */}
+          <div className="mt-5">
+            <ResearchDisplay meta={meta} />
+          </div>
+
           {/* Tags */}
           {entry.tags && (
             <div className="mt-5 flex flex-wrap gap-1.5">
@@ -186,11 +345,44 @@ function FilmDetail({ entry, onClose, onTagClick }: EntryDetailProps) {
           )}
         </div>
       </div>
+
+      {/* Image lightbox */}
+      {lightboxUrl && (
+        <ImageLightbox src={lightboxUrl} alt={entry.title} onClose={() => setLightboxUrl(null)} />
+      )}
+    </div>
+  );
+}
+
+// Fullscreen image lightbox
+function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center" onClick={onClose}>
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/90 backdrop-blur-md" />
+
+      {/* Close button */}
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 z-10 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+      >
+        <X size={24} className="text-white" />
+      </button>
+
+      {/* Image */}
+      <img
+        src={src}
+        alt={alt}
+        onClick={e => e.stopPropagation()}
+        className="relative z-10 max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+      />
     </div>
   );
 }
 
 export default function EntryDetail({ entry, onClose, onTagClick }: EntryDetailProps) {
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+
   // Use dedicated film layout
   if (entry.category === 'film') {
     return <FilmDetail entry={entry} onClose={onClose} onTagClick={onTagClick} />;
@@ -247,19 +439,24 @@ export default function EntryDetail({ entry, onClose, onTagClick }: EntryDetailP
             )}
           </div>
 
-          {/* Description */}
-          <div className={`text-sm leading-relaxed whitespace-pre-wrap ${entry.category === 'quote' ? 'italic' : ''}`}>
-            {entry.description}
-          </div>
-
-          {/* Quote: show author attribution below if not already in header */}
-          {entry.category === 'quote' && entry.creator && (
-            <p className="text-sm text-gray-400 font-medium">&mdash; {entry.creator}</p>
-          )}
-
-          {/* Quote source/detail */}
-          {entry.category === 'quote' && meta.source && (
-            <p className="text-sm text-gray-500">{meta.source}</p>
+          {/* Description / Quote */}
+          {entry.category === 'quote' ? (
+            <div className="py-2">
+              <div className="border-l-2 border-red-500/40 pl-4">
+                <p className="text-lg leading-relaxed whitespace-pre-wrap italic text-gray-100">
+                  {entry.description}
+                </p>
+                {entry.creator && (
+                  <p className="mt-3 text-sm text-gray-400 font-medium">&mdash; {entry.creator}</p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="text-sm leading-relaxed whitespace-pre-wrap">
+                {entry.description}
+              </div>
+            </>
           )}
 
           {/* Music metadata */}
@@ -302,6 +499,12 @@ export default function EntryDetail({ entry, onClose, onTagClick }: EntryDetailP
             </div>
           )}
 
+          {/* Research: Wikipedia, Related Links, More Context */}
+          {(meta.wikipediaUrl || getRelatedLinks(meta).length > 0 || meta.moreResearch) && (
+            <div className="border-t border-white/5 pt-1" />
+          )}
+          <ResearchDisplay meta={meta} />
+
           {/* Tags */}
           {entry.tags && (
             <div className="flex flex-wrap gap-1.5">
@@ -317,18 +520,28 @@ export default function EntryDetail({ entry, onClose, onTagClick }: EntryDetailP
             </div>
           )}
 
-          {/* Images */}
+          {/* Images — click to open lightbox */}
           {entry.images && entry.images.length > 0 && (
             <div className="grid grid-cols-2 gap-2">
               {entry.images.map(img => (
-                <img
+                <button
                   key={img.id}
-                  src={img.thumbnailUrl || img.url}
-                  alt={img.caption || entry.title}
-                  className="rounded-lg w-full object-cover"
-                />
+                  onClick={() => setLightboxUrl(img.url ?? null)}
+                  className="rounded-lg overflow-hidden cursor-zoom-in hover:ring-2 hover:ring-white/30 transition-all"
+                >
+                  <img
+                    src={img.thumbnailUrl || img.url}
+                    alt={img.caption || entry.title}
+                    className="w-full object-cover"
+                  />
+                </button>
               ))}
             </div>
+          )}
+
+          {/* Image lightbox */}
+          {lightboxUrl && (
+            <ImageLightbox src={lightboxUrl} alt={entry.title} onClose={() => setLightboxUrl(null)} />
           )}
 
           {/* Source URL — skip for music with embedded YouTube player */}

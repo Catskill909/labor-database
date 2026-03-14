@@ -42,7 +42,7 @@ export default function ImportModal({ onClose, onComplete }: ImportModalProps) {
   };
 
   const handleZipImport = (file: File) => {
-    const token = localStorage.getItem('adminToken') || sessionStorage.getItem('adminToken') || '';
+    const token = sessionStorage.getItem('adminToken') || '';
     const formData = new FormData();
     formData.append('backup', file);
 
@@ -121,7 +121,7 @@ export default function ImportModal({ onClose, onComplete }: ImportModalProps) {
 
   const handleJsonImport = async (file: File) => {
     try {
-      const token = localStorage.getItem('adminToken') || sessionStorage.getItem('adminToken') || '';
+      const token = sessionStorage.getItem('adminToken') || '';
       const text = await file.text();
       const jsonData = JSON.parse(text);
 

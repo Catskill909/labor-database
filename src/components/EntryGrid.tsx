@@ -6,6 +6,29 @@ import { parseMetadata, formatEntryDate } from '../types.ts';
 interface EntryGridProps {
   entries: Entry[];
   onSelectEntry: (entry: Entry) => void;
+  searchQuery?: string;
+}
+
+// Highlights whole-word matches of search terms in text
+function Highlight({ text, query }: { text: string; query?: string }) {
+  if (!query || !query.trim() || !text) return <>{text}</>;
+  const words = query.trim().split(/\s+/).filter(w => w.length > 1);
+  if (words.length === 0) return <>{text}</>;
+  // Build regex matching whole words (word boundary)
+  const escaped = words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const regex = new RegExp(`\\b(${escaped.join('|')})`, 'gi');
+  const parts = text.split(regex);
+  return (
+    <>
+      {parts.map((part, i) =>
+        regex.test(part) ? (
+          <mark key={i} className="bg-amber-500/30 text-inherit rounded-sm px-0.5">{part}</mark>
+        ) : (
+          part
+        )
+      )}
+    </>
+  );
 }
 
 // Format a full date like the original Wix site: "July 22, 2023"
@@ -19,7 +42,7 @@ function formatFullDate(entry: Pick<Entry, 'month' | 'day' | 'year'>): string {
   return parts.join(' ');
 }
 
-function HistoryCard({ entry, onClick }: { entry: Entry; onClick: () => void }) {
+function HistoryCard({ entry, onClick, query }: { entry: Entry; onClick: () => void; query?: string }) {
   const dateStr = formatFullDate(entry);
 
   return (
@@ -27,36 +50,28 @@ function HistoryCard({ entry, onClick }: { entry: Entry; onClick: () => void }) 
       onClick={onClick}
       className="text-left w-full p-5 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-red-500/30 transition-colors group"
     >
-      {/* Date header — like the original Wix site */}
       {dateStr && (
         <p className="text-sm text-gray-400 mb-3 font-medium">{dateStr}</p>
       )}
-
-      {/* Full description — no separate title for history */}
       <p className="text-sm leading-relaxed line-clamp-6">
-        {entry.description}
+        <Highlight text={entry.description} query={query} />
       </p>
     </button>
   );
 }
 
-function QuoteCard({ entry, onClick }: { entry: Entry; onClick: () => void }) {
+function QuoteCard({ entry, onClick, query }: { entry: Entry; onClick: () => void; query?: string }) {
   return (
     <button
       onClick={onClick}
       className="text-left w-full p-5 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-red-500/30 transition-colors group"
     >
-      {/* Quote icon */}
       <QuoteIcon size={16} className="text-red-400/40 mb-2" />
-
-      {/* Quote text */}
       <p className="text-sm leading-relaxed line-clamp-5 italic">
-        {entry.description}
+        <Highlight text={entry.description} query={query} />
       </p>
-
-      {/* Author */}
       {entry.creator && (
-        <p className="text-xs text-gray-400 mt-3 font-medium">&mdash; {entry.creator}</p>
+        <p className="text-xs text-gray-400 mt-3 font-medium">&mdash; <Highlight text={entry.creator} query={query} /></p>
       )}
 
       {/* Source/detail */}
@@ -70,7 +85,7 @@ function QuoteCard({ entry, onClick }: { entry: Entry; onClick: () => void }) {
   );
 }
 
-function MusicCard({ entry, onClick }: { entry: Entry; onClick: () => void }) {
+function MusicCard({ entry, onClick, query }: { entry: Entry; onClick: () => void; query?: string }) {
   const meta = parseMetadata(entry);
 
   return (
@@ -81,20 +96,17 @@ function MusicCard({ entry, onClick }: { entry: Entry; onClick: () => void }) {
       <div className="flex items-start gap-3">
         <Music size={16} className="text-red-400/40 mt-0.5 shrink-0" />
         <div className="min-w-0">
-          {/* Song title */}
           <h3 className="text-sm font-semibold leading-snug mb-1 group-hover:text-red-300 transition-colors">
-            {entry.title}
+            <Highlight text={entry.title} query={query} />
           </h3>
-
-          {/* Performer + Artist */}
           {meta.performer && (
             <p className="text-xs text-gray-400">
-              <span className="text-gray-500">Performer:</span> {meta.performer}
+              <span className="text-gray-500">Performer:</span> <Highlight text={meta.performer} query={query} />
             </p>
           )}
           {meta.writer && meta.writer !== meta.performer && (
             <p className="text-xs text-gray-400">
-              <span className="text-gray-500">Artist:</span> {meta.writer}
+              <span className="text-gray-500">Artist:</span> <Highlight text={meta.writer} query={query} />
             </p>
           )}
 
@@ -119,7 +131,7 @@ function MusicCard({ entry, onClick }: { entry: Entry; onClick: () => void }) {
   );
 }
 
-function FilmCard({ entry, onClick }: { entry: Entry; onClick: () => void }) {
+function FilmCard({ entry, onClick, query }: { entry: Entry; onClick: () => void; query?: string }) {
   const meta = parseMetadata(entry);
   const posterUrl = entry.images?.[0]?.thumbnailUrl || null;
 
@@ -142,11 +154,11 @@ function FilmCard({ entry, onClick }: { entry: Entry; onClick: () => void }) {
           {/* Title overlay on poster */}
           <div className="absolute inset-x-0 bottom-0 p-3">
             <h3 className="text-sm font-semibold leading-snug line-clamp-2 text-white drop-shadow-lg group-hover:text-red-200 transition-colors">
-              {entry.title}
+              <Highlight text={entry.title} query={query} />
               {entry.year && <span className="text-gray-300 font-normal ml-1">({entry.year})</span>}
             </h3>
             {entry.creator && (
-              <p className="text-[11px] text-gray-300 mt-0.5 truncate">{entry.creator}</p>
+              <p className="text-[11px] text-gray-300 mt-0.5 truncate"><Highlight text={entry.creator} query={query} /></p>
             )}
           </div>
           {meta.youtubeId && (
@@ -162,11 +174,11 @@ function FilmCard({ entry, onClick }: { entry: Entry; onClick: () => void }) {
           </div>
           <div className="p-3">
             <h3 className="text-sm font-semibold leading-snug line-clamp-2 group-hover:text-red-300 transition-colors">
-              {entry.title}
+              <Highlight text={entry.title} query={query} />
               {entry.year && <span className="text-gray-500 font-normal ml-1">({entry.year})</span>}
             </h3>
             {entry.creator && (
-              <p className="text-xs text-gray-400 mt-1 truncate">{entry.creator}</p>
+              <p className="text-xs text-gray-400 mt-1 truncate"><Highlight text={entry.creator} query={query} /></p>
             )}
           </div>
         </div>
@@ -178,7 +190,7 @@ function FilmCard({ entry, onClick }: { entry: Entry; onClick: () => void }) {
         {meta.genre && (
           <div className="flex flex-wrap gap-1 mb-1.5">
             {meta.genre.split(',').slice(0, 2).map((g: string, i: number) => (
-              <span key={i} className="px-1.5 py-0.5 bg-red-600/15 text-red-400 text-[10px] rounded">
+              <span key={i} className="px-1.5 py-0.5 bg-slate-400/20 text-slate-300 text-[10px] rounded">
                 {g.trim()}
               </span>
             ))}
@@ -195,7 +207,7 @@ function FilmCard({ entry, onClick }: { entry: Entry; onClick: () => void }) {
   );
 }
 
-function GenericCard({ entry, onClick }: { entry: Entry; onClick: () => void }) {
+function GenericCard({ entry, onClick, query }: { entry: Entry; onClick: () => void; query?: string }) {
   const dateStr = formatEntryDate(entry);
 
   return (
@@ -213,15 +225,15 @@ function GenericCard({ entry, onClick }: { entry: Entry; onClick: () => void }) 
       </div>
 
       <h3 className="text-sm font-semibold leading-snug mb-1.5 line-clamp-2 group-hover:text-red-300 transition-colors">
-        {entry.title}
+        <Highlight text={entry.title} query={query} />
       </h3>
 
       {entry.creator && (
-        <p className="text-xs text-gray-400 mb-2">{entry.creator}</p>
+        <p className="text-xs text-gray-400 mb-2"><Highlight text={entry.creator} query={query} /></p>
       )}
 
       <p className="text-xs text-gray-500 line-clamp-3 leading-relaxed">
-        {entry.description}
+        <Highlight text={entry.description} query={query} />
       </p>
 
       {entry.sourceUrl && (
@@ -263,29 +275,30 @@ function AnimatedCard({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function EntryGrid({ entries, onSelectEntry }: EntryGridProps) {
+export default function EntryGrid({ entries, onSelectEntry, searchQuery }: EntryGridProps) {
   return (
     <>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
         {entries.map(entry => {
           const onClick = () => onSelectEntry(entry);
+          const q = searchQuery;
 
           let card: React.ReactNode;
           switch (entry.category) {
             case 'history':
-              card = <HistoryCard entry={entry} onClick={onClick} />;
+              card = <HistoryCard entry={entry} onClick={onClick} query={q} />;
               break;
             case 'quote':
-              card = <QuoteCard entry={entry} onClick={onClick} />;
+              card = <QuoteCard entry={entry} onClick={onClick} query={q} />;
               break;
             case 'music':
-              card = <MusicCard entry={entry} onClick={onClick} />;
+              card = <MusicCard entry={entry} onClick={onClick} query={q} />;
               break;
             case 'film':
-              card = <FilmCard entry={entry} onClick={onClick} />;
+              card = <FilmCard entry={entry} onClick={onClick} query={q} />;
               break;
             default:
-              card = <GenericCard entry={entry} onClick={onClick} />;
+              card = <GenericCard entry={entry} onClick={onClick} query={q} />;
           }
 
           return (

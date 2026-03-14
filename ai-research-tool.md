@@ -1,9 +1,9 @@
-# AI Research & Enrichment Tool — Feature Proposal
+# AI Research & Enrichment Tool
 
-**Project:** Labor Arts & Culture Database  
-**Prepared by:** Paul Henshaw  
-**Date:** March 5, 2026  
-**Status:** Proposal for Discussion
+**Project:** Labor Arts & Culture Database
+**Prepared by:** Paul Henshaw
+**Date:** March 5, 2026 (proposed) · March 12, 2026 (Phase 1 & 2 complete)
+**Status:** Phase 1 (Core AI Editor) & Phase 2 (Public Display) — COMPLETE. Phase 3 (Batch Processing) — planned.
 
 ---
 
@@ -79,8 +79,11 @@ If the first set of suggestions isn't useful, click **"Regenerate"** for a fresh
 ### Live Preview
 A **"Preview"** toggle shows what the public-facing entry will look like with the new content before saving.
 
-### Enhancement Tracking
-Each enhanced entry gets a small indicator so the team can track progress across the database (e.g., "Enhanced: 342 / 1,411 history entries").
+### Research Tracking
+Entries that have been through the research tool get a subtle gold badge in the admin table row — visible at a glance without cluttering the interface. The badge tooltip reads "Researched." No public-facing labels — the public site never reveals whether content was AI-assisted or manually curated.
+
+### "Needs Review" Filter
+A filter option in the admin table (alongside Published/Pending) that shows only entries that haven't been researched yet. Curators click it and get a focused work queue — no new UI to learn, same pattern as existing filters.
 
 ---
 
@@ -119,32 +122,43 @@ The tool uses **Google Gemini 1.5 Flash**, one of the most cost-effective AI mod
 
 There are no monthly minimums or subscription fees — you only pay for what you use.
 
-## Integration with Existing Interfaces
+## Integration with Existing Interfaces ✅ Complete
 
-The new research fields don't just live in the AI Sandbox — they also appear in the existing forms across the platform so curators and public users can contribute research manually.
+The research fields appear across all four interfaces — curators and public users can contribute research manually or via AI.
 
-### Public Submission Wizard ("Add to Database" on the public site)
-The 3-step wizard (Pick Category → Category Form → Contact Info) gains these **optional** fields at the bottom of Step 2 for all categories:
+### Public Submission Wizard ("Add to Database" on the public site) ✅
+The 3-step wizard gains a collapsible **"Research & Links"** section at the bottom of Step 2 for all categories:
 - **Wikipedia Link** — text input, optional
 - **Related Links** — "Add a link" button to add label + URL pairs, optional
 - **More Research** — text area for additional context, optional
 
-These are clearly marked as optional and placed below the existing required fields so they don't intimidate casual submitters.
+Collapsed by default so it doesn't intimidate casual submitters. Removed: "Source" field from Quote submissions.
 
-### Admin "Add to Database" (via Admin Dashboard)
-Same wizard as above but in admin mode (skips contact info step). The new fields appear in the same position. Admins are more likely to use these fields when manually adding well-researched entries.
+### Admin "Add to Database" (via Admin Dashboard) ✅
+Same wizard in admin mode (skips contact info step). Same research fields.
 
-### Admin Edit Modal (pencil icon on any entry)
-The existing edit modal gains the three new fields at the bottom of the category-specific form, just above the Tags and Source URL fields. Additionally:
-- An **"Enhance with AI"** button appears in the modal header, which opens the full 2-panel AI Sandbox view for that entry.
-- Wikipedia Link shows as a clickable link preview when populated.
-- Related Links shows as an editable list with add/remove buttons.
+### Admin Edit Modal (pencil icon on any entry) ✅
+**History and Quote** use a **2-column layout** (wider modal):
+- **Left column:** Core fields (Title, Date, Description/Quote, Author, Tags, Images)
+- **Right column:** Structured research fields — Wikipedia Link, Related Links, Quick Facts, Key People & Organizations, Additional Notes (3 separate textareas that sync with `moreResearch`)
 
-### Public Entry Detail (view modal on the public site)
-When viewing any entry, the detail modal shows the new fields if they have content:
-- **Wikipedia** — icon + clickable link
-- **Related Links** — labeled list of external sources
-- **More Context** — expandable "Read More" section
+**Music and Film** use a single column with a collapsible Research & Links section (Wikipedia, Related Links, More Research as a single textarea).
+
+**"Enhance with AI" button** in the modal header opens the full-screen 2-panel AI Sandbox.
+
+**Unsaved changes guard:** Amber confirm modal warns if closing with unsaved edits.
+
+Removed: Source/Source URL from History and Quote edit forms.
+
+### Public Entry Detail (view modal on the public site) ✅
+When viewing any entry, the detail modal shows research fields if they have content:
+- **Wikipedia** — BookOpen icon + clickable link
+- **Related Links** — labeled list of external sources with ExternalLink icons
+- **Quick Facts** — Lightbulb icon + bullet list
+- **Key People & Organizations** — Users icon + bullet list
+- **Additional Notes** — FileText icon + prose text
+
+**Quote styling:** Larger text (`text-lg`), italic, with red left border accent — visually distinct as the primary content. Research metadata appears below with a subtle divider.
 
 Entries without these fields look exactly the same as they do now — no empty placeholders.
 
@@ -152,38 +166,110 @@ Entries without these fields look exactly the same as they do now — no empty p
 
 ## Implementation Phases
 
-### Phase 1: Core AI Editor
-- Build the 2-panel "Enhance with AI" interface
-- Integrate Google Gemini API
-- Create the click-to-add workflow
-- Add Wikipedia Link, Related Links, and More Research fields
+### Phase 1: Core AI Editor ✅ COMPLETE (March 12, 2026)
+- 2-panel "Enhance with AI" full-screen editor (AiSandbox.tsx)
+- Google Gemini 2.0 Flash integration with category-aware prompts
+- Click-to-add workflow with persistent "Added!" feedback
+- Structured research fields: Quick Facts, Key People & Organizations, Additional Notes
+- Category-aware routing: Quotes show read-only quote text, expanded description → Additional Notes
+- Shared `parseSections`/`rebuildMoreResearch` utilities for consistent data handling
 
-### Phase 2: Public Display
-- Show the new research fields on the public entry detail view
-- Add enhancement progress tracking to admin dashboard
+### Phase 2: Public Display ✅ COMPLETE (March 12, 2026)
+- Research fields rendered on public entry detail view with section parsing and dedup
+- Quote blockquote styling with red accent border
+- 2-column admin edit layout for History and Quote
+- Research fields in all submission forms (collapsible)
 
-### Phase 3: Batch Processing
+### Phase 3: Batch Processing — PLANNED
 - Multi-select entries for bulk AI scanning
 - Background processing queue with review interface
+- Enhancement tracking stats in admin dashboard
 
 ---
 
-## AI Scan Settings (User-Configurable)
+## AI Scan Settings (User-Configurable) ✅
 
-Before clicking "Scan with AI", the curator can set preferences directly in the interface:
-- **Output length** — Short (2–3 sentences for quick radio prep) or detailed (5–10 sentences for full narrative)
-- **Tone** — Factual/encyclopedic or narrative/storytelling
-- **Link sources** — Major sources only (Wikipedia, Library of Congress) or include smaller union/organization sites
+Paired toggle buttons in the AiSandbox header:
+- **Output length** — Short or Detailed (default: Detailed)
+- **Tone** — Factual or Narrative (default: Factual)
 
-These settings persist per session so the curator doesn't have to re-select them each time. If the results aren't right, the curator adjusts settings and clicks **"Regenerate"** for a fresh pass.
+Settings persist per session. "Regenerate" button for fresh suggestions without losing content already added.
 
 ---
 
-## Questions for Discussion
+## Curation Workflow & Progress Management — BRAINSTORM
 
-1. **More Research formatting** — Plain text or basic formatting (bold, bullet points)?
-2. **Batch priority** — Which category should we enrich first? History entries have the shortest descriptions and would benefit most.
-3. **Default settings** — What should the default output length and tone be?
+The research tool needs a way for curators to **manage their progress** across thousands of entries. This is not about labeling content as "AI-generated" — it's about helping the team answer: *What's been reviewed? What still needs attention? What should I work on next?*
+
+### The Core Problem
+
+The database has ~6,000 entries. Curators will work through them over weeks or months. They need to:
+- See at a glance which entries have been researched and which haven't
+- Pick up where they left off
+- Prioritize categories or date ranges
+- Track team progress if multiple curators are working
+
+### Ideas to Explore
+
+#### 1. Edit Modal Indicator ✅ DONE
+The "Research" button in the admin edit modal changes appearance when the research tool has been used: red with checkmark and "Researched" label vs purple "Research" button. Tooltip reads "Researched — click to re-scan." No "AI" language in user-facing labels.
+
+**Open question:** Should this also show a date? e.g., "Reviewed Mar 12" — helpful if a curator wants to re-review old entries after improvements to the AI prompts.
+
+#### 2. Admin Table Badge ✅ DONE
+A subtle gold Sparkles icon in the admin table action row for entries that have been researched. Tooltip reads "Researched." Fixed-width column (always rendered, invisible when not enhanced) so it doesn't shift other columns.
+
+#### 3. Stats Cards on Admin Dashboard
+Add "Reviewed: X / Y" progress cards to the existing admin dashboard stats area, broken down by category:
+- History: 142 / 1,411 reviewed
+- Quotes: 38 / 1,916 reviewed
+- Music: 12 / 435 reviewed
+- Films: 5 / 2,192 reviewed
+
+Could include a simple progress bar. Clicking a card could filter the table to show only un-reviewed entries — same pattern as the existing Published/Review Queue filter cards.
+
+#### 4. Filter: "Needs Review" Toggle — NEXT UP
+Add a filter option in the admin table (alongside existing category/status filters) to show only entries that haven't been through the research tool yet. The curator clicks it and gets a focused work queue. Same pattern as existing Published/Pending filter — intuitive, no new UI to learn.
+
+**Possible filters:**
+- Not yet reviewed (no research data at all)
+- Reviewed but incomplete (has some fields but not others — e.g., has Wikipedia but no Quick Facts)
+- All reviewed
+
+#### 5. Sort by "Least Complete"
+A sort option that puts entries with the least research data at the top. Useful for finding entries that need the most work. Could rank by: number of research fields populated, length of moreResearch content, or presence/absence of Wikipedia URL.
+
+#### 6. Category Priority Queue
+A simple view that answers: "I have 30 minutes. What should I review?" Could surface entries that are:
+- In the priority category (e.g., History first since those have the shortest descriptions)
+- Near a date that's coming up (On This Day relevance)
+- Already popular (most viewed, if we had analytics)
+- Recently submitted by public users (new content needs review)
+
+#### 7. Bulk Status Marking
+After batch processing (Phase 3), curators will need to review many entries. A "mark as reviewed" bulk action — select rows, click "Mark Reviewed" — lets the team move quickly through a batch without opening each entry.
+
+### What's NOT in Scope
+
+- No public-facing "AI" labels — the public site never shows whether content was AI-assisted or manually written. All content is curator-approved.
+- No automated publishing — the research tool helps curators prepare content, but publishing decisions are always manual.
+- No tracking of individual curator activity — this is a small team tool, not a performance tracker.
+
+### Implementation Notes
+
+**Data already available:** `metadata.aiEnhanced` (boolean) and `metadata.aiEnhancedAt` (ISO timestamp) are saved when the research tool is used on an entry. These can power all of the above features without schema changes.
+
+**Possible additions to metadata:**
+- `reviewStatus`: "not_started" | "in_progress" | "complete" — more granular than a boolean
+- `reviewNotes`: curator's notes about what still needs work on this entry
+- `lastReviewedBy`: curator name (if multi-user auth is added later)
+
+### Questions for Discussion
+
+1. Which of these would be most useful to start with?
+2. Should "reviewed" mean "the tool was used" or "a curator has explicitly signed off"?
+3. Is category-level progress tracking (idea #3) enough, or do curators need row-level indicators (idea #2)?
+4. How important is the "what to work on next" prioritization (idea #6) vs simple progress tracking?
 
 ---
 
