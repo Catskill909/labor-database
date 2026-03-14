@@ -45,12 +45,16 @@ export const ADMIN_SORT_OPTIONS: Record<string, SortOption[]> = {
     { value: 'oldest', label: 'Date Added (oldest)' },
     { value: 'event-date-newest', label: 'Event Date (newest)' },
     { value: 'event-date-oldest', label: 'Event Date (oldest)' },
+    { value: 'researched', label: 'Researched' },
+    { value: 'not-researched', label: 'Not Researched' },
   ],
   quote: [
     { value: 'newest', label: 'Date Added (newest)' },
     { value: 'oldest', label: 'Date Added (oldest)' },
     { value: 'creator-asc', label: 'Author A–Z' },
     { value: 'creator-desc', label: 'Author Z–A' },
+    { value: 'researched', label: 'Researched' },
+    { value: 'not-researched', label: 'Not Researched' },
   ],
   music: [
     { value: 'newest', label: 'Date Added (newest)' },
@@ -59,12 +63,16 @@ export const ADMIN_SORT_OPTIONS: Record<string, SortOption[]> = {
     { value: 'title-desc', label: 'Title Z–A' },
     { value: 'creator-asc', label: 'Artist A–Z' },
     { value: 'creator-desc', label: 'Artist Z–A' },
+    { value: 'researched', label: 'Researched' },
+    { value: 'not-researched', label: 'Not Researched' },
   ],
   film: [
     { value: 'newest', label: 'Date Added (newest)' },
     { value: 'oldest', label: 'Date Added (oldest)' },
     { value: 'title-asc', label: 'Title A–Z' },
     { value: 'title-desc', label: 'Title Z–A' },
+    { value: 'researched', label: 'Researched' },
+    { value: 'not-researched', label: 'Not Researched' },
   ],
   default: [
     { value: 'newest', label: 'Date Added (newest)' },
@@ -72,6 +80,8 @@ export const ADMIN_SORT_OPTIONS: Record<string, SortOption[]> = {
     { value: 'title-asc', label: 'Title A–Z' },
     { value: 'title-desc', label: 'Title Z–A' },
     { value: 'category-asc', label: 'Category A–Z' },
+    { value: 'researched', label: 'Researched' },
+    { value: 'not-researched', label: 'Not Researched' },
   ],
 };
 

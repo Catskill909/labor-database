@@ -379,7 +379,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             <div ref={scrollRef} className="max-h-[calc(100vh-380px)] overflow-y-auto">
               {entries.map(entry => (
                 <AnimatedRow key={entry.id}>
-                  <div className="grid grid-cols-1 md:grid-cols-[1fr_100px_90px_250px] gap-2 md:gap-4 items-center px-6 py-4 border-b border-white/5 hover:bg-white/5 transition-colors group">
+                  <div className={`grid grid-cols-1 md:grid-cols-[1fr_100px_90px_250px] gap-2 md:gap-4 items-center px-6 py-4 border-b border-white/5 hover:bg-white/5 transition-colors group ${parseMetadata(entry).aiEnhanced ? 'bg-amber-500/[0.03]' : ''}`}>
                     {/* Entry info */}
                     <div className="min-w-0">
                       {entry.category === 'history' ? (

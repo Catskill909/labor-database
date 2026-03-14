@@ -1338,7 +1338,7 @@ app.post('/api/entries', uploadLimiter, async (req, res) => {
 app.get('/api/admin/entries', adminAuth, async (req, res) => {
     res.set('Cache-Control', 'no-store');
     try {
-        const { category, search, isPublished, limit, offset } = req.query;
+        const { category, search, isPublished, aiResearched, limit, offset } = req.query;
 
         const where: Prisma.EntryWhereInput = {};
 
@@ -1347,6 +1347,13 @@ app.get('/api/admin/entries', adminAuth, async (req, res) => {
         }
         if (isPublished !== undefined && typeof isPublished === 'string') {
             where.isPublished = isPublished === 'true';
+        }
+        if (aiResearched !== undefined && typeof aiResearched === 'string') {
+            if (aiResearched === 'true') {
+                where.metadata = { contains: '"aiEnhanced":true' };
+            } else {
+                where.NOT = { metadata: { contains: '"aiEnhanced":true' } };
+            }
         }
         if (search && typeof search === 'string') {
             const searchTerm = search.trim();
@@ -1472,6 +1479,7 @@ app.get('/api/admin/entries', adminAuth, async (req, res) => {
         // Sort param (admin)
         const sort = req.query.sort as string | undefined;
         const isEventDateSort = sort === 'event-date-newest' || sort === 'event-date-oldest';
+        const isResearchedSort = sort === 'researched' || sort === 'not-researched';
         const adminSortMap: Record<string, object | object[]> = {
             'newest': [{ isPublished: 'asc' }, { createdAt: 'desc' }],
             'oldest': [{ isPublished: 'asc' }, { createdAt: 'asc' }],
@@ -1481,7 +1489,7 @@ app.get('/api/admin/entries', adminAuth, async (req, res) => {
             'creator-desc': [{ isPublished: 'asc' }, { creator: 'desc' }],
             'category-asc': [{ isPublished: 'asc' }, { category: 'asc' }, { title: 'asc' }],
         };
-        const adminOrderBy = (!isEventDateSort && sort && adminSortMap[sort]) || [{ isPublished: 'asc' }, { createdAt: 'desc' }];
+        const adminOrderBy = (!isEventDateSort && !isResearchedSort && sort && adminSortMap[sort]) || [{ isPublished: 'asc' }, { createdAt: 'desc' }];
 
         const take = limit ? parseInt(limit as string) : undefined;
         const skip = offset ? parseInt(offset as string) : undefined;
@@ -1490,20 +1498,25 @@ app.get('/api/admin/entries', adminAuth, async (req, res) => {
         let entries: EntryWithImages[];
         let total: number;
 
-        if (isEventDateSort) {
+        if (isEventDateSort || isResearchedSort) {
             // Use raw SQL for event date sort to handle NULLs properly
             // Build WHERE clause fragments from the Prisma where object
             const clauses: string[] = [];
             const params: any[] = [];
             if (where.category) { clauses.push('category = ?'); params.push(where.category); }
             if (where.isPublished !== undefined) { clauses.push('isPublished = ?'); params.push(where.isPublished ? 1 : 0); }
+            if (where.metadata && typeof where.metadata === 'object' && 'contains' in where.metadata) {
+                clauses.push('metadata LIKE ?'); params.push(`%${where.metadata.contains}%`);
+            }
+            if (where.NOT && typeof where.NOT === 'object' && !Array.isArray(where.NOT) && 'metadata' in where.NOT) {
+                const notMeta = where.NOT.metadata as { contains: string };
+                clauses.push('(metadata IS NULL OR metadata NOT LIKE ?)'); params.push(`%${notMeta.contains}%`);
+            }
             if (where.id && typeof where.id === 'object' && 'in' in where.id && where.id.in) {
                 clauses.push(`id IN (${(where.id.in as number[]).map(() => '?').join(',')})`);
                 params.push(...(where.id.in as number[]));
             }
             const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
-            const dir = sort === 'event-date-newest' ? 'DESC' : 'ASC';
-            const nullPos = sort === 'event-date-newest' ? '9999' : '0';
 
             // Count total
             const countResult = await prisma.$queryRawUnsafe<{ cnt: number }[]>(
@@ -1512,8 +1525,19 @@ app.get('/api/admin/entries', adminAuth, async (req, res) => {
             );
             total = Number(countResult[0]?.cnt ?? 0);
 
-            // Get ordered IDs — unpublished first, then by year/month/day with NULLs last (newest) or first (oldest)
-            let orderSql = `SELECT id FROM Entry ${whereClause} ORDER BY isPublished ASC, COALESCE(year, ${nullPos}) ${dir}, COALESCE(month, ${nullPos}) ${dir}, COALESCE(day, ${nullPos}) ${dir}`;
+            // Build ORDER BY based on sort type
+            let orderByClause: string;
+            if (isResearchedSort) {
+                // Sort by researched status: CASE on metadata containing aiEnhanced:true
+                const researchedFirst = sort === 'researched' ? 'ASC' : 'DESC';
+                orderByClause = `ORDER BY isPublished ASC, CASE WHEN metadata LIKE '%"aiEnhanced":true%' THEN 0 ELSE 1 END ${researchedFirst}, createdAt DESC`;
+            } else {
+                const dir = sort === 'event-date-newest' ? 'DESC' : 'ASC';
+                const nullPos = sort === 'event-date-newest' ? '9999' : '0';
+                orderByClause = `ORDER BY isPublished ASC, COALESCE(year, ${nullPos}) ${dir}, COALESCE(month, ${nullPos}) ${dir}, COALESCE(day, ${nullPos}) ${dir}`;
+            }
+
+            let orderSql = `SELECT id FROM Entry ${whereClause} ${orderByClause}`;
             const limitParams = [...params];
             if (take !== undefined) { orderSql += ` LIMIT ?`; limitParams.push(take); }
             if (skip !== undefined) { orderSql += ` OFFSET ?`; limitParams.push(skip); }
