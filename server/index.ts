@@ -1933,6 +1933,16 @@ function buildCsv(headers: string[], rows: string[][]): string {
 }
 
 // Column definitions per category for spreadsheet/CSV export
+// Shared AI research columns appended to every category
+const researchColumns: { header: string; key: string; width?: number }[] = [
+    { header: 'Wikipedia URL', key: '_wikipediaUrl', width: 40 },
+    { header: 'Related Links', key: '_relatedLinks', width: 50 },
+    { header: 'Quick Facts', key: '_quickFacts', width: 40 },
+    { header: 'Key People & Orgs', key: '_keyPeople', width: 40 },
+    { header: 'Additional Notes', key: '_additionalNotes', width: 40 },
+    { header: 'AI Researched', key: '_aiEnhanced', width: 12 },
+];
+
 const categoryColumns: Record<string, { header: string; key: string; width?: number }[]> = {
     music: [
         { header: 'Title', key: 'title', width: 30 },
@@ -1944,6 +1954,7 @@ const categoryColumns: Record<string, { header: string; key: string; width?: num
         { header: 'Source URL', key: 'sourceUrl', width: 40 },
         { header: 'Tags', key: 'tags', width: 25 },
         { header: 'Lyrics', key: 'lyrics', width: 50 },
+        ...researchColumns,
     ],
     film: [
         { header: 'Title', key: 'title', width: 30 },
@@ -1957,6 +1968,7 @@ const categoryColumns: Record<string, { header: string; key: string; width?: num
         { header: 'Synopsis', key: 'description', width: 50 },
         { header: 'Source URL', key: 'sourceUrl', width: 40 },
         { header: 'Tags', key: 'tags', width: 25 },
+        ...researchColumns,
     ],
     history: [
         { header: 'Title', key: 'title', width: 40 },
@@ -1966,6 +1978,7 @@ const categoryColumns: Record<string, { header: string; key: string; width?: num
         { header: 'Description', key: 'description', width: 60 },
         { header: 'Source URL', key: 'sourceUrl', width: 40 },
         { header: 'Tags', key: 'tags', width: 25 },
+        ...researchColumns,
     ],
     quote: [
         { header: 'Quote', key: 'title', width: 50 },
@@ -1975,13 +1988,62 @@ const categoryColumns: Record<string, { header: string; key: string; width?: num
         { header: 'Day', key: 'day', width: 6 },
         { header: 'Year', key: 'year', width: 8 },
         { header: 'Tags', key: 'tags', width: 25 },
+        ...researchColumns,
     ],
 };
+
+// Helper: parse moreResearch text into sections
+function parseResearchSections(text: string): { quickFacts: string; keyPeople: string; additionalNotes: string } {
+    const result = { quickFacts: '', keyPeople: '', additionalNotes: '' };
+    if (!text) return result;
+
+    const sections = text.split(/\n(?=Quick Facts:|Key People & Organizations:|Additional Notes:)/i);
+    for (const section of sections) {
+        const trimmed = section.trim();
+        if (/^Quick Facts:/i.test(trimmed)) {
+            result.quickFacts = trimmed.replace(/^Quick Facts:\s*/i, '').trim();
+        } else if (/^Key People & Organizations:/i.test(trimmed)) {
+            result.keyPeople = trimmed.replace(/^Key People & Organizations:\s*/i, '').trim();
+        } else if (/^Additional Notes:/i.test(trimmed)) {
+            result.additionalNotes = trimmed.replace(/^Additional Notes:\s*/i, '').trim();
+        } else if (!result.quickFacts && !result.keyPeople && !result.additionalNotes) {
+            // No section headers — treat entire text as additional notes
+            result.additionalNotes = trimmed;
+        }
+    }
+    return result;
+}
 
 // Helper: get row data for an entry based on its category columns
 function entryToRow(entry: Record<string, unknown>, cols: { key: string }[]): string[] {
     const meta = parseMetadata(entry.metadata as string | null);
+    // Pre-parse research sections from moreResearch
+    const researchText = (meta.moreResearch as string) || '';
+    const researchSections = parseResearchSections(researchText);
+
     return cols.map(col => {
+        // Handle AI research columns (prefixed with _)
+        if (col.key === '_wikipediaUrl') {
+            return (meta.wikipediaUrl as string) || '';
+        }
+        if (col.key === '_relatedLinks') {
+            const links = meta.relatedLinks as Array<{ label: string; url: string }> | undefined;
+            if (!links || links.length === 0) return '';
+            return links.map(l => l.label ? `${l.label}: ${l.url}` : l.url).join(' | ');
+        }
+        if (col.key === '_quickFacts') {
+            return researchSections.quickFacts;
+        }
+        if (col.key === '_keyPeople') {
+            return researchSections.keyPeople;
+        }
+        if (col.key === '_additionalNotes') {
+            return researchSections.additionalNotes;
+        }
+        if (col.key === '_aiEnhanced') {
+            return meta.aiEnhanced ? 'Yes' : '';
+        }
+
         // Check entry-level fields first, then metadata
         if (col.key in entry && entry[col.key] !== null && entry[col.key] !== undefined) {
             return String(entry[col.key]);
