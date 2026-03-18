@@ -12,7 +12,11 @@ fi
 # This is safe and idempotent, and ensures schema changes reach production
 echo "Running database migrations..."
 npx prisma migrate deploy || {
-    echo "Migration failed - starting server anyway (may have issues)"
+    echo "Migration failed (database may be locked). Retrying in 3 seconds..."
+    sleep 3
+    npx prisma migrate deploy || {
+        echo "Migration failed again - starting server anyway (may have issues)"
+    }
 }
 
 # Seed default categories (idempotent - skips if already exists)
