@@ -1275,9 +1275,13 @@ app.get('/api/entries/counts', async (_req, res) => {
 // GET single entry (Public - published only)
 app.get('/api/entries/:id', async (req, res) => {
     const id = req.params.id as string;
+    const numericId = parseInt(id, 10);
+    if (!Number.isFinite(numericId)) {
+        return res.status(404).json({ error: 'Entry not found' });
+    }
     try {
         const entry = await prisma.entry.findFirst({
-            where: { id: parseInt(id), isPublished: true },
+            where: { id: numericId, isPublished: true },
             include: { images: { orderBy: { sortOrder: 'asc' } } }
         });
         if (entry) {
@@ -2631,7 +2635,7 @@ Mark confidence as: high (strong source), medium (inferred), low (speculative).
 Available tags (use ONLY these exact names): ${CANONICAL_TAGS.join(', ')}.`;
 
     try {
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
         const prompt = `Research this ${category} entry for the Labor Database:
 
