@@ -101,7 +101,7 @@ In local dev, admin login is required but any password works when `ADMIN_PASSWOR
 - **Admin Dashboard** — Stats, preview/edit modals, publish workflow, image management
 - **Film Enrichment** — TMDB API for posters, cast, trailers with YouTube embeds
 - **Music Search** — Genius API for songwriter credits, LRCLIB for lyrics, YouTube auto-discovery
-- **Tag System** — 35 canonical tags based on Library of Congress labor subject headings
+- **Tag System** — 34 canonical tags, informed by Library of Congress labor subject headings, the Tamiment/Wagner Labor Archives and the Labor Film Database
 - **AI Research** — Gemini-powered research assistant with confidence indicators (admin-only)
 - **Multi-Format Export** — JSON, XLSX, CSV, and full ZIP (data + images)
 

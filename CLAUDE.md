@@ -118,6 +118,29 @@
 ## Known Issues
 - Large JS chunks from react-player (~992KB dash.all.min, ~521KB hls) — lazy-loaded via code splitting, only fetched when viewing entry detail with video
 
+### Tag storage will break on any tag containing a comma
+
+**Not a bug today. A trap with a known trigger.** Noted 9 August 2026.
+
+`Entry.tags` is a single comma-separated string (`"Mining, Strikes & Lockouts"`)
+and is split on `,`. That works **only because no canonical tag contains a
+comma** — verified across all 34 terms. It is safe by luck of the current
+vocabulary, not by construction, and nothing enforces it.
+
+**The trigger is already on the table.** Real Library of Congress subject
+headings routinely contain commas — inverted forms like `Labor unions, American`
+are the norm. So the moment the taxonomy is mapped onto actual LCSH strings,
+every stored row starts splitting into the wrong tags, silently, everywhere at
+once.
+
+**Before any LCSH mapping**, either move tags to a relation (or a JSON column),
+or pick a separator that cannot appear in a heading. Do not do the mapping first
+and the storage second.
+
+Related: `tags-dev.md` justifies the string schema with "works well for the
+current scale (~1000 entries)". Live count is **~5,950** and growing, so that
+particular argument no longer carries the weight it did.
+
 ## Helmet & CORS Gotchas (Production vs Local)
 
 ### Why Local Works But Production Breaks

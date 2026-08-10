@@ -2,7 +2,13 @@
 
 **Date**: 2026-03-03  
 **Scope**: Tag selection interface for submission forms, admin forms, and edit record forms  
-**Goal**: Beautiful, clean, intuitive UI/UX for adding/removing tags from approved Library of Congress labor taxonomy
+**Goal**: Beautiful, clean, intuitive UI/UX for adding/removing tags from the canonical labor taxonomy
+
+> **Wording note (9 Aug 2026):** an earlier draft called this the "approved Library of
+> Congress labor taxonomy". It is **informed by** LC labor subject headings — it is not
+> LCSH and no one at the Library of Congress approved it. `server/tags.ts` states this
+> correctly; keep the two in agreement. Mapping each term to its real `id.loc.gov` URI
+> is a genuine option, and would be the thing that earns the stronger claim.
 
 ---
 
@@ -29,14 +35,14 @@ model Entry {
 ```
 
 - Tags stored as **comma-separated string** (not relational)
-- Simple and works well for the current scale (~1000 entries)
+- Simple and works well for the current scale (~1000 entries at time of writing; **~5,950 as of 9 Aug 2026** — see the tag-storage note in `CLAUDE.md`)
 - No separate Tag table or many-to-many relationship
 
 ### 1.2 Canonical Tag Taxonomy
 
 **Location**: `server/tags.ts`
 
-**Structure**: 35 canonical tags organized into 3 groups:
+**Structure**: 34 canonical tags organized into 3 groups (13 + 13 + 8 — an earlier draft said 35):
 
 | Group | Tags |
 |-------|------|
