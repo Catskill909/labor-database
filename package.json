@@ -16,7 +16,9 @@
     "import:films": "tsx scripts/import-films.ts",
     "download:film-images": "tsx scripts/download-film-images.ts",
     "enrich:films": "tsx scripts/enrich-films-tmdb.ts",
-    "import:all": "tsx scripts/import-history.ts && tsx scripts/import-quotes.ts && tsx scripts/import-music.ts && tsx scripts/import-films.ts"
+    "import:all": "tsx scripts/import-history.ts && tsx scripts/import-quotes.ts && tsx scripts/import-music.ts && tsx scripts/import-films.ts",
+    "backfill:search": "tsx scripts/backfill-search-text.ts",
+    "test": "tsx --test server/*.test.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
