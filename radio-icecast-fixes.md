@@ -65,6 +65,53 @@ A named volume, private to that app.
 
 ---
 
+## How this happened (so it is not rebuilt the same way)
+
+Two mistakes, each harmless alone.
+
+**1. Bind mount instead of a named volume.** In Coolify's Persistent Storage,
+what goes in the source field decides the behaviour:
+
+- a **name** → Coolify creates a private Docker volume for that app
+- a **path** like `/app/data` → it bind-mounts that literal host folder
+
+Typing `/app/data` is the natural thing to do when the container path is
+`/app/data`, but it points every app that does so at the same physical
+directory. Compare on this server:
+
+```
+labor-database   /app/data->/app/data                          ← bind mount (shared)
+labor-landmarks  /var/lib/docker/volumes/...-labor-landmarks-data/_data->/app/data   ← named volume (private)
+```
+
+**2. The shared template.** These apps were cloned from one architecture, whose
+Dockerfile hardcodes:
+
+```
+ENV DATABASE_URL="file:/app/data/dev.db"
+```
+
+so they all inherited the same path *and* the same filename.
+
+**Either alone is survivable.** Shared folder with different filenames is merely
+untidy. Same filename in separate volumes is completely fine — that is Labor
+Landmarks. Shared folder *and* the same filename means both apps opened the
+identical file.
+
+**How to check any container in one command:**
+
+```sh
+docker inspect <container> --format '{{range .Mounts}}{{.Source}} {{end}}'
+```
+
+- starts with `/var/lib/docker/volumes/` → named volume, isolated ✅
+- a plain path like `/app/data` → bind mount, shared with anything else pointing there ⚠️
+
+**When creating a new app from this template, do both:** give it a named volume,
+and override `DATABASE_URL` to a filename unique to that app.
+
+---
+
 ## Goal
 
 Radio and icecast each get their **own** storage, and stop touching
