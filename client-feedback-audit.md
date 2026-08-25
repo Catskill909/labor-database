@@ -1,8 +1,13 @@
 # Client Feedback Audit & Solutions — Working Doc
 
-**Date:** 2026-08-25
+**Date:** 2026-08-25 (audit) · updated 2026-08-25 (phases 1–2 shipped)
 **Source:** Client email re: Labor Arts & Culture Database
-**Status:** Audit complete — every issue traced to root cause in code/data. Solutions proposed below, none implemented yet.
+**Status:** Audit complete — every issue traced to root cause in code/data.
+
+**Progress:**
+- **Phase 1 — done** (commit `fd64f35`): 2c search race condition, 3a heading rename, 3b history-years-only matching.
+- **Phase 2 — done**: 2a accent/punctuation-insensitive search, via folded shadow columns.
+- **Next:** 2b alternate titles (rides on 2a), then the 3b quote-year data audit, then the bigger features (1a, 1b, 1c) — several of which are gated on client answers below.
 
 ---
 
@@ -13,10 +18,10 @@
 | 1 | Public corrections/updates to existing entries | Feature request | n/a — doesn't exist yet | Medium (1–2 days) |
 | 2 | Adding new tags as DB evolves | Feature request | Tags hardcoded in 2 files | Medium (2–3 days, includes fixing comma trap) |
 | 3 | Bulk import from Labor Quotes site | Feature request | Import pipeline already exists | Small–Medium (mostly a scraping/mapping script) |
-| 4 | Accented search fails ("Misère") | **Bug** | ✅ SQLite `LIKE` is case-sensitive for non-ASCII | Small–Medium |
-| 5 | Search results appear then disappear | **Bug** | ✅ Race condition — no debounce/abort on main search | Small |
-| 6 | "From the Era" headings confusing | Copy change | ✅ Two strings in one file | Trivial |
-| 7 | Drake/Moby on July 12 | **Data + design flaw** | ✅ Verified — quote entries dated 2016–2023 trigger year-matching | Small code fix + data decision |
+| 4 | Accented search fails ("Misère") | **Bug** | ✅ SQLite `LIKE` is case-sensitive for non-ASCII | ✅ **FIXED** |
+| 5 | Search results appear then disappear | **Bug** | ✅ Race condition — no debounce/abort on main search | ✅ **FIXED** |
+| 6 | "From the Era" headings confusing | Copy change | ✅ Two strings in one file | ✅ **FIXED** |
+| 7 | Drake/Moby on July 12 | **Data + design flaw** | ✅ Verified — quote entries dated 2016–2023 trigger year-matching | ✅ Code fixed; data audit outstanding |
 
 ---
 
@@ -101,31 +106,77 @@ list, keep string storage — is ~8–10 hours, but leaves the comma trap open.)
 
 ## 2. Search Issues
 
-### 2a. "Misère" search fails — case sensitivity with accents (BUG, root cause confirmed)
+### 2a. "Misère" search fails — case sensitivity with accents ✅ SHIPPED
 
-**Root cause:** Search runs raw SQL `LIKE` against SQLite (`server/index.ts`
-~lines 906–1060). SQLite's `LIKE` is case-insensitive **only for ASCII A–Z**. For
-accented characters, `è` (U+00E8) ≠ `È` (U+00C8). The stored title is
-*"Misery in the Borinage (MISÈRE AU BORINAGE) [1933]"* — uppercase `È` — so
-lowercase "Misère" never matches, while all-caps "MISÈRE" matches exactly. This
-affects **every accented character in the database**, not just this film.
-There is no diacritic normalization anywhere in the codebase.
+**Root cause:** Search ran raw SQL `LIKE` against SQLite. SQLite's `LIKE` is
+case-insensitive **only for ASCII A–Z**. For accented characters, `è` (U+00E8) ≠
+`È` (U+00C8). The stored title is *"Misery in the Borinage (MISÈRE AU BORINAGE)
+[1933]"* — uppercase `È` — so lowercase "Misère" never matched.
 
-**Proposed solution (recommended: normalized shadow column):**
-1. Add a `searchText` column to `Entry`: lowercased + diacritics stripped
-   (Unicode NFD → remove combining marks) concatenation of title/creator/
-   description/tags, maintained on every create/update/import (same hook points
-   as `cleanEntryText()`).
-2. Normalize the incoming query the same way and `LIKE` against `searchText`.
-3. Backfill migration for all ~5,950 existing rows.
-4. This makes search both case-insensitive **and accent-insensitive**
-   ("misere" finds "MISÈRE") with no SQLite extension needed.
+**The class was larger than the reported instance.** Measured against the live
+local DB before the fix:
 
-Alternatives considered: SQLite ICU extension (deployment complexity in Docker),
-FTS5 with a custom tokenizer (bigger lift; a good future upgrade), normalizing
-only at query time (insufficient — stored text also needs folding).
+| Fold needed | Entries affected |
+|---|---|
+| Accented Latin letters (title/creator) | 150 |
+| Curly apostrophe `’` (title/description) | **864** |
+| Any non-ASCII (title/creator) | 1,428 |
 
-**Effort:** ~6–10 hours incl. migration + backfill. **Backup first** (rule 5).
+The curly-apostrophe population is ~6× the accent population and breaks far more
+ordinary searches — `don't` could never match a stored `don’t`, and
+`workers' rights` missed `workers’ rights`. Same root cause, same fix. Roughly
+1 entry in 7 was affected in some way.
+
+**Two further instances of the same bug** were found and fixed in the same pass:
+the public `creator` filter and the **admin** entry search, which is a
+near-duplicate copy of the public search builder. All three used raw `LIKE`.
+
+**What shipped — folded shadow columns:**
+1. `server/search-text.ts` — `normalizeSearchText()`: NFD-decompose → strip
+   combining marks → lowercase → collapse every non-alphanumeric to a space.
+   Letters/digits of all scripts are preserved (`\p{L}`/`\p{N}`), so CJK and
+   Cyrillic titles stay searchable; only punctuation is dropped.
+2. Four columns on `Entry` — `searchTitle`, `searchCreator`, `searchDescription`,
+   `searchAll` — holding folded, space-padded copies. The three narrow columns
+   exist purely to preserve the existing result ranking (exact title > title >
+   creator > description); `searchAll` alone drives the `WHERE`.
+3. The query is folded identically, so both sides meet in the same character
+   space and plain `LIKE` works again. This also replaced the 15-deep nested
+   `REPLACE()` the SQL used to run per field per row.
+4. `syncSearchText()` recomputes the columns on every server write —
+   create, admin update, JSON import, ZIP import, tag normalize, auto-tag.
+
+**Two traps found while implementing, both avoided:**
+- *Partial updates.* The admin `PUT` and both import paths treat an omitted
+  field as "leave unchanged". Deriving the columns from the request body would
+  have silently blanked whatever the caller didn't send. `syncSearchText()`
+  therefore reads the **persisted row** rather than the payload.
+- *Punctuation-only queries.* A query like `"???"` folds to an empty string,
+  and the resulting `'% %'` pattern would have matched **every row**. Both
+  search paths now short-circuit to zero results.
+
+**Deployment note — this migration is not self-sufficient.** `prisma migrate
+deploy` adds the columns as NULL on all ~5,950 production rows, and search
+matches nothing until they are populated. `docker-entrypoint.sh` therefore runs
+`scripts/backfill-search-text.ts --missing-only` after migration (a no-op on
+later boots), and the Dockerfile now copies `scripts/` into the runtime image,
+which it previously did not. Verified by simulating the deploy against a copy of
+the production-shaped DB.
+
+**Known limitation:** the seven standalone scripts in `scripts/` each construct
+their own `PrismaClient` and bypass `syncSearchText()`. After running any of
+them, run `npm run backfill:search` (full rebuild). This is documented in
+CLAUDE.md rather than papered over.
+
+**Verified:**
+- `misère`, `MISÈRE`, `Misère`, `misere`, `MISERE` all return the film.
+- `farmers' national alliance` and `farmers’ national alliance` return the same result.
+- `Cesar Chavez` now returns 35 entries where it previously returned 31 — the 4
+  entries spelled `César` were unreachable before.
+- Date, decade and year searches (`July 1877`, `1930s`, `1886`) unchanged.
+- `npm test` — 9 tests in `server/search-text.test.ts` covering the class
+  (both fold directions, both apostrophe styles, the full diacritic set,
+  non-Latin preservation, punctuation-only input, field coverage, padding).
 
 ### 2b. Alternate / translated titles
 
@@ -133,12 +184,13 @@ only at query time (insufficient — stored text also needs folding).
 exists. Some entries embed alternates in the title string ("(aka Freedom for Us)").
 
 **Proposed solution:** Add `alternateTitles` to the film `metadata` JSON (already
-category-specific) and include it in the `searchText` column from 2a. The `LIKE`
-against metadata already exists, so anything stored there is findable once
-case/accent folding is fixed. TMDB enrichment can auto-populate original +
-translated titles (`original_title`, `alternative_titles` endpoint).
+category-specific). **Now largely free on the search side:** `metadata` is folded
+into `searchAll`, so anything written there is immediately findable, accent- and
+punctuation-insensitively, with no further search work. Remaining work is the
+admin form field and a TMDB enrichment hook (`original_title`,
+`alternative_titles` endpoint).
 
-**Effort:** ~4–6 hours (metadata field + admin form field + TMDB enrichment hook).
+**Effort:** ~3–4 hours (down from 4–6 — the search half is already done).
 
 ### 2c. Results appear briefly then disappear (BUG, root cause confirmed)
 
@@ -214,30 +266,134 @@ every modern song from the same year.
 
 ---
 
-## Suggested Sequencing
+## Sequencing
 
-1. **Quick wins (one small deploy):** 2c race-condition fix + debounce; 3a heading
-   rename; 3b code fix (history-years-only or tag-gated matching).
-2. **Search quality:** 2a normalized `searchText` column (+ backfill migration),
-   then 2b alternate titles riding on it.
-3. **Data work (no deploy):** 3b quote-year audit; 1c Labor Quotes import script.
-4. **Bigger features:** 1a correction-suggestion flow; 1b admin-managed tags
-   (folding in the comma-trap fix).
+1. ~~**Quick wins:** 2c race-condition fix + debounce; 3a heading rename; 3b
+   history-years-only matching.~~ ✅ **Done** — commit `fd64f35`.
+2. ~~**Search quality:** 2a folded search columns + backfill.~~ ✅ **Done.**
+3. **Next up — 2b alternate titles.** Cheap now that 2a has landed; no schema
+   migration needed (rides in the film `metadata` JSON).
+4. **Data work (no deploy):** quote-date cleanup — *needs a decision, not more
+   investigation* (see Client Questions 3 and Data Findings A/B); 1c Labor Quotes
+   import — *unblocked on platform (Weebly), still needs the site URL*.
+5. **Bigger features:** 1a correction-suggestion flow — **unblocked**, Q4 answered
+   (name + email collected); 1b admin-managed tags, folding in the comma-trap fix.
 
-## Open Questions for the Client
+**Note on ordering:** 1b (admin-managed tags) should stay last of the features,
+but it must come **before** any LCSH mapping — see the comma-trap warning in
+CLAUDE.md. Real Library of Congress subject headings contain commas, and
+`Entry.tags` is still a comma-separated string.
 
-1. Labor Quotes site: what platform is it (WordPress?), and can they provide an
-   export rather than us scraping?
-2. For "Related Films/Music": prefer tag-based matching, curated links, or
-   history-years-only as the first step?
-3. Quote dates: are the 2016–2023 years on quotes intentional ("date featured") or
-   should they reflect the quote's historical date? This decides the data cleanup.
-4. Should public correction suggestions require the submitter's name/email (as new
-   submissions do today)?
+## Client Questions — Status
+
+**1. Labor Quotes site platform — ANSWERED: Weebly.**
+This rules out the WordPress path. Weebly has no structured content export
+equivalent to WXR, so the options are, in order of preference:
+- **A Weebly blog RSS/Atom feed**, if the quotes are published as blog posts —
+  structured, and the cleanest source. Feeds are often capped to recent posts,
+  so check depth before relying on it.
+- **HTML scraping** of the site's archive pages — the likely fallback.
+- **Whatever export the site owner can produce** from their own admin.
+
+*Still needed from the client: the site URL, and confirmation they own/control
+the account.* Effort estimate holds at ~4–8 hours, leaning toward the top of
+that range if scraping is required.
+
+**2. "Related Films/Music" matching — partially answered by shipping.**
+History-years-only matching is live and resolves the reported symptom. Open only
+if they want to go further (tag-gated matching or curated links).
+
+**3. Quote dates — ANSWERED BY THE DATA. No longer a question of fact.**
+
+Every quote year in the database falls in **2014–2026**, the site's publishing
+era. Not one of the 1,747 dated quotes carries a historical year. The July 12
+entries make it unambiguous — Wendell Phillips (d. 1884) is dated 2016, Eddie
+Cantor (d. 1964) 2017, Woody Guthrie (d. 1967) 2019, Boris Karloff (d. 1969)
+2023. These are "date featured", definitively.
+
+The source CSV confirms it: the `DATES` column holds a single `YYYY.MM.DD`
+featured date, and `scripts/import-quotes.ts` maps it to month/day/year.
+
+**This means the month/day is the featured date too** — so the quote section of
+On This Day currently shows *"quotes we published on this calendar date in past
+years"*, not *"quotes connected to this date in labor history."* That may be
+exactly what LHF wants (it is their quote-of-the-day archive, and the pairings
+may have been editorially chosen), or it may be the same confusion the client
+flagged for films/music. **This is the real question to put to them** — it is a
+design decision, not a data fact.
+
+What remains is a decision, not an investigation:
+- **(a) Leave as is.** Harmless to matching now that On This Day ignores quote
+  years, but the year is still wrong if it is displayed anywhere as the quote's date.
+- **(b) Move the featured date out of `year`** into `metadata.featuredDate`,
+  leaving `year` null unless someone researches the real date. Most honest;
+  preserves the archive; keeps the quote-of-the-day pairing intact.
+- **(c) Clear the years outright.** Simplest, loses the archive information.
+
+Recommend **(b)**.
+
+**4. Public correction submitter details — ANSWERED: name and email will be
+collected**, same as new submissions. No further input needed; 1a can be
+specified as designed.
+
+---
+
+## Data Findings from the Quote-Date Investigation (25 Aug 2026)
+
+Three concrete issues surfaced while resolving question 3. All are **DATA**
+problems (plus one script bug); none are urgent, none are fixed yet.
+
+### A. The quote importer's date parser fails silently on malformed input
+
+`parseDateField()` in `scripts/import-quotes.ts` splits on `.` and calls
+`parseInt` on the first part with no validation. A source date in `M/D/YYYY`
+format therefore yields `year = 5` from `"5/6/2025"` rather than being rejected.
+
+**Damage is small and bounded — 7 rows have a malformed source date, of which 4
+carry real damage:**
+
+| ID | Source value | Stored result | Effect |
+|----|--------------|---------------|--------|
+| 1599 | `5/6/2025` | year 5, no month/day | wrong year; invisible in On This Day |
+| 2020 | `5/29/2025` | year 5, no month/day | wrong year; invisible in On This Day |
+| 3143 | `12/17/2024` | year 12, no month/day | wrong year; invisible in On This Day |
+| 2983 | `2022.04/14` | year 2022, month 4, **no day** | missing from On This Day |
+| 1840 | `2021.05.14: 2017.05.15` | first date parsed correctly | second date lost only |
+| 2616 | `2014.11.21.2014` | parsed correctly | none |
+
+**Swept for the class:** no other importer shares the pattern —
+`import-films.ts` uses a validated regex, `import-music.ts` a regex match, and
+`import-history.ts` reads separate Month/Day/Year columns. A full-database scan
+for implausible years (`< 1500` or `> 2027`) returns only these 3 quote rows.
+The two odd history years, **1170** and **1381**, are genuine — the papyrus
+strike and the Peasants' Revolt.
+
+**Fix:** make `parseDateField()` reject anything not matching
+`^\d{4}\.\d{1,2}\.\d{1,2}$` and report skipped rows rather than guessing,
+then correct the 4 damaged rows via the Admin Dashboard.
+
+### B. 398 On This Day appearances are missing — importer keeps only the first date
+
+374 quotes have **multiple** featured dates in the source (`2021.05.25;
+2019.05.27; 2016.11.09`), and the importer takes only the first. 555 dates are
+dropped. Of those, **296 quotes have an extra date on a different calendar day**,
+costing **398 quote/day appearances** that On This Day should be showing and is not.
+
+This is not a bug so much as a schema limit: `Entry` holds one month/day/year.
+Supporting it properly means a repeating-dates field (e.g. `metadata.featuredDates`
+array) plus an On This Day query that checks it — which pairs naturally with
+option **(b)** in question 3 above.
+
+### C. 169 quotes have no year at all
+
+Expected (the source `DATES` field was blank) and harmless. Noted for completeness.
 
 ## Reminders Before Implementation
 
 - **Backup before any schema/migration/import work** (CLAUDE.md rule 5):
   `cp prisma/dev.db backups/dev-$(date +%Y%m%d-%H%M%S).db` + production Full Backup ZIP.
 - `npx tsc --noEmit` must pass before any push (strict mode; deploy runs `tsc -b`).
+- `npm test` must pass (search folding tests).
 - Data fixes (quote years, imports) go through Admin Dashboard, not git.
+- **After running anything in `scripts/`**, run `npm run backfill:search` — those
+  scripts use their own PrismaClient and do not maintain the search columns.
