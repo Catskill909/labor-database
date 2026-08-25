@@ -11,6 +11,10 @@
 
 ---
 
+> **This document is the analysis** — root causes, evidence, effort estimates.
+> For the current working state (what is done, what is next, what is blocked, and
+> the tracked bugs BUG-1/2/3), see [HANDOFF.md](HANDOFF.md).
+
 ## Quick Verdict Table
 
 | # | Issue | Type | Root cause found? | Fix difficulty |

@@ -1,5 +1,9 @@
 # CLAUDE.md - Project Guardrails for Labor Arts & Culture Database
 
+> **Starting a new session?** Read [HANDOFF.md](HANDOFF.md) first — current state,
+> open bugs (BUG-1/2/3), next tasks, and what is blocked on the client.
+> This file is the permanent rules; HANDOFF.md is the moving state.
+
 ## Critical Rules (Read Before Every Session)
 
 ### 1. TypeScript Strict Mode is ON
