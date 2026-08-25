@@ -57,8 +57,15 @@ in the data directory (`stations.db`, `playlists/`, `audiofiles/`) are radio's.
 
 ### The fix — isolate RADIO and ICECAST, not labor-database
 
-**Runbook: [radio-icecast-fixes.md](radio-icecast-fixes.md)** — hand that to
-whoever works on those apps.
+**Two runbooks, in this order:**
+1. **[radio-icecast-fixes.md](radio-icecast-fixes.md)** — move radio and icecast
+   off the shared folder. Hand to whoever works on those apps. Removes today's
+   collision.
+2. **[labor-database-volume-isolation.md](labor-database-volume-isolation.md)** —
+   give this app its own named volume so **no future app can ever collide again**.
+   Step 1 only fixes the apps that exist today; step 2 makes it structurally
+   impossible. Do it rested, on a quiet day — it moves client data and takes the
+   site down for ~15–30 min.
 
 Move the apps that can afford to break. Radio and icecast are personal projects
 with no users; labor-database is the live client app. So radio and icecast each
