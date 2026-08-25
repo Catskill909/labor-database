@@ -5,15 +5,17 @@
 **Status:** Audit complete — every issue traced to root cause in code/data.
 
 **Progress:**
-- **Phase 1 — done** (commit `fd64f35`): 2c search race condition, 3a heading rename, 3b history-years-only matching.
-- **Phase 2 — done**: 2a accent/punctuation-insensitive search, via folded shadow columns.
-- **Next:** 2b alternate titles (rides on 2a), then the 3b quote-year data audit, then the bigger features (1a, 1b, 1c) — several of which are gated on client answers below.
+- **Phase 1 — LIVE** (`fd64f35`): 2c search race condition, 3a heading rename, 3b history-years-only matching.
+- **Phase 2 — LIVE** (`d961c54`, 25 Aug ~22:30 UTC): 2a accent/punctuation-insensitive search via folded shadow columns. Verified in production against Chris's exact searches.
+- **2b alternate titles — satisfied by 2a**, not a separate task. Chris's failing search was "Misère au Borinage", an alternate title embedded in the title string; it now works. A dedicated field would be an enhancement.
+- **Next:** 3b/C2 "meaningfully connected" matching (needs Chris's answer), then corrections (1a, also needs his answer), then Labor Quotes import (1c) and admin tags (1b).
+- **Deploy caveat:** Phase 2 only deployed because two other apps were stopped — `radio.supersoul.top` shares the same SQLite file. See BUG-6 in HANDOFF.md; must be fixed before any future schema change.
 
 ---
 
 > **This document is the analysis** — root causes, evidence, effort estimates.
 > For the current working state (what is done, what is next, what is blocked, and
-> the tracked bugs BUG-1/2/3), see [HANDOFF.md](HANDOFF.md).
+> the tracked bugs), see [HANDOFF.md](HANDOFF.md) — that is the session entry point.
 
 ## Quick Verdict Table
 

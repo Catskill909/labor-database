@@ -98,13 +98,13 @@ and media database follow-up questions". **Work from his wording, not paraphrase
 
 | # | Chris's ask | Status |
 |---|---|---|
-| A1 | Expand "Add" so users can submit **corrections/updates** to existing entries | Not started |
+| B1 | Searches **case-insensitive** + recognise **alternate/translated titles** | ✅ **LIVE** 25 Aug |
+| B2 | Results **appear briefly then disappear** | ✅ **LIVE** (`fd64f35`) |
+| C1 | Rename "Films/Music From the Era" → **"Related Films/Music"** | ✅ **LIVE** (`fd64f35`) |
+| C2 | Clarify how selections are generated; limit them to entries **"meaningfully connected to the day's history"** | ⚠️ **Half done** — Drake/Moby gone, but still year-matching, not topical. Also owes him an answer: the music was never from another source |
+| A1 | Expand "Add" so users can submit **corrections/updates** to existing entries | ⏸ Awaiting his answer on placement + form type |
 | A2 | How can we **add new tags** as the database evolves? | Not started |
-| A3 | **Bulk-import** from the Labor Quotes site | Not started |
-| B1 | Searches **case-insensitive** + recognise **alternate/translated titles** | ✅ Fixed, awaiting deploy |
-| B2 | Results **appear briefly then disappear** | ✅ Fixed, awaiting deploy |
-| C1 | Rename "Films/Music From the Era" → **"Related Films/Music"** | ✅ Fixed, awaiting deploy |
-| C2 | Clarify how selections are generated; limit them to entries **"meaningfully connected to the day's history"** | ⚠️ **Partially done — see below** |
+| A3 | **Bulk-import** from the Labor Quotes site | Not started — URL is laborquotes.weebly.com/c.html |
 
 ### B1 is fully satisfied — verified against his exact searches
 
@@ -254,26 +254,41 @@ wider question of what should relate to a day.
 ## Action items
 
 **Paul**
-- [ ] Deploy to Coolify, then confirm here for production verification
+- [ ] Restart `radio.supersoul.top` and `icecast.supersoul.top` (stopped for the
+      25 Aug deploy) — if not already done
 - [ ] Reply to Chris in the shape he asked: what's straightforward, what needs
       discussion, how you'd prioritise
 
-**For the reply to Chris**
-- Fixed and live: flickering results; accented searches (his exact "Misère"
-  and "Misère au Borinage" cases); "Related Films/Music"; Drake/Gaynor/Moby gone
-  from July 12
-- Scale: roughly 1 entry in 7 was affected by the search bug — 864 with curly
-  apostrophes, 150 with accented letters
-- **Answer his question:** selections were never from another source; they came
-  from his own database, matched by year
-- **Ask him:** should Related Films/Music use shared tags, or curated links?
-- Straightforward next: corrections flow (A1), Labor Quotes import (A3)
-- Needs discussion: tag management (A2), and the C2 matching rule
+**For the reply to Chris — three things**
+
+*Report as done:*
+- Search flickering fixed; accented search fixed — **his exact "Misère" and
+  "Misère au Borinage" both work now**; "Related Films/Music" renamed;
+  Drake/Gaynor/Moby gone from July 12
+- Scale worth mentioning: roughly 1 entry in 7 was affected by the search bug —
+  864 with curly apostrophes, 150 with accented letters
+
+*Answer his direct question:*
+- The music was **never** from another source. Every selection came from the LHF
+  database itself; Genius/TMDB are only used when adding entries. Drake was in his
+  own database, matched by release year.
+
+*Ask him:*
+- **C2** — should Related Films/Music match on **shared tags** (the 34-term
+  taxonomy already exists) rather than year? Or curated manual links?
+- **A1** — corrections: where should the entry point live, and should the form
+  pre-fill editable fields or take a freeform note? (Draft wording in the session
+  notes; recommend in-entry link + pre-filled fields, and mention that corrections
+  go to a review queue, nothing changes live without his approval.)
+
+*Do not raise:* the 25 Aug outage (18 min, resolved, no data lost, nothing for
+him to action) or the quote-date findings (he never asked; affects 3 entries).
 
 **Next dev session**
-- [ ] TASK-C2 once Chris confirms the matching rule
-- [ ] TASK-A1 (unblocked)
+- [ ] TASK-C2 once Chris confirms the matching rule — highest value
+- [ ] TASK-A1 once he answers placement + form type
 - [ ] TASK-A3, folding in BUG-2
+- [ ] BUG-6 (volume isolation) **before any future schema change**
 
 ---
 
