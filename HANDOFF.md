@@ -10,138 +10,86 @@ Archive" (`lhf-tools.supersoul.top`) is a **separate project, tracked elsewhere.
 
 ---
 
-## ⚠️ Current state: search fix REVERTED after a production outage
+## ✅ Current state: search fix is LIVE (25 Aug 2026, ~22:30 UTC)
 
-**Production is healthy.** `main` is at `6093f7a`, a revert of the search change.
-Phase 1 fixes (search race condition, Related Films/Music rename, history-only
-era matching) are still live and verified.
+Deployed at `d961c54`. Verified in production:
 
-**Root cause NOT found.** Three theories were proposed; all three were wrong.
-Migrations fail with a *persistent* "database is locked". See BUG-5 for what has
-been ruled out and the safe next steps. **The site is healthy; this is not urgent.**
+- Chris's exact searches all return the film: "Misère", "misère", "MISÈRE",
+  and **"Misère au Borinage"** (his alternate-title case)
+- `farmers'` and `farmers’` return identical results
+- `Cesar Chavez` returns **35** (was 32 — the four "César" entries are now reachable)
+- `Buñuel` returns 3
+- No regressions: Haymarket 12, July 1877 4, 1930s 100, 1886 20
+- Punctuation-only queries return 0, not everything
+- July 12 shows `matchedYears: [1917, 1933]`, no Drake/Gaynor/Moby
 
-### INCIDENT — 25 Aug 2026, ~19:30–19:48 UTC (~18 min)
+### ⚠️ IMPORTANT — this only worked because two apps were stopped
 
-**Symptom:** every page loaded then went blank. All Entry API endpoints returned
-500. `/api/health` stayed green throughout, so monitoring showed nothing wrong.
+`radio.supersoul.top` and `icecast.supersoul.top` were stopped for this deploy so
+`prisma migrate deploy` could get its exclusive lock. **The moment radio is
+running again, the next migration will fail exactly as before.**
 
-**Error:** `no such column: searchTitle` (Prisma P2010)
+**The migration itself is now applied, so day-to-day deploys are fine.** But any
+*future schema change* needs either the same stop-deploy-start dance, or the
+permanent fix below.
 
-**Cause:** commit `784a6ef` shipped code expecting four new columns. On the
-production container `prisma migrate deploy` did **not** apply the migration, so
-the columns never existed. Every Entry query failed. Health checks kept passing
-because that endpoint runs raw `SELECT 1`, which touches no Entry columns.
-
-**Resolution:** reverted the code (`6093f7a`) and redeployed. Service restored.
-No data was lost — the migration is additive and never ran.
-
-**Why it was not caught:** the migration was verified against a *copy of the
-local database*, which has clean migration history. Production's migration state
-was never checked. A green local test said nothing about whether production
-would accept the migration.
+**The entrypoint now fails loudly** (`exit 1`) if a migration fails — so a future
+failure takes the site *down* rather than serving errors silently. That is
+deliberate, but it means the volume isolation below is now important, not
+optional.
 
 ---
 
-## 🔴 BUG-5 · ROOT CAUSE FOUND: two apps share one SQLite file
+## 🔴 BUG-6 · Three apps share one host directory · **do this before the next migration**
 
-**`radio.supersoul.top` and `labor-database.supersoul.top` use the same database
-file.** Confirmed 25 Aug 2026 with hard evidence.
+`radio.supersoul.top` uses `DATABASE_URL=file:/app/data/dev.db` — **the same file
+as labor-database.** Confirmed via `lsof` (two node processes, same inode
+4456477) and `docker inspect`.
 
-```
-$ docker inspect cc008s4ggks4kwgcw4oos0oo-...
-DATABASE_URL=file:/app/data/dev.db
-COOLIFY_FQDN=radio.supersoul.top
+Three containers bind-mount the host path `/app/data` instead of isolated named
+volumes — labor-database, radio, icecast. They also share `/app/uploads`.
+Labor Landmarks does it correctly with a named volume
+(`skswcso44gcoc0c0soggsskg-labor-landmarks-data`).
 
-$ lsof /app/data/dev.db
-node       4829  root  47ur  REG  8,1  9064448  4456477  /app/data/dev.db
-node    2631460  root  34ur  REG  8,1  9064448  4456477  /app/data/dev.db
-```
+This is a data-integrity issue, not just a deploy problem: two apps writing one
+SQLite file, each Prisma schema unaware of the other's tables. The foreign files
+in the data directory (`stations.db`, `playlists/`, `audiofiles/`) are radio's.
 
-Two node processes, same inode. Three containers bind-mount the **host path**
-`/app/data` rather than each having an isolated named volume:
+### The fix — isolate labor-database onto its own volume
 
-| Container | App | Mount |
-|---|---|---|
-| `og4ccgs0s0cw80kccskgksww` | labor-database | `/app/data->/app/data` |
-| `cc008s4ggks4kwgcw4oos0oo` | radio.supersoul.top | `/app/data->/app/data` |
-| `tkgs40k8wo0kwo4w8kgowg8o` | icecast.supersoul.top | `/app/data->/app/data` |
+**Do not change Coolify storage settings before moving the data** — a wrong move
+points the app at an empty database.
 
-Labor Landmarks does it correctly:
-`skswcso44gcoc0c0soggsskg-labor-landmarks-data/_data->/app/data`.
-
-**Why this caused the outage:** the radio app holds a permanent connection, so
-`prisma migrate deploy` can never get the exclusive lock a schema change needs.
-Migrations have failed on every deploy since radio was deployed. The entrypoint
-started the server anyway (BUG-4), so it stayed invisible until a deploy finally
-depended on a migration.
-
-This also explains the foreign files in the data directory — `stations.db`,
-`playlists/`, `audiofiles/` belong to the radio app.
-
-### ⚠️ This is a data-integrity issue, not just a deploy problem
-
-Two applications writing one SQLite file, each with a Prisma schema unaware of
-the other's tables. Fix the isolation and the search deploy unblocks itself.
-
-### Fix — isolate labor-database onto its own volume
-
-**Do not change the Coolify storage config without moving the data first** — a
-wrong move points the app at an empty database.
-
-1. **Fresh Full Backup** (admin → Export → Full Backup ZIP) **and** a host-side
-   copy: `cp -a /app/data/dev.db* /root/labor-db-backup-$(date +%F)/`
-2. Confirm what is in the file: `sqlite3 /app/data/dev.db ".tables"` — expect both
-   apps' tables to coexist.
-3. Create a named volume for labor-database in Coolify (mirroring the Labor
-   Landmarks pattern) and copy `dev.db` into it **before** first start.
+1. Fresh Full Backup (admin → Export) **and** a host copy:
+   `cp -a /app/data/dev.db* /root/labor-db-backup-$(date +%F)/`
+2. `sqlite3 /app/data/dev.db ".tables"` to see what actually lives in the file.
+3. Create a named volume in Coolify mirroring the Labor Landmarks pattern, and
+   copy `dev.db` into it **before** first start. Same for `/app/uploads`.
 4. Redeploy. Radio keeps the original file untouched.
-5. Verify entry count and search, then re-attempt the search-columns migration —
-   with an exclusive lock now obtainable, it should apply normally.
+5. Verify entry count, search, and images.
 
 **Ruled out earlier — do not re-investigate:** migration history drift/P3005
-(`migrate status` reports up to date); the migration file missing from the image
+(`migrate status` reports up to date); migration file missing from the image
 (committed, not gitignored, not dockerignored); container-handover lock
-contention (33s gap between old and new container, plus a 12x5s retry, both
-still failed).
-
-
-## BUG-4 · A failed migration does not stop the deploy · fix written, then reverted
-
-`docker-entrypoint.sh` starts the server even when `migrate deploy` fails:
-
-```sh
-npx prisma migrate deploy || { ...retry... || echo "Migration failed again - starting server anyway (may have issues)" }
-```
-
-**That is what turned a failed migration into an 18-minute outage** — the server
-came up against a schema it did not match and served 500s from every endpoint
-touching `Entry`, while `/api/health` stayed green because it only runs a raw
-`SELECT 1`.
-
-Commit `9528797` added a 12×5s retry and made failure `exit 1`. It was reverted
-in `3af9615`: with the lock being *permanent*, refusing to start meant the site
-stayed **down** instead of up.
-
-**The fail-loudly half is still correct** and should be restored **after** BUG-5
-is genuinely fixed — not before, or every deploy takes the site down.
+contention (33s gap plus a 12×5s retry, both still failed).
 
 ### Also worth doing
 
-- **Make `/api/health` touch the Entry table**, so a schema mismatch reports
-  unhealthy instead of green. This is why nothing caught the outage.
-- **Add a SIGTERM handler** to the server for clean shutdown and WAL checkpoint.
+- **Make `/api/health` touch the Entry table.** It runs a raw `SELECT 1`, so it
+  reported healthy through the entire 25 Aug outage. This is why nothing caught it.
+- **Add a SIGTERM handler** for clean shutdown and WAL checkpoint.
 
-### Before re-attempting the search fix
-1. Fix BUG-4 so a failed migration stops the deploy.
-2. Get the migration log; diagnose BUG-5; repair production migration history.
-3. Take a fresh production Full Backup.
-4. Deploy and watch for `Checking search index... 5955 entries indexed`.
-5. If anything is wrong, revert is one push — the change is self-contained.
+### INCIDENT — 25 Aug 2026, ~19:30–19:48 UTC (~18 min)
 
-The search fix itself is sound: 9/9 tests pass, verified end-to-end against
-5,955 real entries. **The code was never the problem — the deploy process was.**
+Search fix deployed; `migrate deploy` failed on the shared-file lock; the
+entrypoint started the server anyway; every Entry endpoint returned 500 while
+`/api/health` stayed green. Reverted, then re-deployed successfully once the
+competing apps were stopped. No data lost.
 
----
+**Why it was not caught:** the migration was verified against a copy of the
+*local* database, which has clean history and no competing process. Production's
+actual conditions were never tested.
+
 
 ## The client's actual asks
 
