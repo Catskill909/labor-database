@@ -10,33 +10,79 @@ Archive" (`lhf-tools.supersoul.top`) is a **separate project, tracked elsewhere.
 
 ---
 
-## ⚠️ Current state: code is pushed, NOTHING IS LIVE YET
+## ⚠️ Current state: search fix REVERTED after a production outage
 
-Three commits are on `origin/main` and **have not been deployed**. Deploy is
-manual — trigger it in Coolify when ready.
+**Production is healthy.** `main` is at `6093f7a`, a revert of the search change.
+Phase 1 fixes (search race condition, Related Films/Music rename, history-only
+era matching) are still live and verified.
 
-| Commit | What |
-|---|---|
-| `784a6ef` | Search accent/punctuation fix + migration + backfill + tests |
-| `e49924f` | This handoff doc |
-| `9295232` | gitignore for local incident notes |
+**Do not redeploy the search fix until BUG-4 and BUG-5 below are resolved.**
 
-**Pre-deploy checks — all done:** production Full Backup taken · `npm run build` ✓
-· `npx tsc -b` ✓ · `npm test` 9/9 ✓ · deploy path simulated against a copy of the
-production-shaped DB (migrate → backfill → search works → second boot no-op).
+### INCIDENT — 25 Aug 2026, ~19:30–19:48 UTC (~18 min)
 
-**When deploying, watch the Coolify log for:**
+**Symptom:** every page loaded then went blank. All Entry API endpoints returned
+500. `/api/health` stayed green throughout, so monitoring showed nothing wrong.
+
+**Error:** `no such column: searchTitle` (Prisma P2010)
+
+**Cause:** commit `784a6ef` shipped code expecting four new columns. On the
+production container `prisma migrate deploy` did **not** apply the migration, so
+the columns never existed. Every Entry query failed. Health checks kept passing
+because that endpoint runs raw `SELECT 1`, which touches no Entry columns.
+
+**Resolution:** reverted the code (`6093f7a`) and redeployed. Service restored.
+No data was lost — the migration is additive and never ran.
+
+**Why it was not caught:** the migration was verified against a *copy of the
+local database*, which has clean migration history. Production's migration state
+was never checked. A green local test said nothing about whether production
+would accept the migration.
+
+---
+
+## 🔴 BUG-4 · A failed migration does not stop the deploy · **CRITICAL — fix first**
+
+`docker-entrypoint.sh` swallows migration failure and starts the server anyway:
+
+```sh
+npx prisma migrate deploy || { ...retry... || echo "Migration failed again - starting server anyway (may have issues)" }
 ```
-Checking search index...
-  5955 rebuilt
-Done — 5955 entries indexed.
-```
-Takes ~2 seconds. **If that step does not appear, search will return nothing** —
-fix is `npm run backfill:search`. This is the only failure mode that matters.
 
-**Rollback:** the migration is four `ALTER TABLE ADD COLUMN` statements with
-nullable columns. No table rebuild, nothing overwritten. Reverting the code is a
-clean rollback — the old code ignores the columns entirely.
+**This is what turned a failed migration into an 18-minute outage.** Without it,
+the container would have refused to start and Coolify would have kept the
+previous version running — users would have seen nothing at all.
+
+**Fix:** exit non-zero when `migrate deploy` fails, so the deploy fails loudly
+instead of serving 500s. Consider also making `/api/health` touch the Entry table
+so a schema mismatch shows up as unhealthy rather than green.
+
+**This is the highest-value fix in the repo right now** — it is the difference
+between a failed deploy and a broken site, for every future migration.
+
+## 🔴 BUG-5 · Production migration history does not accept new migrations · **blocks the search fix**
+
+`prisma migrate deploy` refused to apply `20260825184951_add_search_shadow_columns`
+on production. Local applies it cleanly, so this is production-side state.
+
+**Still unknown — needs the deploy log.** Capture the lines immediately after
+`Running database migrations...` from a Coolify deploy. Likely candidates:
+- **P3005** "database schema is not empty" — production has tables but no
+  migration history recorded. Repair with `prisma migrate resolve --applied
+  20260225144054_init`.
+- Database locked / WAL contention — the entrypoint already retries once.
+- Something else — **get the log, do not guess.**
+
+**Do not retry the search deploy until this is understood and BUG-4 is fixed.**
+
+### Before re-attempting the search fix
+1. Fix BUG-4 so a failed migration stops the deploy.
+2. Get the migration log; diagnose BUG-5; repair production migration history.
+3. Take a fresh production Full Backup.
+4. Deploy and watch for `Checking search index... 5955 entries indexed`.
+5. If anything is wrong, revert is one push — the change is self-contained.
+
+The search fix itself is sound: 9/9 tests pass, verified end-to-end against
+5,955 real entries. **The code was never the problem — the deploy process was.**
 
 ---
 
