@@ -59,20 +59,45 @@ so a schema mismatch shows up as unhealthy rather than green.
 **This is the highest-value fix in the repo right now** — it is the difference
 between a failed deploy and a broken site, for every future migration.
 
-## 🔴 BUG-5 · Production migration history does not accept new migrations · **blocks the search fix**
+## 🔴 BUG-5 · `migrate deploy` silently failed to apply the migration · **blocks the search fix**
 
-`prisma migrate deploy` refused to apply `20260825184951_add_search_shadow_columns`
-on production. Local applies it cleanly, so this is production-side state.
+The migration `20260825184951_add_search_shadow_columns` was never applied on
+production, so the code shipped expecting columns that did not exist.
 
-**Still unknown — needs the deploy log.** Capture the lines immediately after
-`Running database migrations...` from a Coolify deploy. Likely candidates:
-- **P3005** "database schema is not empty" — production has tables but no
-  migration history recorded. Repair with `prisma migrate resolve --applied
-  20260225144054_init`.
-- Database locked / WAL contention — the entrypoint already retries once.
-- Something else — **get the log, do not guess.**
+### Ruled out (verified 25 Aug — do not re-investigate)
 
-**Do not retry the search deploy until this is understood and BUG-4 is fixed.**
+- **Migration history drift / P3005.** `npx prisma migrate status` on the
+  production container returns **"Database schema is up to date!"**. History is
+  healthy. This was the initial theory and it was **wrong**.
+- **File missing from the commit.** `git show 784a6ef -- prisma/migrations`
+  confirms the migration.sql was committed.
+- **Excluded from the image.** Not in `.gitignore`, not in `.dockerignore`;
+  the Dockerfile copies `prisma/` wholesale.
+
+### Leading hypothesis — NOT yet confirmed
+
+**SQLite lock contention during a rolling deploy.** Coolify may start the new
+container while the old one still holds `/app/data/dev.db` open in WAL mode.
+`prisma migrate deploy` would then fail with "database is locked", retry once
+after 3s while the old container is *still* running, fail again, and — because
+of BUG-4 — start the server anyway.
+
+Supporting evidence: commit `0c1289e` ("improve migration error handling in
+entrypoint script") already added retry logic for exactly this failure mode,
+which suggests it has bitten before.
+
+**If confirmed, the fix is ordering, not Prisma:** ensure the old container
+releases the database before migrating (stop-then-start rather than rolling), or
+retry with a longer backoff, or run migrations as a separate pre-deploy step.
+
+### To confirm — one thing needed
+
+The deploy log for commit `59aa29b` (25 Aug, 19:29:16 UTC). In Coolify →
+Deployments, click the **⌄ chevron** on that row and read the lines after
+`Running database migrations...`. That names the actual error.
+
+**Do not attempt another fix before reading it.** Two theories have already been
+proposed from inference; one was wrong and it cost an outage.
 
 ### Before re-attempting the search fix
 1. Fix BUG-4 so a failed migration stops the deploy.
