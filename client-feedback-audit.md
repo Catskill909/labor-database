@@ -22,7 +22,7 @@
 | 1 | Public corrections/updates to existing entries | Feature request | n/a — doesn't exist yet | Medium (1–2 days) |
 | 2 | Adding new tags as DB evolves | Feature request | Tags hardcoded in 2 files | Medium (2–3 days, includes fixing comma trap) |
 | 3 | Bulk import from Labor Quotes site | Feature request | Import pipeline already exists | Small–Medium (mostly a scraping/mapping script) |
-| 4 | Accented search fails ("Misère") | **Bug** | ✅ SQLite `LIKE` is case-sensitive for non-ASCII | ✅ **FIXED** |
+| 4 | Accented search fails ("Misère") | **Bug** | ✅ SQLite `LIKE` is case-sensitive for non-ASCII | ✅ **FIXED** (incl. alternate titles) |
 | 5 | Search results appear then disappear | **Bug** | ✅ Race condition — no debounce/abort on main search | ✅ **FIXED** |
 | 6 | "From the Era" headings confusing | Copy change | ✅ Two strings in one file | ✅ **FIXED** |
 | 7 | Drake/Moby on July 12 | **Data + design flaw** | ✅ Verified — quote entries dated 2016–2023 trigger year-matching | ✅ Code fixed; data audit outstanding |
@@ -182,19 +182,29 @@ CLAUDE.md rather than papered over.
   (both fold directions, both apostrophe styles, the full diacritic set,
   non-Latin preservation, punctuation-only input, field coverage, padding).
 
-### 2b. Alternate / translated titles
+### 2b. Alternate / translated titles ✅ SATISFIED BY 2a
 
-**Current state:** Schema has a single `title` field; no alternate-title field
-exists. Some entries embed alternates in the title string ("(aka Freedom for Us)").
+**Client's exact words:** "Can searches be made case-insensitive and able to
+recognize alternate or translated titles?" — and the search he reported failing
+was **"Misère au Borinage"**, the film's alternate title.
 
-**Proposed solution:** Add `alternateTitles` to the film `metadata` JSON (already
-category-specific). **Now largely free on the search side:** `metadata` is folded
-into `searchAll`, so anything written there is immediately findable, accent- and
-punctuation-insensitively, with no further search work. Remaining work is the
-admin form field and a TMDB enrichment hook (`original_title`,
+**Both of his searches now work.** Verified: "Misère" and "Misère au Borinage"
+each return *Misery in the Borinage (MISÈRE AU BORINAGE) [1933]*.
+
+**Why 2a was sufficient:** this film — like the WordPress film set generally —
+carries its alternate title inside the title string in parentheses. The folded
+search columns index every word of it, so the alternate title became searchable
+the moment case/accent folding landed. **195 of 2,192 films** carry a
+parenthetical alternate title and are all now findable that way.
+
+**What remains is an enhancement, not the client's ask:** films whose alternate
+title is *not* in the title string have nowhere to put one. That would mean an
+`alternateTitles` key in the film `metadata` JSON — and the search half is
+already free, since `metadata` folds into `searchAll`. Remaining work would be an
+admin form field plus a TMDB enrichment hook (`original_title`,
 `alternative_titles` endpoint).
 
-**Effort:** ~3–4 hours (down from 4–6 — the search half is already done).
+**Effort if pursued:** ~3–4 hours. **Not required to close the client's request.**
 
 ### 2c. Results appear briefly then disappear (BUG, root cause confirmed)
 
@@ -290,7 +300,8 @@ CLAUDE.md. Real Library of Congress subject headings contain commas, and
 
 ## Client Questions — Status
 
-**1. Labor Quotes site platform — ANSWERED: Weebly.**
+**1. Labor Quotes site — ANSWERED: Weebly, and the URL was in the email.**
+**https://laborquotes.weebly.com/c.html**
 This rules out the WordPress path. Weebly has no structured content export
 equivalent to WXR, so the options are, in order of preference:
 - **A Weebly blog RSS/Atom feed**, if the quotes are published as blog posts —

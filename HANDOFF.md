@@ -1,207 +1,211 @@
 # HANDOFF — Labor Arts & Culture Database
 
-**Purpose:** pick-up point for a new chat window, a new session, or a different
-assistant. Read this first, then `CLAUDE.md` for the hard project rules.
+**Purpose:** pick-up point for a new chat window, session, or assistant.
+Read this first, then `CLAUDE.md` for the hard project rules.
 
 **Last updated:** 25 August 2026
-**Branch:** `main` (Coolify auto-deploys from it)
-**Production:** https://labor-database.supersoul.top
+**Branch:** `main` · **Production:** https://labor-database.supersoul.top
+**Scope:** this repo only. The Digital Asset Manager / "Labor Heritage Media
+Archive" (`lhf-tools.supersoul.top`) is a **separate project, tracked elsewhere.**
 
 ---
 
-## How to use this file
+## ⚠️ Current state: code is pushed, NOTHING IS LIVE YET
 
-- **Start here.** It says what is done, what is next, and what is blocked.
-- `client-feedback-audit.md` is the deep analysis — root causes, evidence,
-  effort estimates. This file is the *working state*; that one is the *reasoning*.
-- **Keep this file updated** as items move. It is the thing that survives a lost
-  chat window.
-- Numbered items (BUG-1, TASK-2c…) are stable IDs — use them in commits and
-  when talking to the client so nothing gets lost in renaming.
+Three commits are on `origin/main` and **have not been deployed**. Deploy is
+manual — trigger it in Coolify when ready.
+
+| Commit | What |
+|---|---|
+| `784a6ef` | Search accent/punctuation fix + migration + backfill + tests |
+| `e49924f` | This handoff doc |
+| `9295232` | gitignore for local incident notes |
+
+**Pre-deploy checks — all done:** production Full Backup taken · `npm run build` ✓
+· `npx tsc -b` ✓ · `npm test` 9/9 ✓ · deploy path simulated against a copy of the
+production-shaped DB (migrate → backfill → search works → second boot no-op).
+
+**When deploying, watch the Coolify log for:**
+```
+Checking search index...
+  5955 rebuilt
+Done — 5955 entries indexed.
+```
+Takes ~2 seconds. **If that step does not appear, search will return nothing** —
+fix is `npm run backfill:search`. This is the only failure mode that matters.
+
+**Rollback:** the migration is four `ALTER TABLE ADD COLUMN` statements with
+nullable columns. No table rebuild, nothing overwritten. Reverting the code is a
+clean rollback — the old code ignores the columns entirely.
 
 ---
 
-## Current state
+## The client's actual asks
 
-Work is driven by an August 2026 client email from the Labor Heritage Foundation
-(Chris Garlock, Harold Phillips). Seven issues were audited; every one was traced
-to a root cause. Two phases have shipped.
+From Chris Garlock (Executive Director, LHF), email 25 Aug 2026, "LHF database
+and media database follow-up questions". **Work from his wording, not paraphrase.**
 
-| Phase | Scope | Status |
-|-------|-------|--------|
-| 1 | Search race condition, "Related Films/Music" rename, On This Day history-years-only matching | ✅ Shipped — `fd64f35` |
-| 2 | Accent/punctuation-insensitive search (folded shadow columns) | ✅ Shipped — `784a6ef` |
-| 3 | Alternate/translated titles | ⏳ Next, unblocked |
-| 4 | Data cleanup + Labor Quotes import | ⏸ Needs client input |
-| 5 | Public corrections, admin-managed tags | ⏸ Not started |
-
----
-
-## OPEN BUGS — scheduled, none urgent
-
-### BUG-1 · Four quote entries have corrupt dates · **DATA fix** · ~5 min
-**Owner: LHF (content edit) or Paul — admin dashboard, no deploy.**
-
-`parseDateField()` in `scripts/import-quotes.ts` accepted malformed source dates
-and produced garbage rather than rejecting them. Correct values are known — the
-original string is preserved in each row's `metadata.dateRaw`.
-
-| Entry ID | Stored now | Should be |
+| # | Chris's ask | Status |
 |---|---|---|
-| 1599 | year 5, no month/day | 6 May 2025 |
-| 2020 | year 5, no month/day | 29 May 2025 |
-| 3143 | year 12, no month/day | 17 Dec 2024 |
-| 2983 | Apr 2022, no day | 14 Apr 2022 |
+| A1 | Expand "Add" so users can submit **corrections/updates** to existing entries | Not started |
+| A2 | How can we **add new tags** as the database evolves? | Not started |
+| A3 | **Bulk-import** from the Labor Quotes site | Not started |
+| B1 | Searches **case-insensitive** + recognise **alternate/translated titles** | ✅ Fixed, awaiting deploy |
+| B2 | Results **appear briefly then disappear** | ✅ Fixed, awaiting deploy |
+| C1 | Rename "Films/Music From the Era" → **"Related Films/Music"** | ✅ Fixed, awaiting deploy |
+| C2 | Clarify how selections are generated; limit them to entries **"meaningfully connected to the day's history"** | ⚠️ **Partially done — see below** |
 
-**Why it matters:** three of these have no month/day at all, so they never appear
-in On This Day. Fixing the day is worth doing *regardless* of how the quote-year
-question (Q3 below) is resolved.
+### B1 is fully satisfied — verified against his exact searches
 
-**Do not** fix this with a deploy — production has its own database (CLAUDE.md
-rule 3). Edit in the Admin Dashboard.
+Chris searched **"Misère"** and **"Misère au Borinage"**; both returned nothing
+because SQLite's `LIKE` case-folds only ASCII, so `È` never matched `è`.
 
-### BUG-2 · The import date parser fails silently · **CODE fix** · ~1 hr
-**Owner: next dev session. Bundle with TASK-1c.**
+Both queries now return the film. The alternate title works because this film
+carries it in the title string — `Misery in the Borinage (MISÈRE AU BORINAGE)
+[1933]` — and the folded search columns make every word in it searchable.
+**195 of 2,192 films** carry a parenthetical alternate title and are now
+searchable by it.
 
-Root cause of BUG-1. `parseDateField()` splits on `.` and calls `parseInt` with
-no validation, so `"5/6/2025"` yields `year = 5` instead of being rejected.
+**Do not record alternate titles as an outstanding gap.** A dedicated
+`alternateTitles` field (TASK-2b below) is an *enhancement* for films whose
+alternate title is not in the title string — not part of what Chris asked for.
 
-**Fix:** reject anything not matching `^\d{4}\.\d{1,2}\.\d{1,2}$`, and report
-skipped rows instead of guessing.
+### C2 is the one genuinely unfinished ask
 
-**Swept for the class — no other importer shares the pattern.** `import-films.ts`
-uses a validated regex, `import-music.ts` a regex match, `import-history.ts` reads
-separate Month/Day/Year columns. A full-database scan for implausible years
-(`< 1500` or `> 2027`) returns only the 3 quote rows above. The odd history years
-**1170** and **1381** are genuine (the papyrus strike; the Peasants' Revolt) —
-do not "fix" them.
+Chris wrote:
 
-Low urgency: the script only runs during manual imports. Natural time to do it is
-alongside TASK-1c, which touches the same area.
+> "Music From the Era also appears to be **pulling songs from another source**…
+> Can you clarify how those selections are generated and whether they can be
+> limited to entries in the LHF database that are **meaningfully connected to the
+> day's history**?"
 
-### BUG-3 · 398 On This Day appearances are missing · **SCHEMA + DATA** · ~6–8 hrs
-**Owner: blocked — do not start until client answers Q3.**
+**Two things to handle:**
 
-374 quotes have multiple featured dates in the source
-(`2021.05.25; 2019.05.27; 2016.11.09`); the importer keeps only the first.
-555 dates are dropped, of which **296 quotes have an extra date on a different
-calendar day**, costing **398 quote/day appearances** that On This Day should
-show and does not.
+1. **Correct his assumption — he asked directly.** Nothing comes from another
+   source. Every selection is from the LHF database itself; Genius and TMDB are
+   used only when adding entries. Drake was in *his own database*, matched by
+   year coincidence.
 
-Not really a bug — a schema limit. `Entry` holds one month/day/year. Fixing it
-means a repeating-dates field (e.g. `metadata.featuredDates`) plus an On This Day
-query that reads it.
+2. **"Meaningfully connected" is not met yet.** What shipped derives the year set
+   from **history entries only** (previously quotes too, whose years are
+   publication dates in 2014–2026 — that is how Drake, Gloria Gaynor and Moby
+   reached July 12). That removes the embarrassing cases, but a 1933 film beside
+   a 1933 event is still *year coincidence*, not topical connection.
 
-**Why it is blocked:** if the client says the quote/calendar pairing is not what
-they want (Q3), this work is wasted. Get the answer first.
-
----
-
-## OPEN QUESTIONS FOR THE CLIENT
-
-| # | Question | Status | Blocks |
-|---|----------|--------|--------|
-| Q1 | Labor Quotes site platform | ✅ **Weebly.** Still need the **site URL** | TASK-1c |
-| Q2 | Related Films/Music matching strategy | Partially resolved by shipping history-years-only. Open only if they want tag-based or curated links | — |
-| Q3 | Quote dates | ✅ **Resolved as fact** — see below. One design question remains | BUG-3, data cleanup |
-| Q4 | Corrections require name/email? | ✅ **Yes, both collected** | TASK-1a (now unblocked) |
-
-### Q3 detail — the fact is settled, the design question is not
-
-Quote years are **"date featured", never historical.** Every quote year in the
-database falls in 2014–2026, the site's publishing era; zero of the 1,747 dated
-quotes carry a historical year. Proof: on July 12, Wendell Phillips (d. **1884**)
-is dated 2016, Eddie Cantor (d. 1964) 2017, Woody Guthrie (d. 1967) 2019,
-Boris Karloff (d. 1969) 2023. The source CSV holds one `YYYY.MM.DD` featured date.
-
-**The remaining question is a design decision, not a fact:** the *month/day* is
-the featured date too, so On This Day's quote section actually shows *"quotes we
-published on this calendar date in past years"* — not *"quotes connected to this
-date in labor history."* That may be exactly what LHF wants (it is their
-quote-of-the-day archive, and pairings may have been chosen deliberately), or it
-may be the same confusion they flagged for films and music. **Ask them.**
-
-**Recommended cleanup once answered:** move the featured date to
-`metadata.featuredDate` and leave `year` null unless someone researches the real
-date. Preserves the archive, stops the year being wrong. (Alternatives: leave as
-is; or clear years outright and lose the archive information.)
+   **Proposal to put to him:** require a shared tag with the day's history
+   entries — the 34-term taxonomy already exists — with year as a fallback or
+   secondary signal. Alternative: curated `relatedEntryIds` for manual pairing.
+   Confirm which he wants before building.
 
 ---
 
-## NEXT UP
+## Next up
 
-### TASK-2b · Alternate / translated titles · ~3–4 hrs · **unblocked, do this next**
-Add `alternateTitles` to film `metadata`. **The search half is already free** —
-`metadata` folds into `searchAll`, so anything written there is immediately
-findable, accent- and punctuation-insensitively. Remaining work: admin form field
-and a TMDB enrichment hook (`original_title`, `alternative_titles`).
+### TASK-C2 · Meaningful Related Films/Music · ~4–6 hrs · **highest value**
+The only client ask still genuinely open. Needs Chris to confirm tag-based vs
+curated. See above.
 
-### TASK-1c · Bulk import from Labor Quotes (Weebly) · ~4–8 hrs · needs site URL
-Weebly has no structured export equivalent to WordPress WXR. In order of preference:
-1. **Blog RSS/Atom feed**, if quotes are published as posts — cleanest. Feeds are
-   often capped to recent items, so check depth before relying on it.
-2. **HTML scraping** of archive pages — likely fallback.
-3. Whatever export the site owner can produce from their admin.
-
-Machinery already exists: `POST /api/admin/import` smart-merges by title+category
-in a transaction. Precedent: `scripts/import-quotes.ts`, `import-films.ts`.
-**Back up before importing** (rule 5). Bundle BUG-2 into this work.
-
-### TASK-1a · Public "suggest a correction" flow · ~12–16 hrs · **unblocked**
-Q4 answered — name and email are collected, same as new submissions. New
-`SubmittedEdit` model, public POST, admin approve/reject with a before/after diff.
+### TASK-A1 · Public "suggest a correction" flow · ~12–16 hrs · **unblocked**
+Confirmed: name and email will be collected, same as new submissions. New
+`SubmittedEdit` model, public POST, admin approve/reject with before/after diff.
 Reuses the existing moderation pattern. Schema migration — **back up first**.
 
-### TASK-1b · Admin-managed tags · ~16–20 hrs
+### TASK-A3 · Bulk import from Labor Quotes · ~4–8 hrs
+**URL: https://laborquotes.weebly.com/c.html** (it was in Chris's email).
+Weebly has no structured export like WordPress WXR. In order of preference:
+1. **Blog RSS/Atom feed** if quotes are posts — cleanest; check how far back it goes.
+2. **HTML scraping** of archive pages — likely fallback.
+3. Any export the site owner can produce.
+
+Import machinery exists: `POST /api/admin/import` smart-merges by title+category
+in a transaction. Precedent: `scripts/import-quotes.ts`. **Back up before
+importing** (rule 5). Fold BUG-2 (below) into this work.
+
+### TASK-A2 · Admin-managed tags · ~16–20 hrs
 **Must land before any LCSH subject-heading mapping.** Real Library of Congress
-headings contain commas (`Labor unions, American`) and `Entry.tags` is still a
-comma-separated string — the moment LCSH strings are stored, every row splits into
-the wrong tags silently. Move tags to a relation or JSON column in the same pass.
+headings contain commas (`Labor unions, American`) and `Entry.tags` is a
+comma-separated string — storing LCSH strings would split every row into the
+wrong tags, silently. Move tags to a relation or JSON column in the same pass.
 See the comma-trap section in CLAUDE.md.
+
+### TASK-2b · Dedicated alternate-titles field · ~3–4 hrs · **enhancement, not an ask**
+For films whose alternate title is *not* embedded in the title. Add
+`alternateTitles` to film `metadata` — **the search half is already free**, since
+`metadata` folds into `searchAll`. Remaining work: admin form field + TMDB
+enrichment (`original_title`, `alternative_titles`).
 
 ### CLEANUP · Consolidate the duplicated search builders · ~2–3 hrs
 The public and admin search handlers in `server/index.ts` are near-duplicate
-~100-line copies. That duplication is *how the accent bug lived in two places*.
-Phase 2 fixed both but now duplicates a small `SEARCH_COLUMN` map across them.
+~100-line copies — that duplication is *how the accent bug lived in two places*.
+Both are fixed, but a small `SEARCH_COLUMN` map is now duplicated across them.
 Worth consolidating before the next search change.
 
 ---
 
-## ACTION ITEMS
+## Known issues — deliberately deprioritised
 
-### Paul
-- [ ] Send the Weebly site URL (unblocks TASK-1c)
-- [ ] Email wrap-up to the client — see below
-- [ ] Decide: fix BUG-1 yourself, or hand it to LHF as a content task
+**Chris never raised quotes.** Everything below is our own discovery. Do not put
+it in a client email; do not let it displace the asks above.
 
-### Client (include in the email wrap-up)
-- [ ] **Q3 design question** — is the quote/calendar-date pairing intended?
-- [ ] **BUG-1** — four quote entries need their dates corrected in the admin
-      dashboard (IDs and correct values in the table above). This is a content
-      edit, not a code fix.
-- [ ] Confirm the Labor Quotes site URL and that they control the account
-- [ ] Optional (Q2): do they want Related Films/Music to go beyond year matching?
+### BUG-1 · 4 quote entries with corrupt dates · **CLOSED — won't fix**
+An import parser accepted malformed source dates (`5/6/2025` → `year 5`).
+**Real impact: 3 quotes don't appear in On This Day, out of 1,916.** 173 quotes
+already have no date and never appear. Not worth a code change.
 
-### Next dev session
-- [ ] TASK-2b (unblocked, cheap)
-- [ ] TASK-1a (unblocked)
-- [ ] BUG-2 with TASK-1c
-- [ ] Hold BUG-3 until Q3 is answered
+Also: the quote edit form has **no date fields** (they are wrapped in
+`isHistory &&` in `AdminDashboard.tsx`), so this cannot be fixed through the
+admin UI by anyone. Reopen only if quote dates become important.
+
+### BUG-2 · The import date parser fails silently · **LOW — bundle with TASK-A3**
+Root cause of BUG-1. `parseDateField()` in `scripts/import-quotes.ts` splits on
+`.` and calls `parseInt` without validation. **Fix:** reject anything not
+matching `^\d{4}\.\d{1,2}\.\d{1,2}$` and report skipped rows.
+
+**Swept — no other importer shares the pattern.** `import-films.ts` uses a
+validated regex, `import-music.ts` a regex match, `import-history.ts` reads
+separate columns. A full-database scan for implausible years returns only the 3
+quote rows. History's **1170** and **1381** are genuine (the papyrus strike; the
+Peasants' Revolt) — do not "fix" them.
+
+### BUG-3 · 398 missing On This Day appearances · **BLOCKED / low**
+374 quotes have multiple featured dates in the source; the importer keeps only
+the first. 296 have an extra date on a different calendar day, costing 398
+quote/day appearances. Needs a repeating-dates field. **Only worth doing if
+quote/calendar pairing survives the C2 conversation.**
+
+### Context: quote dates are publication dates, not historical dates
+Every quote year is 2014–2026, the site's publishing era; zero are historical.
+Proof: on July 12, Wendell Phillips (d. **1884**) is dated 2016, Woody Guthrie
+(d. 1967) 2019, Boris Karloff (d. 1969) 2023. The month/day is the featured date
+too — so On This Day's quote section is really *"quotes published on this
+calendar date in past years."* Worth mentioning to Chris only if C2 opens up the
+wider question of what should relate to a day.
 
 ---
 
-## Email wrap-up — points to cover
+## Action items
 
-1. **Fixed and live:** search results no longer flicker/disappear; accented and
-   apostrophe searches now work ("Misère" finds the film, "Cesar" finds "César");
-   "From the Era" renamed to "Related Films/Music"; Drake/Gloria Gaynor/Moby no
-   longer appear on July 12 — modern songs were being pulled in by quote years.
-2. **Scale of the search fix:** roughly 1 entry in 7 was affected in some way —
-   864 entries with curly apostrophes, 150 with accented letters.
-3. **What we found in the data:** quote dates are "date featured", not historical
-   (with the Wendell Phillips example — it lands well). Raise the design question.
-4. **Their action:** the four quote entries needing date corrections.
-5. **What we need:** the Labor Quotes site URL.
+**Paul**
+- [ ] Deploy to Coolify, then confirm here for production verification
+- [ ] Reply to Chris in the shape he asked: what's straightforward, what needs
+      discussion, how you'd prioritise
+
+**For the reply to Chris**
+- Fixed and live: flickering results; accented searches (his exact "Misère"
+  and "Misère au Borinage" cases); "Related Films/Music"; Drake/Gaynor/Moby gone
+  from July 12
+- Scale: roughly 1 entry in 7 was affected by the search bug — 864 with curly
+  apostrophes, 150 with accented letters
+- **Answer his question:** selections were never from another source; they came
+  from his own database, matched by year
+- **Ask him:** should Related Films/Music use shared tags, or curated links?
+- Straightforward next: corrections flow (A1), Labor Quotes import (A3)
+- Needs discussion: tag management (A2), and the C2 matching rule
+
+**Next dev session**
+- [ ] TASK-C2 once Chris confirms the matching rule
+- [ ] TASK-A1 (unblocked)
+- [ ] TASK-A3, folding in BUG-2
 
 ---
 
@@ -210,7 +214,6 @@ Worth consolidating before the next search change.
 ```bash
 npm run dev:fullstack        # both servers
 npm run build                # tsc -b && vite build — MUST pass before push
-npx tsc --noEmit             # type check
 npm test                     # search folding tests (9)
 npm run backfill:search      # rebuild search columns — REQUIRED after any scripts/ run
 cp prisma/dev.db backups/dev-$(date +%Y%m%d-%H%M%S).db   # rule 5, before any DB work
@@ -220,9 +223,9 @@ cp prisma/dev.db backups/dev-$(date +%Y%m%d-%H%M%S).db   # rule 5, before any DB
 
 - **Search runs on folded shadow columns.** Any write touching title/creator/
   description/tags/metadata must call `syncSearchText()`. Scripts in `scripts/`
-  bypass it — run `npm run backfill:search` after them. Full details in CLAUDE.md.
+  bypass it — run `npm run backfill:search` after them. Details in CLAUDE.md.
 - **CODE vs DATA.** Production has its own database. Data fixes go through the
   Admin Dashboard; a deploy will not touch them.
-- **Back up before any schema/migration/import work.** Non-negotiable (rule 5).
+- **Back up before any schema/migration/import work** (rule 5). Non-negotiable.
 - **`Entry.tags` is a comma-separated string** — safe only because no current tag
-  contains a comma. See TASK-1b.
+  contains a comma. See TASK-A2.
