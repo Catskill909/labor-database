@@ -16,7 +16,9 @@ Archive" (`lhf-tools.supersoul.top`) is a **separate project, tracked elsewhere.
 Phase 1 fixes (search race condition, Related Films/Music rename, history-only
 era matching) are still live and verified.
 
-**Do not redeploy the search fix until BUG-4 and BUG-5 below are resolved.**
+**Root cause found and fixed** (`docker-entrypoint.sh`) — see below. The fix is
+committed but **not yet deployed**. Deploy it on its own first, then re-apply
+the search fix.
 
 ### INCIDENT — 25 Aug 2026, ~19:30–19:48 UTC (~18 min)
 
@@ -40,67 +42,59 @@ would accept the migration.
 
 ---
 
-## 🔴 BUG-4 · A failed migration does not stop the deploy · **CRITICAL — fix first**
+## ✅ BUG-4 + BUG-5 · ROOT CAUSE FOUND AND FIXED (not yet deployed)
 
-`docker-entrypoint.sh` swallows migration failure and starts the server anyway:
+### What was actually happening
 
-```sh
-npx prisma migrate deploy || { ...retry... || echo "Migration failed again - starting server anyway (may have issues)" }
+Container logs from the failed deploy:
+
+```
+Running database migrations...
+Error: SQLite database error
+database is locked
+Migration failed (database may be locked). Retrying in 3 seconds...
+Migration failed again - starting server anyway (may have issues)
+Starting server on port 3001...
 ```
 
-**This is what turned a failed migration into an 18-minute outage.** Without it,
-the container would have refused to start and Coolify would have kept the
-previous version running — users would have seen nothing at all.
+**Mechanism.** Coolify cannot do rolling updates here (ports are mapped to the
+host), so it removes the old container and starts the new one — 19:31:57 and
+19:32:03, six seconds apart. But Docker allows a stopping container up to a 10s
+grace period, and the server has **no SIGTERM handler**, so the old Node process
+is still holding `/app/data/dev.db` (SQLite, WAL) when the new container
+migrates. The old retry waited 3 seconds — not long enough.
 
-**Fix:** exit non-zero when `migrate deploy` fails, so the deploy fails loudly
-instead of serving 500s. Consider also making `/api/health` touch the Entry table
-so a schema mismatch shows up as unhealthy rather than green.
+**This had been failing on every deploy.** The revert deploy shows the same
+error. It never mattered until a deploy actually depended on a migration.
 
-**This is the highest-value fix in the repo right now** — it is the difference
-between a failed deploy and a broken site, for every future migration.
+**Why it became an outage rather than a failed deploy:** the entrypoint caught
+the failure and started the server anyway, against a schema it did not match.
+`/api/health` stayed green because it only runs a raw `SELECT 1` and never
+touches `Entry`, so nothing looked wrong until a page loaded.
 
-## 🔴 BUG-5 · `migrate deploy` silently failed to apply the migration · **blocks the search fix**
+### The fix (in `docker-entrypoint.sh`, committed, awaiting deploy)
 
-The migration `20260825184951_add_search_shadow_columns` was never applied on
-production, so the code shipped expecting columns that did not exist.
+1. **Retry up to 12 times, 5s apart** (~60s) — comfortably outlasts Docker's
+   grace period, so the lock always clears.
+2. **`exit 1` if migrations still fail** — the deploy fails loudly instead of
+   serving a broken site.
 
-### Ruled out (verified 25 Aug — do not re-investigate)
+**Tested both paths** with a stubbed `npx`: fails-twice-then-succeeds starts the
+server normally (exit 0); never-succeeds refuses to start (exit 1, server never
+launched).
 
-- **Migration history drift / P3005.** `npx prisma migrate status` on the
-  production container returns **"Database schema is up to date!"**. History is
-  healthy. This was the initial theory and it was **wrong**.
-- **File missing from the commit.** `git show 784a6ef -- prisma/migrations`
-  confirms the migration.sql was committed.
-- **Excluded from the image.** Not in `.gitignore`, not in `.dockerignore`;
-  the Dockerfile copies `prisma/` wholesale.
+**Known trade-off:** because the old container is already gone, a genuine
+migration failure now means the site is *down* rather than *broken*, until the
+previous version is redeployed. That is deliberate — a visible failure is
+recoverable, a silent one served 500s for 18 minutes and looked healthy the
+whole time.
 
-- **SQLite lock contention from a rolling deploy.** Ruled out by the deploy log:
-  `Application has ports mapped to the host system, rolling update is not
-  supported` → `Removing old containers.` → `New container started.` The old
-  container is gone before the new one starts, so nothing else holds the
-  database open. This was the second theory, also **wrong**.
+### Still worth doing (not blocking)
 
-### Leading hypothesis — NOT yet confirmed
-
-**The entrypoint may never run.** The Coolify deploy log shows no container
-startup output at all. If a custom **Start Command** is configured in Coolify,
-it overrides the Dockerfile `CMD` and bypasses `docker-entrypoint.sh` entirely —
-meaning `prisma migrate deploy` has never run on any deploy, and the `init`
-migration was applied by some other route.
-
-**To check:** Coolify → **Logs** tab (container logs, not the deploy log). Look
-for `Running database migrations...`, `Checking seed data...`, `Starting server
-on port 3001...`. If those lines are absent, the entrypoint is not executing.
-Also check Coolify → Configuration for a custom Start Command.
-
-### To confirm — one thing needed
-
-The deploy log for commit `59aa29b` (25 Aug, 19:29:16 UTC). In Coolify →
-Deployments, click the **⌄ chevron** on that row and read the lines after
-`Running database migrations...`. That names the actual error.
-
-**Do not attempt another fix before reading it.** Two theories have already been
-proposed from inference; one was wrong and it cost an outage.
+- **Make `/api/health` touch the Entry table** so a schema mismatch reports
+  unhealthy instead of green. This is why the outage went unnoticed by monitoring.
+- **Add a SIGTERM handler** to the server so it shuts down promptly and releases
+  the database, rather than waiting out Docker's grace period.
 
 ### Before re-attempting the search fix
 1. Fix BUG-4 so a failed migration stops the deploy.
