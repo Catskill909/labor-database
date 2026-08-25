@@ -55,18 +55,22 @@ This is a data-integrity issue, not just a deploy problem: two apps writing one
 SQLite file, each Prisma schema unaware of the other's tables. The foreign files
 in the data directory (`stations.db`, `playlists/`, `audiofiles/`) are radio's.
 
-### The fix — isolate labor-database onto its own volume
+### The fix — isolate RADIO and ICECAST, not labor-database
 
-**Do not change Coolify storage settings before moving the data** — a wrong move
-points the app at an empty database.
+**Runbook: [radio-icecast-fixes.md](radio-icecast-fixes.md)** — hand that to
+whoever works on those apps.
 
-1. Fresh Full Backup (admin → Export) **and** a host copy:
-   `cp -a /app/data/dev.db* /root/labor-db-backup-$(date +%F)/`
-2. `sqlite3 /app/data/dev.db ".tables"` to see what actually lives in the file.
-3. Create a named volume in Coolify mirroring the Labor Landmarks pattern, and
-   copy `dev.db` into it **before** first start. Same for `/app/uploads`.
-4. Redeploy. Radio keeps the original file untouched.
-5. Verify entry count, search, and images.
+Move the apps that can afford to break. Radio and icecast are personal projects
+with no users; labor-database is the live client app. So radio and icecast each
+get their own named volume and stop touching `/app/data/dev.db` and
+`/app/uploads`. **Labor Database is never stopped, moved, or reconfigured.**
+
+Success is `lsof /app/data/dev.db` returning only labor-database's process.
+
+See the runbook for the full procedure, backups, verification and rollback.
+Key safety points: use `sqlite3 .backup` rather than `cp` for any live SQLite
+file, and **never delete `dev.db-wal` / `dev.db-shm`** — they hold committed data
+not yet folded into the main file.
 
 **Ruled out earlier — do not re-investigate:** migration history drift/P3005
 (`migrate status` reports up to date); migration file missing from the image
