@@ -42,78 +42,68 @@ would accept the migration.
 
 ---
 
-## 🔴 BUG-5 · `migrate deploy` always fails: "database is locked" · UNRESOLVED
+## 🔴 BUG-5 · ROOT CAUSE FOUND: two apps share one SQLite file
 
-**Site is healthy and stable. This blocks the search fix only. NOT urgent.**
-
-Migrations have been failing on **every deploy**, silently, for a long time. The
-entrypoint caught the failure and started the server anyway, so it never showed
-until a deploy actually depended on a migration (the 25 Aug outage).
+**`radio.supersoul.top` and `labor-database.supersoul.top` use the same database
+file.** Confirmed 25 Aug 2026 with hard evidence.
 
 ```
-Running database migrations...
-Error: SQLite database error
-database is locked
-   0: sql_schema_connector::sql_migration_persistence::initialize
-   1: schema_core::state::ApplyMigrations
+$ docker inspect cc008s4ggks4kwgcw4oos0oo-...
+DATABASE_URL=file:/app/data/dev.db
+COOLIFY_FQDN=radio.supersoul.top
+
+$ lsof /app/data/dev.db
+node       4829  root  47ur  REG  8,1  9064448  4456477  /app/data/dev.db
+node    2631460  root  34ur  REG  8,1  9064448  4456477  /app/data/dev.db
 ```
 
-Prisma fails while initialising `_prisma_migrations`, before applying anything.
+Two node processes, same inode. Three containers bind-mount the **host path**
+`/app/data` rather than each having an isolated named volume:
 
-### Ruled out — with evidence. Do NOT re-investigate.
+| Container | App | Mount |
+|---|---|---|
+| `og4ccgs0s0cw80kccskgksww` | labor-database | `/app/data->/app/data` |
+| `cc008s4ggks4kwgcw4oos0oo` | radio.supersoul.top | `/app/data->/app/data` |
+| `tkgs40k8wo0kwo4w8kgowg8o` | icecast.supersoul.top | `/app/data->/app/data` |
 
-- **Migration history drift / P3005.** `npx prisma migrate status` on production
-  reports "Database schema is up to date!". History is healthy. *(Theory 1 — wrong.)*
-- **Migration file missing from the image.** Committed in `784a6ef`; not
-  gitignored; not in `.dockerignore`; the Dockerfile copies `prisma/` wholesale.
-- **Container-handover lock contention.** The 20:19 deploy shows `Removing old
-  containers` at 20:19:04 and `New container started` at 20:19:37 — **33 seconds
-  apart**, far beyond Docker's 10s stop grace period, and the migration still
-  failed. A 12×5s (~60s) retry was deployed and failed all 12 attempts.
-  **The lock is permanent, not transient.** *(Theory 2 — wrong.)*
+Labor Landmarks does it correctly:
+`skswcso44gcoc0c0soggsskg-labor-landmarks-data/_data->/app/data`.
 
-### Live evidence — `ls -la /app/data/` (25 Aug)
+**Why this caused the outage:** the radio app holds a permanent connection, so
+`prisma migrate deploy` can never get the exclusive lock a schema change needs.
+Migrations have failed on every deploy since radio was deployed. The entrypoint
+started the server anyway (BUG-4), so it stayed invisible until a deploy finally
+depended on a migration.
 
-```
-drwxr-xr-x  3 root root     4096 Dec 29  2025 audiofiles
--rw-r--r--  1 root root  9064448 Aug 24 02:41 dev.db
--rw-r--r--  1 root root    32768 Aug 25 02:41 dev.db-shm
--rw-r--r--  1 root root   230752 Aug 25 02:41 dev.db-wal
--rw-r--r--  1 root root        0 Mar  7 15:30 migrate.lock
-drwxr-xr-x  2 root root     4096 Dec 28  2025 playlists
--rw-r--r--  1 root root    86016 Feb 23  2026 sqlite.db
--rw-r--r--  1 root root   110592 Jan 15  2026 stations.db
-```
+This also explains the foreign files in the data directory — `stations.db`,
+`playlists/`, `audiofiles/` belong to the radio app.
 
-**Two open leads:**
+### ⚠️ This is a data-integrity issue, not just a deploy problem
 
-1. **The volume holds another application's data.** `audiofiles/`, `playlists/`,
-   `stations.db`, `sqlite.db` are not from this project. If another Coolify app
-   mounts the same host directory and holds an open SQLite connection, that could
-   explain a permanent lock. **Check which apps mount this volume.**
-2. **Stale write-ahead log.** `dev.db-wal` is 230KB dated Aug 25 02:41 while
-   `dev.db` is dated Aug 24 — never checkpointed.
+Two applications writing one SQLite file, each with a Prisma schema unaware of
+the other's tables. Fix the isolation and the search deploy unblocks itself.
 
-`migrate.lock` (0 bytes, Mar 7) is left over from an earlier entrypoint that used
-`flock` (the Dockerfile still installs `util-linux` for it). Probably inert, but
-it shows this has been fought before.
+### Fix — isolate labor-database onto its own volume
 
-### ⚠️ DO NOT delete dev.db-wal or dev.db-shm
+**Do not change the Coolify storage config without moving the data first** — a
+wrong move points the app at an empty database.
 
-The WAL holds committed data not yet folded into the main database file.
-Deleting it can **lose data**. If a checkpoint is needed, do it properly —
-`PRAGMA wal_checkpoint(TRUNCATE)` on a cleanly-opened database, **after a fresh
-Full Backup**, with the app stopped.
+1. **Fresh Full Backup** (admin → Export → Full Backup ZIP) **and** a host-side
+   copy: `cp -a /app/data/dev.db* /root/labor-db-backup-$(date +%F)/`
+2. Confirm what is in the file: `sqlite3 /app/data/dev.db ".tables"` — expect both
+   apps' tables to coexist.
+3. Create a named volume for labor-database in Coolify (mirroring the Labor
+   Landmarks pattern) and copy `dev.db` into it **before** first start.
+4. Redeploy. Radio keeps the original file untouched.
+5. Verify entry count and search, then re-attempt the search-columns migration —
+   with an exclusive lock now obtainable, it should apply normally.
 
-### Next diagnostic steps — fresh session, not at the end of a long day
+**Ruled out earlier — do not re-investigate:** migration history drift/P3005
+(`migrate status` reports up to date); the migration file missing from the image
+(committed, not gitignored, not dockerignored); container-handover lock
+contention (33s gap between old and new container, plus a 12x5s retry, both
+still failed).
 
-1. **Take a fresh production Full Backup first.**
-2. Find what else mounts `/app/data` (Coolify → other apps → Persistent Storage).
-   A second container on the same volume is the most likely answer.
-3. With the app **stopped**, try `npx prisma migrate deploy` from a one-off
-   container. If it succeeds while stopped, the lock is a live connection, and
-   the fix is to migrate while stopped (or move off SQLite for concurrent access).
-4. Only then consider whether the WAL needs checkpointing.
 
 ## BUG-4 · A failed migration does not stop the deploy · fix written, then reverted
 
