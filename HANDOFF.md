@@ -74,21 +74,24 @@ production, so the code shipped expecting columns that did not exist.
 - **Excluded from the image.** Not in `.gitignore`, not in `.dockerignore`;
   the Dockerfile copies `prisma/` wholesale.
 
+- **SQLite lock contention from a rolling deploy.** Ruled out by the deploy log:
+  `Application has ports mapped to the host system, rolling update is not
+  supported` → `Removing old containers.` → `New container started.` The old
+  container is gone before the new one starts, so nothing else holds the
+  database open. This was the second theory, also **wrong**.
+
 ### Leading hypothesis — NOT yet confirmed
 
-**SQLite lock contention during a rolling deploy.** Coolify may start the new
-container while the old one still holds `/app/data/dev.db` open in WAL mode.
-`prisma migrate deploy` would then fail with "database is locked", retry once
-after 3s while the old container is *still* running, fail again, and — because
-of BUG-4 — start the server anyway.
+**The entrypoint may never run.** The Coolify deploy log shows no container
+startup output at all. If a custom **Start Command** is configured in Coolify,
+it overrides the Dockerfile `CMD` and bypasses `docker-entrypoint.sh` entirely —
+meaning `prisma migrate deploy` has never run on any deploy, and the `init`
+migration was applied by some other route.
 
-Supporting evidence: commit `0c1289e` ("improve migration error handling in
-entrypoint script") already added retry logic for exactly this failure mode,
-which suggests it has bitten before.
-
-**If confirmed, the fix is ordering, not Prisma:** ensure the old container
-releases the database before migrating (stop-then-start rather than rolling), or
-retry with a longer backoff, or run migrations as a separate pre-deploy step.
+**To check:** Coolify → **Logs** tab (container logs, not the deploy log). Look
+for `Running database migrations...`, `Checking seed data...`, `Starting server
+on port 3001...`. If those lines are absent, the entrypoint is not executing.
+Also check Coolify → Configuration for a custom Start Command.
 
 ### To confirm — one thing needed
 
