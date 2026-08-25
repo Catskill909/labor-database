@@ -34,16 +34,6 @@ model Entry {
   // External links
   sourceUrl   String?  // Original source, YouTube link, etc.
 
-  // Search shadow columns — folded copies of the text above (lowercased,
-  // diacritics stripped, punctuation collapsed to spaces, space-padded).
-  // SQLite LIKE only case-folds ASCII, so searching the raw columns misses
-  // accents and curly punctuation. See server/search-text.ts.
-  // Maintained automatically on write; rebuild with `npm run backfill:search`.
-  searchTitle       String?
-  searchCreator     String?
-  searchDescription String?
-  searchAll         String?
-
   // Submission workflow (same pattern as landmarks)
   isPublished    Boolean  @default(false)
   submitterName  String?

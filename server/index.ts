@@ -14,7 +14,6 @@ import unzipper from 'unzipper';
 import ExcelJS from 'exceljs';
 import rateLimit from 'express-rate-limit';
 import { CANONICAL_TAGS, TAG_GROUPS, normalizeTags, autoTagEntry, mergeTagsWithExisting } from './tags.js';
-import { buildSearchFields, normalizeSearchText } from './search-text.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -87,32 +86,6 @@ const prisma = new PrismaClient();
 
 // Enable WAL mode for better concurrent read/write performance
 prisma.$executeRawUnsafe('PRAGMA journal_mode=WAL').catch(() => { });
-
-/**
- * Recompute the search shadow columns for the given entries.
- *
- * Reads each row back from the database rather than deriving the columns from
- * the request body: admin updates and imports are partial (an omitted field
- * means "leave unchanged"), so a body-derived value would blank out whatever
- * the caller happened not to send. Call this after any write that touches
- * title, creator, description, tags or metadata.
- *
- * Scripts in scripts/ use their own PrismaClient and bypass this — run
- * `npm run backfill:search` after those.
- */
-async function syncSearchText(ids: number[]): Promise<void> {
-    const BATCH = 500;
-    for (let i = 0; i < ids.length; i += BATCH) {
-        const batch = ids.slice(i, i + BATCH);
-        const rows = await prisma.entry.findMany({
-            where: { id: { in: batch } },
-            select: { id: true, title: true, creator: true, description: true, tags: true, metadata: true },
-        });
-        await prisma.$transaction(
-            rows.map(row => prisma.entry.update({ where: { id: row.id }, data: buildSearchFields(row) }))
-        );
-    }
-}
 
 const corsOrigin = process.env.CORS_ORIGIN;
 app.use(cors(corsOrigin ? { origin: corsOrigin, credentials: true } : undefined));
@@ -862,33 +835,29 @@ app.get('/api/entries', async (req, res) => {
         let filterIds: number[] | null = null;
 
         if (creator && typeof creator === 'string') {
-            // Substring (not whole-word) match against the folded columns, so an
-            // accented or curly-punctuated creator name still matches what the
-            // user typed. Folds to '' for a punctuation-only value, which must
-            // match nothing rather than everything.
-            const folded = normalizeSearchText(creator);
-            if (folded === '') {
-                filterIds = [];
-            } else {
-                const q = `%${folded}%`;
-                const exactTitle = ` ${folded} `;
+            const searchTerm = creator.trim();
+            const q = `%${searchTerm}%`;
+            const exactTitle = searchTerm;
 
-                // Search ALL fields with ranking (exact title first, then title contains, then other fields)
-                const results: { id: number; rank: number }[] = await prisma.$queryRaw`
-                    SELECT id,
-                        CASE 
-                            WHEN searchTitle = ${exactTitle} THEN 1
-                            WHEN searchTitle LIKE ${q} THEN 2
-                            WHEN searchCreator LIKE ${q} THEN 3
-                            WHEN searchDescription LIKE ${q} THEN 4
-                            ELSE 5
-                        END as rank
-                    FROM Entry
-                    WHERE searchAll LIKE ${q}
-                    ORDER BY rank ASC
-                `;
-                filterIds = results.map(r => r.id);
-            }
+            // Search ALL fields with ranking (exact title first, then title contains, then other fields)
+            const results: { id: number; rank: number }[] = await prisma.$queryRaw`
+                SELECT id,
+                    CASE 
+                        WHEN LOWER(title) = LOWER(${exactTitle}) THEN 1
+                        WHEN title LIKE ${q} THEN 2
+                        WHEN creator LIKE ${q} THEN 3
+                        WHEN description LIKE ${q} THEN 4
+                        ELSE 5
+                    END as rank
+                FROM Entry
+                WHERE title LIKE ${q}
+                   OR creator LIKE ${q}
+                   OR description LIKE ${q}
+                   OR tags LIKE ${q}
+                   OR metadata LIKE ${q}
+                ORDER BY rank ASC
+            `;
+            filterIds = results.map(r => r.id);
         }
 
         // Genre filter (searches within metadata JSON, case-insensitive)
@@ -937,37 +906,19 @@ app.get('/api/entries', async (req, res) => {
             where.id = { in: filterIds };
         }
 
-        // For search: raw SQL LIKE against the folded search columns, which are
-        // lowercased and diacritic/punctuation-stripped at write time. Matching the
-        // raw columns would miss accents and curly punctuation, since SQLite's LIKE
-        // only case-folds ASCII (see server/search-text.ts).
+        // For search: use raw SQL with LIKE (case-insensitive in SQLite)
         // Rank results: exact title match > title contains > creator > description > tags/metadata
         // Whole-word search: "rat" matches "rat" but NOT "ratification" or "generation"
+        // Normalize punctuation to spaces, pad with spaces, then match ' word '
         let searchIds: number[] | null = null;
-        if (search && typeof search === 'string' && normalizeSearchText(search) === '') {
-            // Query folded away entirely (punctuation/symbols only) — matches nothing.
-            // Without this, the '% %' pattern below would match every row.
-            searchIds = [];
-        } else if (search && typeof search === 'string') {
+        if (search && typeof search === 'string') {
             const searchTerm = search.trim();
-            // Drop tokens that fold to nothing (e.g. a lone "—"), which would
-            // otherwise produce a match-everything '% %' pattern.
-            const words = searchTerm.split(/\s+/).filter(w => normalizeSearchText(w) !== '');
-            // Whole-word pattern, folded into the same character space as the
-            // stored search columns (see server/search-text.ts).
-            const wordLike = (w: string) => `% ${normalizeSearchText(w)} %`;
-            // Map a logical field to its folded shadow column. tags and metadata
-            // have no column of their own — they are folded into searchAll, which
-            // also contains title/creator/description, so an OR across these five
-            // remains correct (the searchAll terms are simply redundant).
-            const SEARCH_COLUMN: Record<string, string> = {
-                title: 'searchTitle',
-                creator: 'searchCreator',
-                description: 'searchDescription',
-                tags: 'searchAll',
-                metadata: 'searchAll',
-            };
-            const F = (col: string) => SEARCH_COLUMN[col];
+            const words = searchTerm.split(/\s+/).filter(Boolean);
+            // Helper: whole-word LIKE pattern
+            const wordLike = (w: string) => `% ${w} %`;
+            // Field expression: replace common punctuation with spaces, pad both sides
+            // Covers: , . ; : " ' - — – / & ( ) [ ] ! ?
+            const F = (col: string) => `(' ' || REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(${col}, ',', ' '), '.', ' '), ';', ' '), ':', ' '), '"', ' '), '''', ' '), '-', ' '), '/', ' '), '&', ' '), '(', ' '), ')', ' '), '[', ' '), ']', ' '), '!', ' '), '?', ' ') || ' ')`;
 
             // Date-aware search: detect month names, day numbers, years, and decades
             const monthNames: Record<string, number> = {
@@ -1057,12 +1008,10 @@ app.get('/api/entries', async (req, res) => {
             if (words.length <= 1) {
                 // Single word — ranked search with prefix matching
                 const q = wordLike(searchTerm);
-                // Exact-title rank compares against the folded, space-padded column,
-                // so "misere" still ranks a "MISÈRE" title first.
-                const exactTitle = ` ${normalizeSearchText(searchTerm)} `;
+                const exactTitle = searchTerm;
                 const sql = `SELECT id,
                     CASE
-                        WHEN searchTitle = ? THEN 1
+                        WHEN LOWER(title) = LOWER(?) THEN 1
                         WHEN ${F('title')} LIKE ? THEN 2
                         WHEN ${F('creator')} LIKE ? THEN 3
                         WHEN ${F('description')} LIKE ? THEN 4
@@ -1383,7 +1332,6 @@ app.post('/api/entries', uploadLimiter, async (req, res) => {
                 submitterComment: submitterComment || null,
             }
         });
-        await syncSearchText([entry.id]);
         res.status(201).json(sanitizeEntryForJson(entry));
     } catch (error) {
         console.error('Create entry error:', error);
@@ -1414,29 +1362,11 @@ app.get('/api/admin/entries', adminAuth, async (req, res) => {
                 where.NOT = { metadata: { contains: '"aiEnhanced":true' } };
             }
         }
-        if (search && typeof search === 'string' && normalizeSearchText(search) === '') {
-            // Query folded away entirely (punctuation/symbols only) — matches nothing.
-            where.id = { in: [] };
-        } else if (search && typeof search === 'string') {
+        if (search && typeof search === 'string') {
             const searchTerm = search.trim();
-            // Drop tokens that fold to nothing (e.g. a lone "—"), which would
-            // otherwise produce a match-everything '% %' pattern.
-            const words = searchTerm.split(/\s+/).filter(w => normalizeSearchText(w) !== '');
-            // Whole-word pattern, folded into the same character space as the
-            // stored search columns (see server/search-text.ts).
-            const wordLike = (w: string) => `% ${normalizeSearchText(w)} %`;
-            // Map a logical field to its folded shadow column. tags and metadata
-            // have no column of their own — they are folded into searchAll, which
-            // also contains title/creator/description, so an OR across these five
-            // remains correct (the searchAll terms are simply redundant).
-            const SEARCH_COLUMN: Record<string, string> = {
-                title: 'searchTitle',
-                creator: 'searchCreator',
-                description: 'searchDescription',
-                tags: 'searchAll',
-                metadata: 'searchAll',
-            };
-            const F = (col: string) => SEARCH_COLUMN[col];
+            const words = searchTerm.split(/\s+/).filter(Boolean);
+            const wordLike = (w: string) => `% ${w} %`;
+            const F = (col: string) => `(' ' || REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(${col}, ',', ' '), '.', ' '), ';', ' '), ':', ' '), '"', ' '), '''', ' '), '-', ' '), '/', ' '), '&', ' '), '(', ' '), ')', ' '), '[', ' '), ']', ' '), '!', ' '), '?', ' ') || ' ')`;
 
             // Date-aware search: detect month names, day numbers, years, and decades
             const monthNames: Record<string, number> = {
@@ -1690,7 +1620,6 @@ app.post('/api/admin/entries', adminAuth, async (req, res) => {
                 submitterComment: submitterComment || null,
             }
         });
-        await syncSearchText([entry.id]);
         res.status(201).json(sanitizeEntryForJson(entry));
     } catch (error) {
         console.error('Admin create entry error:', error);
@@ -1719,7 +1648,6 @@ app.put('/api/admin/entries/:id', adminAuth, async (req, res) => {
                 isPublished,
             }
         });
-        await syncSearchText([entry.id]);
         res.json(sanitizeEntryForJson(entry));
     } catch (error) {
         console.error('Update entry error:', error);
@@ -1775,7 +1703,6 @@ app.post('/api/admin/tags/normalize', adminAuth, async (_req, res) => {
         let updated = 0;
         let unchanged = 0;
         const changes: { id: number; before: string; after: string | null }[] = [];
-        const changedIds: number[] = [];
 
         for (const entry of entries) {
             if (!entry.tags) continue;
@@ -1786,15 +1713,11 @@ app.post('/api/admin/tags/normalize', adminAuth, async (_req, res) => {
                     data: { tags: normalized },
                 });
                 changes.push({ id: entry.id, before: entry.tags, after: normalized });
-                changedIds.push(entry.id);
                 updated++;
             } else {
                 unchanged++;
             }
         }
-
-        // tags feed searchAll — refold the rows whose tags changed
-        await syncSearchText(changedIds);
 
         res.json({
             total: entries.length,
@@ -1824,7 +1747,6 @@ app.post('/api/admin/tags/auto-tag', adminAuth, async (req, res) => {
         });
 
         const results: { id: number; title: string | null; category: string; existingTags: string | null; newTags: string[]; mergedTags: string | null }[] = [];
-        const taggedIds: number[] = [];
         let taggedCount = 0;
         let skippedCount = 0;
 
@@ -1857,12 +1779,8 @@ app.post('/api/admin/tags/auto-tag', adminAuth, async (req, res) => {
                     where: { id: entry.id },
                     data: { tags: merged },
                 });
-                taggedIds.push(entry.id);
             }
         }
-
-        // tags feed searchAll — refold the rows that were actually written
-        await syncSearchText(taggedIds);
 
         res.json({
             dryRun,
@@ -2343,9 +2261,6 @@ app.post('/api/admin/import', adminAuth, async (req, res) => {
     }
 
     try {
-        // Collected inside the transaction, refolded after it commits — the search
-        // columns are derived from the persisted row, not the import payload.
-        const touchedIds: number[] = [];
         const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
             let addedCount = 0;
             let updatedCount = 0;
@@ -2388,10 +2303,9 @@ app.post('/api/admin/import', adminAuth, async (req, res) => {
                             isPublished: item.isPublished,
                         }
                     });
-                    touchedIds.push(existing.id);
                     updatedCount++;
                 } else {
-                    const created = await tx.entry.create({
+                    await tx.entry.create({
                         data: {
                             category: item.category,
                             title: item.title,
@@ -2409,15 +2323,12 @@ app.post('/api/admin/import', adminAuth, async (req, res) => {
                             submitterComment: item.submitterComment,
                         }
                     });
-                    touchedIds.push(created.id);
                     addedCount++;
                 }
             }
 
             return { added: addedCount, updated: updatedCount, skipped: skippedCount };
         });
-
-        await syncSearchText(touchedIds);
 
         res.json({ message: 'Import completed', stats: result });
     } catch (error) {
@@ -2501,9 +2412,6 @@ app.post('/api/admin/import-zip', adminAuth, zipUpload.single('backup'), async (
         }
 
         // Process entries in batches to avoid giant transaction + send progress
-        // Refolded after the batches commit — derived from the persisted rows,
-        // not the ZIP payload, since updates there are partial too.
-        const touchedIds: number[] = [];
         const BATCH_SIZE = 50;
         for (let i = 0; i < entries.length; i += BATCH_SIZE) {
             const batch = entries.slice(i, i + BATCH_SIZE);
@@ -2531,7 +2439,6 @@ app.post('/api/admin/import-zip', adminAuth, zipUpload.single('backup'), async (
                             }
                         });
                         newId = existing.id;
-                        touchedIds.push(newId);
                         updatedCount++;
                     } else {
                         const created = await tx.entry.create({
@@ -2548,7 +2455,6 @@ app.post('/api/admin/import-zip', adminAuth, zipUpload.single('backup'), async (
                             }
                         });
                         newId = created.id;
-                        touchedIds.push(newId);
                         addedCount++;
                     }
 
@@ -2617,11 +2523,6 @@ app.post('/api/admin/import-zip', adminAuth, zipUpload.single('backup'), async (
             const current = Math.min(i + BATCH_SIZE, total);
             sendProgress({ phase: 'importing', current, total, added: addedCount, updated: updatedCount, images: imagesRestored });
         }
-
-        // Reuses the 'extracting' phase because ImportModal renders a message for
-        // it; an unknown phase would be silently dropped by its handler.
-        sendProgress({ phase: 'extracting', message: 'Rebuilding search index...' });
-        await syncSearchText(touchedIds);
 
         // Clean up temp ZIP file
         fs.unlinkSync(zipPath);

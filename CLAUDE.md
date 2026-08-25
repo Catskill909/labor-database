@@ -122,34 +122,6 @@
 ## Known Issues
 - Large JS chunks from react-player (~992KB dash.all.min, ~521KB hls) — lazy-loaded via code splitting, only fetched when viewing entry detail with video
 
-### Search runs on folded shadow columns — keep them in sync
-
-`Entry` carries four derived columns — `searchTitle`, `searchCreator`,
-`searchDescription`, `searchAll` — holding lowercased, diacritic-stripped,
-punctuation-collapsed, space-padded copies of the entry text. All search queries
-run against these, never against the raw columns.
-
-**Why:** SQLite's `LIKE` case-folds only ASCII A–Z. Matching raw columns meant
-"misère" could not find a stored "MISÈRE", and "don't" could not find "don’t" —
-about 1 entry in 7 was affected. See `server/search-text.ts`.
-
-**Rules:**
-- Any write that touches `title`, `creator`, `description`, `tags` or `metadata`
-  must be followed by `syncSearchText([ids])` in `server/index.ts`. It reads the
-  **persisted row**, not the request body — admin updates and imports are partial,
-  so a body-derived value would blank out whatever the caller didn't send.
-- **Scripts in `scripts/` bypass this** (each builds its own `PrismaClient`).
-  After running any import/enrichment script, run `npm run backfill:search`.
-- New search code must fold the query with `normalizeSearchText()` and must
-  reject queries that fold to empty — a `'% %'` pattern matches every row.
-- `npm test` covers the folding contract (`server/search-text.test.ts`).
-
-**Deployment:** the migration adds these columns as NULL, so search returns
-nothing until they're populated. `docker-entrypoint.sh` runs
-`scripts/backfill-search-text.ts --missing-only` after `migrate deploy`
-(no-op once populated), and the Dockerfile copies `scripts/` into the runtime
-image for that reason — don't remove it.
-
 ### Tag storage will break on any tag containing a comma
 
 **Not a bug today. A trap with a known trigger.** Noted 9 August 2026.
