@@ -156,7 +156,24 @@ Chris wrote:
 The only client ask still genuinely open. Needs Chris to confirm tag-based vs
 curated. See above.
 
-### TASK-A1 · Public "suggest a correction" flow · ~12–16 hrs · **unblocked**
+### TASK-A1 · Public "suggest a correction" flow · ~12–16 hrs · **awaiting client decision**
+
+**Two questions went to Chris (25 Aug) — do not build before he answers:**
+
+1. **Placement.** Recommended: a quiet "Suggest a correction" link at the bottom
+   of the entry detail modal (`EntryDetail.tsx`), so the entry being corrected is
+   already in context. Alternative is a top-bar button, which would need an entry
+   picker first — more steps, and corrections can land on the wrong record.
+   *Note:* only films (2,192/2,192) and music (425/436) have a `sourceUrl` line at
+   the bottom of that modal. **Quotes (1,916) and history (1,411) have none**, so
+   for over half the database the correction link would stand alone there.
+2. **Form type.** Recommended: pre-filled editable fields (category-aware, same
+   shape as `SubmissionWizard`) with a before/after diff in admin. Alternative is
+   a freeform "what's wrong?" box — simpler to build, but every fix is retyped by
+   hand.
+
+Paul's answer on submitter details is settled: **name and email are collected**,
+same as new submissions.
 Confirmed: name and email will be collected, same as new submissions. New
 `SubmittedEdit` model, public POST, admin approve/reject with before/after diff.
 Reuses the existing moderation pattern. Schema migration — **back up first**.
