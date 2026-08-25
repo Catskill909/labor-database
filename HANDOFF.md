@@ -16,7 +16,9 @@ Archive" (`lhf-tools.supersoul.top`) is a **separate project, tracked elsewhere.
 Phase 1 fixes (search race condition, Related Films/Music rename, history-only
 era matching) are still live and verified.
 
-**Do not redeploy the search fix until BUG-4 and BUG-5 below are resolved.**
+**Root cause NOT found.** Three theories were proposed; all three were wrong.
+Migrations fail with a *persistent* "database is locked". See BUG-5 for what has
+been ruled out and the safe next steps. **The site is healthy; this is not urgent.**
 
 ### INCIDENT — 25 Aug 2026, ~19:30–19:48 UTC (~18 min)
 
@@ -40,67 +42,104 @@ would accept the migration.
 
 ---
 
-## 🔴 BUG-4 · A failed migration does not stop the deploy · **CRITICAL — fix first**
+## 🔴 BUG-5 · `migrate deploy` always fails: "database is locked" · UNRESOLVED
 
-`docker-entrypoint.sh` swallows migration failure and starts the server anyway:
+**Site is healthy and stable. This blocks the search fix only. NOT urgent.**
+
+Migrations have been failing on **every deploy**, silently, for a long time. The
+entrypoint caught the failure and started the server anyway, so it never showed
+until a deploy actually depended on a migration (the 25 Aug outage).
+
+```
+Running database migrations...
+Error: SQLite database error
+database is locked
+   0: sql_schema_connector::sql_migration_persistence::initialize
+   1: schema_core::state::ApplyMigrations
+```
+
+Prisma fails while initialising `_prisma_migrations`, before applying anything.
+
+### Ruled out — with evidence. Do NOT re-investigate.
+
+- **Migration history drift / P3005.** `npx prisma migrate status` on production
+  reports "Database schema is up to date!". History is healthy. *(Theory 1 — wrong.)*
+- **Migration file missing from the image.** Committed in `784a6ef`; not
+  gitignored; not in `.dockerignore`; the Dockerfile copies `prisma/` wholesale.
+- **Container-handover lock contention.** The 20:19 deploy shows `Removing old
+  containers` at 20:19:04 and `New container started` at 20:19:37 — **33 seconds
+  apart**, far beyond Docker's 10s stop grace period, and the migration still
+  failed. A 12×5s (~60s) retry was deployed and failed all 12 attempts.
+  **The lock is permanent, not transient.** *(Theory 2 — wrong.)*
+
+### Live evidence — `ls -la /app/data/` (25 Aug)
+
+```
+drwxr-xr-x  3 root root     4096 Dec 29  2025 audiofiles
+-rw-r--r--  1 root root  9064448 Aug 24 02:41 dev.db
+-rw-r--r--  1 root root    32768 Aug 25 02:41 dev.db-shm
+-rw-r--r--  1 root root   230752 Aug 25 02:41 dev.db-wal
+-rw-r--r--  1 root root        0 Mar  7 15:30 migrate.lock
+drwxr-xr-x  2 root root     4096 Dec 28  2025 playlists
+-rw-r--r--  1 root root    86016 Feb 23  2026 sqlite.db
+-rw-r--r--  1 root root   110592 Jan 15  2026 stations.db
+```
+
+**Two open leads:**
+
+1. **The volume holds another application's data.** `audiofiles/`, `playlists/`,
+   `stations.db`, `sqlite.db` are not from this project. If another Coolify app
+   mounts the same host directory and holds an open SQLite connection, that could
+   explain a permanent lock. **Check which apps mount this volume.**
+2. **Stale write-ahead log.** `dev.db-wal` is 230KB dated Aug 25 02:41 while
+   `dev.db` is dated Aug 24 — never checkpointed.
+
+`migrate.lock` (0 bytes, Mar 7) is left over from an earlier entrypoint that used
+`flock` (the Dockerfile still installs `util-linux` for it). Probably inert, but
+it shows this has been fought before.
+
+### ⚠️ DO NOT delete dev.db-wal or dev.db-shm
+
+The WAL holds committed data not yet folded into the main database file.
+Deleting it can **lose data**. If a checkpoint is needed, do it properly —
+`PRAGMA wal_checkpoint(TRUNCATE)` on a cleanly-opened database, **after a fresh
+Full Backup**, with the app stopped.
+
+### Next diagnostic steps — fresh session, not at the end of a long day
+
+1. **Take a fresh production Full Backup first.**
+2. Find what else mounts `/app/data` (Coolify → other apps → Persistent Storage).
+   A second container on the same volume is the most likely answer.
+3. With the app **stopped**, try `npx prisma migrate deploy` from a one-off
+   container. If it succeeds while stopped, the lock is a live connection, and
+   the fix is to migrate while stopped (or move off SQLite for concurrent access).
+4. Only then consider whether the WAL needs checkpointing.
+
+## BUG-4 · A failed migration does not stop the deploy · fix written, then reverted
+
+`docker-entrypoint.sh` starts the server even when `migrate deploy` fails:
 
 ```sh
 npx prisma migrate deploy || { ...retry... || echo "Migration failed again - starting server anyway (may have issues)" }
 ```
 
-**This is what turned a failed migration into an 18-minute outage.** Without it,
-the container would have refused to start and Coolify would have kept the
-previous version running — users would have seen nothing at all.
+**That is what turned a failed migration into an 18-minute outage** — the server
+came up against a schema it did not match and served 500s from every endpoint
+touching `Entry`, while `/api/health` stayed green because it only runs a raw
+`SELECT 1`.
 
-**Fix:** exit non-zero when `migrate deploy` fails, so the deploy fails loudly
-instead of serving 500s. Consider also making `/api/health` touch the Entry table
-so a schema mismatch shows up as unhealthy rather than green.
+Commit `9528797` added a 12×5s retry and made failure `exit 1`. It was reverted
+in `3af9615`: with the lock being *permanent*, refusing to start meant the site
+stayed **down** instead of up.
 
-**This is the highest-value fix in the repo right now** — it is the difference
-between a failed deploy and a broken site, for every future migration.
+**The fail-loudly half is still correct** and should be restored **after** BUG-5
+is genuinely fixed — not before, or every deploy takes the site down.
 
-## 🔴 BUG-5 · `migrate deploy` silently failed to apply the migration · **blocks the search fix**
+### Also worth doing
 
-The migration `20260825184951_add_search_shadow_columns` was never applied on
-production, so the code shipped expecting columns that did not exist.
-
-### Ruled out (verified 25 Aug — do not re-investigate)
-
-- **Migration history drift / P3005.** `npx prisma migrate status` on the
-  production container returns **"Database schema is up to date!"**. History is
-  healthy. This was the initial theory and it was **wrong**.
-- **File missing from the commit.** `git show 784a6ef -- prisma/migrations`
-  confirms the migration.sql was committed.
-- **Excluded from the image.** Not in `.gitignore`, not in `.dockerignore`;
-  the Dockerfile copies `prisma/` wholesale.
-
-- **SQLite lock contention from a rolling deploy.** Ruled out by the deploy log:
-  `Application has ports mapped to the host system, rolling update is not
-  supported` → `Removing old containers.` → `New container started.` The old
-  container is gone before the new one starts, so nothing else holds the
-  database open. This was the second theory, also **wrong**.
-
-### Leading hypothesis — NOT yet confirmed
-
-**The entrypoint may never run.** The Coolify deploy log shows no container
-startup output at all. If a custom **Start Command** is configured in Coolify,
-it overrides the Dockerfile `CMD` and bypasses `docker-entrypoint.sh` entirely —
-meaning `prisma migrate deploy` has never run on any deploy, and the `init`
-migration was applied by some other route.
-
-**To check:** Coolify → **Logs** tab (container logs, not the deploy log). Look
-for `Running database migrations...`, `Checking seed data...`, `Starting server
-on port 3001...`. If those lines are absent, the entrypoint is not executing.
-Also check Coolify → Configuration for a custom Start Command.
-
-### To confirm — one thing needed
-
-The deploy log for commit `59aa29b` (25 Aug, 19:29:16 UTC). In Coolify →
-Deployments, click the **⌄ chevron** on that row and read the lines after
-`Running database migrations...`. That names the actual error.
-
-**Do not attempt another fix before reading it.** Two theories have already been
-proposed from inference; one was wrong and it cost an outage.
+- **Make `/api/health` touch the Entry table**, so a schema mismatch reports
+  unhealthy instead of green. This is why nothing caught the outage.
+- **Add a SIGTERM handler** to the server for clean shutdown and WAL checkpoint.
 
 ### Before re-attempting the search fix
 1. Fix BUG-4 so a failed migration stops the deploy.
