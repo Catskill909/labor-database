@@ -19,6 +19,7 @@ function HomePage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('on-this-day');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [sort, setSort] = useState('');
   const [loading, setLoading] = useState(true);
@@ -51,6 +52,12 @@ function HomePage() {
     setSort('');
   }, [selectedCategory]);
 
+  // Debounce search input so a request isn't fired on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   // Derive effective sort from category — if sort is empty or invalid for current category, use first option
   const catSortOptions = SORT_OPTIONS[selectedCategory];
   const effectiveSort = sort && catSortOptions?.some(o => o.value === sort) ? sort : catSortOptions?.[0]?.value || 'newest';
@@ -59,7 +66,7 @@ function HomePage() {
   const buildParams = useCallback((offset: number) => {
     const params = new URLSearchParams();
     if (selectedCategory && selectedCategory !== 'on-this-day') params.set('category', selectedCategory);
-    if (searchQuery.trim()) params.set('search', searchQuery.trim());
+    if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
     for (const [key, value] of Object.entries(filters)) {
       if (value) params.set(key, value);
     }
@@ -67,7 +74,7 @@ function HomePage() {
     params.set('limit', String(PAGE_SIZE));
     params.set('offset', String(offset));
     return params;
-  }, [selectedCategory, searchQuery, filters, effectiveSort]);
+  }, [selectedCategory, debouncedSearch, filters, effectiveSort]);
 
   // Initial fetch when category, search, or filters change (skip for On This Day)
   useEffect(() => {
@@ -80,8 +87,11 @@ function HomePage() {
     setHasMore(true);
     offsetRef.current = 0;
 
+    // Abort any in-flight request when params change so stale responses
+    // can't overwrite newer results (race condition fix)
+    const controller = new AbortController();
     const params = buildParams(0);
-    fetch(`/api/entries?${params}`)
+    fetch(`/api/entries?${params}`, { signal: controller.signal })
       .then(r => r.json())
       .then(data => {
         setEntries(data);
@@ -90,10 +100,12 @@ function HomePage() {
         setLoading(false);
       })
       .catch(err => {
+        if (err.name === 'AbortError') return;
         console.error('Failed to fetch entries:', err);
         setLoading(false);
       });
-  }, [selectedCategory, searchQuery, filters, buildParams, isOnThisDay]);
+    return () => controller.abort();
+  }, [selectedCategory, debouncedSearch, filters, buildParams, isOnThisDay]);
 
   // Load more entries
   const loadMore = useCallback(() => {

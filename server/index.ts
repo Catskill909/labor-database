@@ -669,8 +669,11 @@ app.get('/api/on-this-day', async (req, res) => {
             sections[entry.category].push(entry);
         }
 
-        // Collect years from date-matched entries for year-based film/music matching
-        const matchedYears = [...new Set(dateEntries.map(e => e.year).filter((y): y is number => y !== null))];
+        // Collect years from date-matched HISTORY entries only for year-based
+        // film/music matching. Quote entries are excluded because their year
+        // often reflects when the quote was featured (e.g. 2016-2023), which
+        // pulled in unrelated modern songs/films.
+        const matchedYears = [...new Set(dateEntries.filter(e => e.category === 'history').map(e => e.year).filter((y): y is number => y !== null))];
 
         // Get films and music from matching years (secondary content)
         let yearMatches: Record<string, typeof dateEntries> = {};

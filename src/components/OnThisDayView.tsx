@@ -344,7 +344,7 @@ export default function OnThisDayView({ onSelectEntry, onAddClick }: OnThisDayVi
                 <section>
                   <SectionHeader
                     icon={<Film size={20} />}
-                    title="Films from the Era"
+                    title="Related Films"
                     count={data.yearMatches.film.length}
                     label="film"
                     subtitle={data.matchedYears.length === 1
@@ -364,7 +364,7 @@ export default function OnThisDayView({ onSelectEntry, onAddClick }: OnThisDayVi
                 <section>
                   <SectionHeader
                     icon={<Music size={20} />}
-                    title="Music from the Era"
+                    title="Related Music"
                     count={data.yearMatches.music.length}
                     label="song"
                     subtitle={data.matchedYears.length === 1
