@@ -9,7 +9,7 @@
 - **Phase 2 — LIVE** (`d961c54`, 25 Aug ~22:30 UTC): 2a accent/punctuation-insensitive search via folded shadow columns. Verified in production against Chris's exact searches.
 - **2b alternate titles — satisfied by 2a**, not a separate task. Chris's failing search was "Misère au Borinage", an alternate title embedded in the title string; it now works. A dedicated field would be an enhancement.
 - **Next:** 3b/C2 "meaningfully connected" matching (needs Chris's answer), then corrections (1a, also needs his answer), then Labor Quotes import (1c) and admin tags (1b).
-- **Deploy caveat:** Phase 2 only deployed because two other apps were stopped — `radio.supersoul.top` shares the same SQLite file. See BUG-6 in HANDOFF.md; must be fixed before any future schema change.
+- **Deploy caveat:** Phase 2 needed a manual infrastructure workaround to deploy. See BUG-6 in HANDOFF.md; must be resolved before any future schema change. Specifics are in the private ops runbook, not in this repository.
 
 ---
 

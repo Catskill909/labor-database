@@ -10,6 +10,38 @@ Archive" (`lhf-tools.supersoul.top`) is a **separate project, tracked elsewhere.
 
 ---
 
+## 🔴 START HERE — deployment storage migration is the open work
+
+**Before changing anything under Coolify → Persistent Storage on this app, read
+the private ops runbook.** It is deliberately **not in this repo** — this
+repository is public and the runbook contains infrastructure specifics that are
+nobody's business but ours.
+
+**Location:** `cooify-volume-fix.md`, in the *digital-asset-manager* working
+copy (`~/Desktop/digital-asset-manager/`). It holds the cause, the per-app
+checklist, a completed worked example and the running log.
+
+**Do not summarise its contents into this file, `CLAUDE.md`, or any other
+tracked document.** Point at it; do not copy from it.
+
+### 🐞 Fixed here, 26 August 2026 — the backup ZIP was not lossless
+
+The importer dropped `createdAt` / `updatedAt`, stamping every restored entry
+with the date of the import. Not cosmetic: `createdAt` is the **default browse
+order**, backs the **Newest / Oldest** sort options, and supplies
+`date_published` / `date_modified` in the **JSON Feed**. The export always
+included both fields; the importer discarded them.
+
+The field mapping now lives in `server/backup-import.ts`, and
+`server/backup-import.test.ts` derives the expected columns **from
+`prisma/schema.prisma`** — so a column added to `Entry` and forgotten in the
+importer fails `npm test` naming the column, rather than surfacing after a real
+restore. Verified by removing a field and watching it fail.
+
+**Existing backup ZIPs are fine.** The data was always in them.
+
+---
+
 ## ✅ Current state: search fix is LIVE (25 Aug 2026, ~22:30 UTC)
 
 Deployed at `d961c54`. Verified in production:
@@ -23,63 +55,32 @@ Deployed at `d961c54`. Verified in production:
 - Punctuation-only queries return 0, not everything
 - July 12 shows `matchedYears: [1917, 1933]`, no Drake/Gaynor/Moby
 
-### ⚠️ IMPORTANT — this only worked because two apps were stopped
+### ⚠️ IMPORTANT — that deploy needed an infrastructure workaround
 
-`radio.supersoul.top` and `icecast.supersoul.top` were stopped for this deploy so
-`prisma migrate deploy` could get its exclusive lock. **The moment radio is
-running again, the next migration will fail exactly as before.**
+`prisma migrate deploy` could not obtain its exclusive lock until a deployment
+change was made by hand. **The migration is applied, so day-to-day deploys are
+fine — but any future schema change hits the same wall** until the work in
+BUG-6 is done.
 
-**The migration itself is now applied, so day-to-day deploys are fine.** But any
-*future schema change* needs either the same stop-deploy-start dance, or the
-permanent fix below.
+**The specifics are in the private runbook, not here.** See BUG-6 below.
 
-**The entrypoint now fails loudly** (`exit 1`) if a migration fails — so a future
-failure takes the site *down* rather than serving errors silently. That is
-deliberate, but it means the volume isolation below is now important, not
-optional.
+**The entrypoint now fails loudly** (`exit 1`) if a migration fails — so a
+future failure takes the site *down* rather than serving errors silently. That
+is deliberate, and it is why BUG-6 is worth finishing.
 
 ---
 
-## 🔴 BUG-6 · Three apps share one host directory · **do this before the next migration**
+## 🔴 BUG-6 · Deployment storage — tracked in the private runbook
 
-`radio.supersoul.top` uses `DATABASE_URL=file:/app/data/dev.db` — **the same file
-as labor-database.** Confirmed via `lsof` (two node processes, same inode
-4456477) and `docker inspect`.
+**Details deliberately not recorded here.** This repository is public. The
+cause, the affected resources, the migration procedure, the verification and the
+rollback are all in `cooify-volume-fix.md` in the *digital-asset-manager*
+working copy, which is not in any repository.
 
-Three containers bind-mount the host path `/app/data` instead of isolated named
-volumes — labor-database, radio, icecast. They also share `/app/uploads`.
-Labor Landmarks does it correctly with a named volume
-(`skswcso44gcoc0c0soggsskg-labor-landmarks-data`).
+**What belongs in this file:** it is open, it is the next infrastructure job on
+this app, it is not urgent, and nothing about it is a client-facing problem.
 
-This is a data-integrity issue, not just a deploy problem: two apps writing one
-SQLite file, each Prisma schema unaware of the other's tables. The foreign files
-in the data directory (`stations.db`, `playlists/`, `audiofiles/`) are radio's.
-
-### The fix — isolate RADIO and ICECAST, not labor-database
-
-**Two runbooks, in this order:**
-1. **[radio-icecast-fixes.md](radio-icecast-fixes.md)** — move radio and icecast
-   off the shared folder. Hand to whoever works on those apps. Removes today's
-   collision.
-2. **[labor-database-volume-isolation.md](labor-database-volume-isolation.md)** —
-   give this app its own named volume so **no future app can ever collide again**.
-   Step 1 only fixes the apps that exist today; step 2 makes it structurally
-   impossible. Do it rested, on a quiet day — it moves client data and takes the
-   site down for ~15–30 min.
-
-Move the apps that can afford to break. Radio and icecast are personal projects
-with no users; labor-database is the live client app. So radio and icecast each
-get their own named volume and stop touching `/app/data/dev.db` and
-`/app/uploads`. **Labor Database is never stopped, moved, or reconfigured.**
-
-Success is `lsof /app/data/dev.db` returning only labor-database's process.
-
-See the runbook for the full procedure, backups, verification and rollback.
-Key safety points: use `sqlite3 .backup` rather than `cp` for any live SQLite
-file, and **never delete `dev.db-wal` / `dev.db-shm`** — they hold committed data
-not yet folded into the main file.
-
-**Ruled out earlier — do not re-investigate:** migration history drift/P3005
+**Ruled out earlier — do not re-investigate:** migration history drift / P3005
 (`migrate status` reports up to date); migration file missing from the image
 (committed, not gitignored, not dockerignored); container-handover lock
 contention (33s gap plus a 12×5s retry, both still failed).

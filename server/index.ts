@@ -15,6 +15,7 @@ import ExcelJS from 'exceljs';
 import rateLimit from 'express-rate-limit';
 import { CANONICAL_TAGS, TAG_GROUPS, normalizeTags, autoTagEntry, mergeTagsWithExisting } from './tags.js';
 import { buildSearchFields, normalizeSearchText } from './search-text.js';
+import { entryCreateData } from './backup-import.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -2534,18 +2535,11 @@ app.post('/api/admin/import-zip', adminAuth, zipUpload.single('backup'), async (
                         touchedIds.push(newId);
                         updatedCount++;
                     } else {
+                        // Field mapping lives in backup-import.ts so a test can
+                        // check it against the schema. It used to be inline here
+                        // and silently dropped createdAt/updatedAt - see that file.
                         const created = await tx.entry.create({
-                            data: {
-                                category: item.category, title: item.title,
-                                description: item.description,
-                                month: item.month, day: item.day, year: item.year,
-                                creator: item.creator, metadata: item.metadata,
-                                tags: item.tags, sourceUrl: item.sourceUrl,
-                                isPublished: item.isPublished !== false,
-                                submitterName: item.submitterName,
-                                submitterEmail: item.submitterEmail,
-                                submitterComment: item.submitterComment,
-                            }
+                            data: entryCreateData(item),
                         });
                         newId = created.id;
                         touchedIds.push(newId);

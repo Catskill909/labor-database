@@ -68,3 +68,8 @@ admin-help.md
 # Local-only incident/debug notes (private, not for client or git)
 # Note: the INTERNAL-*.md pattern above also works for new local docs.
 docs/err-blocked-by-response.md
+
+# Internal ops runbooks - infrastructure specifics, never publish (repo is public)
+labor-database-volume-isolation.md
+radio-icecast-fixes.md
+cooify-volume-fix.md

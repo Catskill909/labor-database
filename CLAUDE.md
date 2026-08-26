@@ -3,6 +3,14 @@
 > **Starting a new session?** Read [HANDOFF.md](HANDOFF.md) first — current state,
 > open bugs (BUG-1/2/3), next tasks, and what is blocked on the client.
 > This file is the permanent rules; HANDOFF.md is the moving state.
+>
+> 🔴 **Deployment storage configuration is the open infrastructure work on this
+> app.** The runbook is `cooify-volume-fix.md` in the *digital-asset-manager*
+> working copy — **deliberately not in any repository**, because this one is
+> public and it contains infrastructure specifics.
+>
+> **Read it before changing anything under Coolify → Persistent Storage.**
+> **Do not copy its contents into this file or any other tracked document.**
 
 ## Critical Rules (Read Before Every Session)
 
@@ -22,7 +30,10 @@
 - Local VSCode may not show errors that the full `tsc -b` build catches (different tsconfig scopes)
 
 ### 3. CODE Problems vs DATA Problems
-- **CODE problems** → fix via git push → Coolify auto-deploys
+- **CODE problems** → fix via git push, **then press Deploy in Coolify**.
+  *Corrected 26 August 2026: no application on this server has auto-deploy
+  enabled — verified across every resource. A push on its own changes nothing
+  that is running.*
 - **DATA problems** → fix via Admin Dashboard Import/Export (production DB is separate)
 - Always ask: "Is this a CODE problem or a DATA problem?"
 
