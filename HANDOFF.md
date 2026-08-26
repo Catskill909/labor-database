@@ -264,11 +264,23 @@ wider question of what should relate to a day.
 
 ## Action items
 
-**Paul**
-- [ ] Restart `radio.supersoul.top` and `icecast.supersoul.top` (stopped for the
-      25 Aug deploy) — if not already done
-- [ ] Reply to Chris in the shape he asked: what's straightforward, what needs
-      discussion, how you'd prioritise
+**Paul — open items as of end of 25 Aug**
+
+- [ ] **Send the reply to Chris** — full draft ready in
+      [chris-reply-draft.md](chris-reply-draft.md). Not sent yet.
+- [ ] **Fix 2 — [labor-database-volume-isolation.md](labor-database-volume-isolation.md)**
+      — planned for the night of 25 Aug or 26 Aug. Gives this app its own named
+      volume so no future app can ever collide. ~15–30 min downtime; do it rested.
+- [ ] Hand [radio-icecast-fixes.md](radio-icecast-fixes.md) to whoever works on
+      those apps next.
+
+**Decisions already made — do not re-litigate**
+
+- **Radio and icecast are STOPPED and staying stopped** for now. Nobody uses
+  them, and leaving them off keeps the client app clear until they are isolated
+  properly. Their sites are currently down, deliberately.
+- Billing for 25 Aug: **2.0 hrs**, reduced rate (progressive non-profit).
+- The 25 Aug outage is **not** being raised with the client.
 
 **For the reply to Chris — three things**
 
