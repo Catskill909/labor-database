@@ -68,7 +68,3 @@ admin-help.md
 # Local-only incident/debug notes (private, not for client or git)
 # Note: the INTERNAL-*.md pattern above also works for new local docs.
 docs/err-blocked-by-response.md
-
-# Labor Quotes scrape — planning doc + working artifacts (local only)
-docs/labor-quotes/
-labor-quotes-dev.md
