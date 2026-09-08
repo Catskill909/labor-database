@@ -3,7 +3,7 @@
 **Purpose:** pick-up point for a new chat window, session, or assistant.
 Read this first, then `CLAUDE.md` for the hard project rules.
 
-**Last updated:** 25 August 2026
+**Last updated:** 8 September 2026
 **Branch:** `main` · **Production:** https://labor-database.supersoul.top
 **Scope:** this repo only. The Digital Asset Manager / "Labor Heritage Media
 Archive" (`lhf-tools.supersoul.top`) is a **separate project, tracked elsewhere.**
@@ -113,10 +113,10 @@ and media database follow-up questions". **Work from his wording, not paraphrase
 | B1 | Searches **case-insensitive** + recognise **alternate/translated titles** | ✅ **LIVE** 25 Aug |
 | B2 | Results **appear briefly then disappear** | ✅ **LIVE** (`fd64f35`) |
 | C1 | Rename "Films/Music From the Era" → **"Related Films/Music"** | ✅ **LIVE** (`fd64f35`) |
-| C2 | Clarify how selections are generated; limit them to entries **"meaningfully connected to the day's history"** | ⚠️ **Half done** — Drake/Moby gone, but still year-matching, not topical. Also owes him an answer: the music was never from another source |
-| A1 | Expand "Add" so users can submit **corrections/updates** to existing entries | ⏸ Awaiting his answer on placement + form type |
-| A2 | How can we **add new tags** as the database evolves? | Not started |
-| A3 | **Bulk-import** from the Labor Quotes site | Not started — URL is laborquotes.weebly.com/c.html |
+| C2 | Clarify how selections are generated; limit them to entries **"meaningfully connected to the day's history"** | ✅ **LIVE** 8 Sep (`dae2902`) — now tag-ranked, not year-matched. Still owes him the answer that the music was never from another source |
+| A1 | Expand "Add" so users can submit **corrections/updates** to existing entries | ⚠️ **Answered differently.** Chris approved the full flow; we are recommending against building it yet. A **Contact & Corrections** menu item shipped 8 Sep instead — see below |
+| A2 | How can we **add new tags** as the database evolves? | Not started — **the blocker is that the 34 terms are hardcoded in two files**, so nobody can add one without a deploy. See `new-client-dev.md` §4 |
+| A3 | **Bulk-import** from the Labor Quotes site | Content already extracted — **595 new quotes** ready. Blocked only on Chris answering live-vs-review-queue |
 
 ### B1 is fully satisfied — verified against his exact searches
 
@@ -133,62 +133,115 @@ searchable by it.
 `alternateTitles` field (TASK-2b below) is an *enhancement* for films whose
 alternate title is not in the title string — not part of what Chris asked for.
 
-### C2 is the one genuinely unfinished ask
+### C2 — SHIPPED 8 September 2026 (`dae2902`)
 
-Chris wrote:
+Chris confirmed the rule in September: *"Let's use shared subject tags rather
+than matching by year… it would be useful to retain the ability for an
+administrator to pin or override a particular pairing later, but that needn't
+hold up the initial tag-based system."*
 
-> "Music From the Era also appears to be **pulling songs from another source**…
-> Can you clarify how those selections are generated and whether they can be
-> limited to entries in the LHF database that are **meaningfully connected to the
-> day's history**?"
+**Built and verified in production.** Related Films/Music are now ranked by
+shared subject tags weighted by tag rarity, capped at 5 films and 4 music.
 
-**Two things to handle:**
+**Why ranking rather than a plain shared-tag filter:** measured across all 366
+days, "shares at least one tag with the day's history" returns an average of
+**781 films per day**, max 1,686 — 77% of the catalogue. With 34 terms over
+~5,950 entries, sharing a tag is close to existing. Tag frequency is heavily
+skewed (`Working Class` on 825 entries, `Domestic Workers` on 38), so each shared
+tag contributes `1/frequency`. Year survives only as a tiebreak.
 
-1. **Correct his assumption — he asked directly.** Nothing comes from another
-   source. Every selection is from the LHF database itself; Genius and TMDB are
-   used only when adding entries. Drake was in *his own database*, matched by
-   year coincidence.
+A per-tag diversity cap was considered and **rejected on evidence**: 0 of 353
+days had a single tag explaining every film shown, so it would have added
+complexity for a problem that does not occur.
 
-2. **"Meaningfully connected" is not met yet.** What shipped derives the year set
-   from **history entries only** (previously quotes too, whose years are
-   publication dates in 2014–2026 — that is how Drake, Gloria Gaynor and Moby
-   reached July 12). That removes the embarrassing cases, but a 1933 film beside
-   a 1933 event is still *year coincidence*, not topical connection.
+**Measured before/after, all 365 days:**
 
-   **Proposal to put to him:** require a shared tag with the day's history
-   entries — the 34-term taxonomy already exists — with year as a fallback or
-   secondary signal. Alternative: curated `relatedEntryIds` for manual pairing.
-   Confirm which he wants before building.
+| | Before | After |
+|---|---:|---:|
+| Films shown, total | 4,888 | 1,765 |
+| Music shown, total | 484 | **1,394** |
+| Days with no music | 156 | **14** |
+
+Music nearly tripled because the old `take: 20` was *shared across both
+categories* — on busy days films consumed every slot.
+
+**The demonstration to show Chris is 25 March** (Triangle Shirtwaist Fire).
+Before: *Fame is the Spur*, *Captain Boycott*, *Hungry Hill* — 1947 films, no
+connection. After: garment-industry films, and in the music panel *The Triangle
+Fire*, *The Triangle Shirtwaist Fire Song*, *Ballad of the Triangle Shirtwaist
+Fire* and *Bread and Roses*.
+
+**Where it lives:** `server/related-entries.ts` (pure ranking module, 14 tests in
+`server/related-entries.test.ts`), wired into `/api/on-this-day` in
+`server/index.ts`. `OnThisDayView.tsx` reads `related` and renders the shared
+tags on each card — the client's complaint was never that picks were wrong but
+that there was no way to tell why anything was there.
+
+**Two things fixed during the pre-push audit:**
+1. **Performance.** The first cut pulled all 2,172 published films/songs *with
+   joined images* per request to return nine. Now it ranks on minimal fields and
+   hydrates only the winners: **82ms → 26ms**.
+2. **`month=abc` returned 200, not 400.** Pre-existing: `parseInt('abc')` is NaN
+   and every comparison against NaN is false, so a bare range check passes.
+   Swept — the same slip existed in `/api/on-this-day/calendar`. Both now use
+   `Number.isInteger`. No other endpoint validates a `parseInt` this way.
+
+**Still owed to Chris, unsent:** the music was **never** from another source.
+Every selection came from the LHF database itself; Genius and TMDB are used only
+when adding entries. Drake was in his own database, matched by release year.
+
+**Deferred by Chris's own words:** admin pin/override — Phase 4 in
+`new-client-dev.md`.
 
 ---
 
 ## Next up
 
-### TASK-C2 · Meaningful Related Films/Music · ~4–6 hrs · **highest value**
-The only client ask still genuinely open. Needs Chris to confirm tag-based vs
-curated. See above.
+> **The current plan lives in `new-client-dev.md`** (local-only, gitignored) —
+> phases, effort, and what each one is blocked on. Chris answered C2, A2 and A3
+> in September; that doc works from his wording. What follows is the older list,
+> kept for the items that doc does not cover.
 
-### TASK-A1 · Public "suggest a correction" flow · ~12–16 hrs · **awaiting client decision**
+### ✅ TASK-C2 · Related Films/Music · **DONE, LIVE 8 Sep (`dae2902`)**
+See the C2 section above. Pin/override deferred to Phase 4 by Chris's own wording.
 
-**Two questions went to Chris (25 Aug) — do not build before he answers:**
+### TASK-A1 · Corrections · **Chris approved the full flow. We are not building it yet.**
 
-1. **Placement.** Recommended: a quiet "Suggest a correction" link at the bottom
-   of the entry detail modal (`EntryDetail.tsx`), so the entry being corrected is
-   already in context. Alternative is a top-bar button, which would need an entry
-   picker first — more steps, and corrections can land on the wrong record.
-   *Note:* only films (2,192/2,192) and music (425/436) have a `sourceUrl` line at
-   the bottom of that modal. **Quotes (1,916) and history (1,411) have none**, so
-   for over half the database the correction link would stand alone there.
-2. **Form type.** Recommended: pre-filled editable fields (category-aware, same
-   shape as `SubmissionWizard`) with a before/after diff in admin. Alternative is
-   a freeform "what's wrong?" box — simpler to build, but every fix is retyped by
-   hand.
+**His September wording:** *"Let's put a small 'Suggest a correction' link on each
+individual entry and show the current information in an editable form. The
+before-and-after comparison and approval queue will make review much easier.
+Could the same link also accommodate suggested additions or updates to an entry?"*
 
-Paul's answer on submitter details is settled: **name and email are collected**,
-same as new submissions.
-Confirmed: name and email will be collected, same as new submissions. New
-`SubmittedEdit` model, public POST, admin approve/reject with before/after diff.
-Reuses the existing moderation pattern. Schema migration — **back up first**.
+**Decision, 8 Sep 2026 (Paul):** push back, and ship a cheap first step instead.
+
+**Why.** The full version needs a `SubmittedEdit` table, a public route and an
+admin before/after review screen — ~12–16 hrs, the largest item on the list, more
+than related films and the quotes import combined. And it is the only item where
+demand is unmeasured, because there is currently no way to submit a correction at
+all. It also commits LHF to working a moderation queue indefinitely.
+
+**A per-entry link was considered and rejected.** A "something wrong here?" prompt
+on 5,955 records implies the data is unreliable, and only films and music have
+anything at the foot of the detail modal — quotes and history, **3,327 entries,
+over half the database**, would carry it on an otherwise bare panel.
+
+**✅ SHIPPED 8 Sep instead — Phase 2b, `src/components/ContactModal.tsx`.**
+A **Contact & Corrections** item in the hamburger menu, beside About and Privacy.
+Opens a modal explaining what is welcome (a correction, something missing, a dead
+link, a question) and a **"Write to us"** button that opens the user's mail client
+pre-addressed to `info@laborheritage.org` with a template asking which entry, what
+is wrong, and whether they have a source.
+
+**The template is the point.** Entries have no individual URLs yet, so a reporter
+cannot paste a link — without prompting, reports arrive as "the miners film is
+wrong". **TASK-5 (shareable entry links) removes that limitation**; when it lands,
+swap the template's first question for "paste the link".
+
+**His sub-question is already answered:** suggested *additions* need nothing new —
+the existing "Add" button routes public submissions to his review queue.
+
+**Revisit the full flow** only if corrections arrive in real numbers, at which
+point it can be designed around what people actually report.
 
 ### TASK-A3 · Bulk import from Labor Quotes · ~4–8 hrs
 **URL: https://laborquotes.weebly.com/c.html** (it was in Chris's email).
@@ -267,11 +320,19 @@ wider question of what should relate to a day.
 
 **Paul — open items as of end of 25 Aug**
 
-- [ ] **Send the reply to Chris** — full draft ready in
-      [chris-reply-draft.md](chris-reply-draft.md). Not sent yet.
-- [ ] **Fix 2 — [labor-database-volume-isolation.md](labor-database-volume-isolation.md)**
-      — planned for the night of 25 Aug or 26 Aug. Gives this app its own named
-      volume so no future app can ever collide. ~15–30 min downtime; do it rested.
+- [ ] **Send the reply to Chris** — current draft is `chris-reply-september.md`
+      (local-only). Covers all four of his September points; one open question in
+      it (quotes: live or review queue?) blocks Phase 2.
+      The older `chris-reply-draft.md` (25 Aug) is superseded.
+- [x] ~~**Fix 2 — volume isolation**~~ — **decision 8 Sep: skipped.** The
+      colliding apps are stopped, new apps get their own `/app/data`, and the
+      app moves to the client's server eventually — where export → import lands
+      on a clean private volume by construction. Doing it now is ~30 min of
+      downtime on work that gets thrown away. **Replaced by a pre-deploy check**
+      (`new-client-dev.md` §5): back up, then run the server-wide
+      `docker ps … | grep '/app/data->'` and confirm labor-database is the only
+      line. **Verified clear on 8 Sep** before the C2 deploy — only
+      `og4ccgs…` (labor-database) appeared.
 - [ ] Hand [radio-icecast-fixes.md](radio-icecast-fixes.md) to whoever works on
       those apps next.
 
@@ -308,11 +369,16 @@ wider question of what should relate to a day.
 *Do not raise:* the 25 Aug outage (18 min, resolved, no data lost, nothing for
 him to action) or the quote-date findings (he never asked; affects 3 entries).
 
-**Next dev session**
-- [ ] TASK-C2 once Chris confirms the matching rule — highest value
-- [ ] TASK-A1 once he answers placement + form type
-- [ ] TASK-A3, folding in BUG-2
-- [ ] BUG-6 (volume isolation) **before any future schema change**
+**Next dev session** — see `new-client-dev.md` for the full phase plan
+- [x] ~~TASK-C2~~ — **shipped 8 Sep**
+- [ ] Phase 1b · tag the 304 untagged songs (music is 30% tagged; auto-tag
+      endpoint exists at `server/index.ts`, `POST /api/admin/tags/auto-tag`).
+      **Writes to the database — back up first.**
+- [ ] Phase 2 · Labor Quotes import — blocked on Chris: live or review queue?
+- [x] ~~Phase 2b · Contact item in the site menu~~ — **shipped 8 Sep**
+- [ ] Phase 5 · shareable entry links — `react-router` is already wired up
+- [ ] Phase 3 · custom tags in the edit interface
+- [ ] Phase 4 · admin pin/override for related pairs
 
 ---
 

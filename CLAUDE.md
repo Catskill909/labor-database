@@ -161,6 +161,35 @@ nothing until they're populated. `docker-entrypoint.sh` runs
 (no-op once populated), and the Dockerfile copies `scripts/` into the runtime
 image for that reason — don't remove it.
 
+### Related Films & Music ranks on tags — it is not a filter
+
+`GET /api/on-this-day` selects related films and music by **shared subject tags
+with the day's history, ranked by tag rarity** (`server/related-entries.ts`),
+capped at 5 films and 4 music. Shipped 8 Sep 2026, replacing year matching.
+
+**Why ranking, not filtering:** with 34 terms over ~5,950 entries, "shares a tag"
+is close to "exists" — measured across all 366 days it returns ~781 films per day
+and up to 1,686. Each shared tag contributes `1/frequency`, so rare tags dominate.
+Year is a tiebreak only.
+
+**Rules:**
+- The scoring is a **pure function** — keep it that way, and keep its tests
+  (`server/related-entries.test.ts`) passing. They pin the ordering contract:
+  rarity beats commonness, year never outranks a topical signal, caps hold per
+  category.
+- **Caps are per category.** The previous code used one `take: 20` across both,
+  which starved music on busy days — 156 of 365 days showed no music at all.
+- **Tag frequency is cached for 60 seconds.** A tag edit can take up to a minute
+  to affect related content. This is deliberate; do not remove the cache without
+  measuring — it is what keeps the landing page off a full tag scan per request.
+- **Rank on minimal fields, hydrate only the winners.** Selecting whole rows with
+  their images before ranking pulls ~2,100 entries and ~1,200 image rows to
+  return nine (82ms vs 26ms).
+- **When tags move to a table** (the comma-trap work below), `buildTagFrequency`
+  and `splitTags` both read the comma-separated string and must move with them.
+- A day whose history entries carry **no** tags falls back to the old year rule
+  (12 such days currently). Keep the fallback, or those days show an empty panel.
+
 ### Tag storage will break on any tag containing a comma
 
 **Not a bug today. A trap with a known trigger.** Noted 9 August 2026.
