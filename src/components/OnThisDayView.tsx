@@ -17,10 +17,17 @@ import {
 import type { Entry } from '../types.ts';
 import { parseMetadata } from '../types.ts';
 
+/** A related film or song, carrying the day's tags it shares — shown on the card. */
+type RelatedEntry = Entry & { matchedTags?: string[] };
+
 interface OnThisDayData {
   date: { month: number; day: number };
   sections: Record<string, Entry[]>;
-  yearMatches: Record<string, Entry[]>;
+  /** Ranked by shared subject tags. `yearMatches` is the pre-Sep-2026 name. */
+  related?: Record<string, RelatedEntry[]>;
+  yearMatches?: Record<string, RelatedEntry[]>;
+  /** Tags carried by the day's history entries — what the matching ran against. */
+  dayTags?: string[];
   matchedYears: number[];
   counts: Record<string, number>;
 }
@@ -163,6 +170,18 @@ export default function OnThisDayView({ onSelectEntry, onAddClick }: OnThisDayVi
   const isToday = month === today.getMonth() + 1 && day === today.getDate();
   const totalEntries = data ? Object.values(data.counts).reduce((a, b) => a + b, 0) : 0;
   const dayOfWeek = formatDayOfWeek(month, day);
+
+  // Related films and music. `related` is the current key; `yearMatches` is read
+  // as a fallback so a stale cached bundle talking to a new server still renders.
+  const related: Record<string, RelatedEntry[]> = data?.related ?? data?.yearMatches ?? {};
+  const sharedTagCount = data?.dayTags?.length ?? 0;
+  const relatedSubtitle = sharedTagCount > 0
+    ? 'Sharing subject tags with this day\u2019s history'
+    : data && data.matchedYears.length === 1
+      ? `From ${data.matchedYears[0]}`
+      : data && data.matchedYears.length > 1
+        ? `From ${data.matchedYears.length} matching years`
+        : undefined;
 
   return (
     <>
@@ -337,22 +356,20 @@ export default function OnThisDayView({ onSelectEntry, onAddClick }: OnThisDayVi
           }
 
           {/* From the Era — year-matched films & music */}
-          {data.matchedYears.length > 0 && (data.yearMatches.film?.length > 0 || data.yearMatches.music?.length > 0) && (
+          {(related.film?.length > 0 || related.music?.length > 0) && (
             <>
               {/* Films */}
-              {data.yearMatches.film && data.yearMatches.film.length > 0 && (
+              {related.film && related.film.length > 0 && (
                 <section>
                   <SectionHeader
                     icon={<Film size={20} />}
                     title="Related Films"
-                    count={data.yearMatches.film.length}
+                    count={related.film.length}
                     label="film"
-                    subtitle={data.matchedYears.length === 1
-                      ? `Released in ${data.matchedYears[0]}`
-                      : `From ${data.matchedYears.length} matching years`}
+                    subtitle={relatedSubtitle}
                   />
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                    {data.yearMatches.film.map(entry => (
+                    {related.film.map(entry => (
                       <FilmOTDCard key={entry.id} entry={entry} onClick={() => onSelectEntry(entry)} />
                     ))}
                   </div>
@@ -360,19 +377,17 @@ export default function OnThisDayView({ onSelectEntry, onAddClick }: OnThisDayVi
               )}
 
               {/* Music */}
-              {data.yearMatches.music && data.yearMatches.music.length > 0 && (
+              {related.music && related.music.length > 0 && (
                 <section>
                   <SectionHeader
                     icon={<Music size={20} />}
                     title="Related Music"
-                    count={data.yearMatches.music.length}
+                    count={related.music.length}
                     label="song"
-                    subtitle={data.matchedYears.length === 1
-                      ? `From ${data.matchedYears[0]}`
-                      : `From ${data.matchedYears.length} matching years`}
+                    subtitle={relatedSubtitle}
                   />
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                    {data.yearMatches.music.map(entry => (
+                    {related.music.map(entry => (
                       <MusicOTDCard key={entry.id} entry={entry} onClick={() => onSelectEntry(entry)} />
                     ))}
                   </div>
@@ -501,7 +516,29 @@ function QuoteOTDCard({ entry, onClick }: { entry: Entry; onClick: () => void })
   );
 }
 
-function FilmOTDCard({ entry, onClick }: { entry: Entry; onClick: () => void }) {
+/**
+ * The tags a related film or song shares with the day's history.
+ *
+ * Shown deliberately: the client's complaint about the old year-matched panel
+ * was not that the picks were wrong but that there was no way to tell why
+ * anything was there. Naming the shared tags answers that on the card itself.
+ */
+function MatchedTags({ tags, className = 'px-3 pb-3 pt-1' }: { tags: string[]; className?: string }) {
+  return (
+    <div className={`flex flex-wrap gap-1 ${className}`}>
+      {tags.slice(0, 3).map(tag => (
+        <span key={tag} className="px-1.5 py-0.5 bg-red-600/15 text-red-400 text-[10px] rounded">
+          {tag}
+        </span>
+      ))}
+      {tags.length > 3 && (
+        <span className="px-1.5 py-0.5 text-gray-500 text-[10px]">+{tags.length - 3}</span>
+      )}
+    </div>
+  );
+}
+
+function FilmOTDCard({ entry, onClick }: { entry: RelatedEntry; onClick: () => void }) {
   const posterUrl = entry.images?.[0]?.thumbnailUrl || null;
   const meta = parseMetadata(entry);
 
@@ -545,8 +582,11 @@ function FilmOTDCard({ entry, onClick }: { entry: Entry; onClick: () => void }) 
           </div>
         </div>
       )}
-      {/* Genre badges */}
-      {meta.genre && (
+      {/* Why this appeared: the day's tags it shares. Falls back to genre for
+          cards rendered outside the Related panel, which carry no matchedTags. */}
+      {entry.matchedTags && entry.matchedTags.length > 0 ? (
+        <MatchedTags tags={entry.matchedTags} />
+      ) : meta.genre ? (
         <div className="px-3 pb-3 pt-1 flex flex-wrap gap-1">
           {meta.genre.split(',').slice(0, 2).map((g: string, i: number) => (
             <span key={i} className="px-1.5 py-0.5 bg-red-600/15 text-red-400 text-[10px] rounded">
@@ -554,12 +594,12 @@ function FilmOTDCard({ entry, onClick }: { entry: Entry; onClick: () => void }) 
             </span>
           ))}
         </div>
-      )}
+      ) : null}
     </button>
   );
 }
 
-function MusicOTDCard({ entry, onClick }: { entry: Entry; onClick: () => void }) {
+function MusicOTDCard({ entry, onClick }: { entry: RelatedEntry; onClick: () => void }) {
   const meta = parseMetadata(entry);
 
   return (
@@ -582,6 +622,9 @@ function MusicOTDCard({ entry, onClick }: { entry: Entry; onClick: () => void })
             <p className="text-xs text-gray-400">
               <span className="text-gray-500">Artist:</span> {meta.writer}
             </p>
+          )}
+          {entry.matchedTags && entry.matchedTags.length > 0 && (
+            <MatchedTags tags={entry.matchedTags} className="px-0 pb-0 pt-2" />
           )}
           {(entry.sourceUrl || meta.lyrics) && (
             <div className="flex items-center gap-2 mt-3">

@@ -73,3 +73,10 @@ docs/err-blocked-by-response.md
 labor-database-volume-isolation.md
 radio-icecast-fixes.md
 cooify-volume-fix.md
+
+# Client correspondence and internal planning — kept local.
+# This repository is public; these hold draft replies to the client and the
+# reasoning behind what we recommend for and against. Same treatment as
+# data-import.md.
+chris-reply-*.md
+new-client-dev.md

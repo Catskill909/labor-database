@@ -14,6 +14,7 @@ import unzipper from 'unzipper';
 import ExcelJS from 'exceljs';
 import rateLimit from 'express-rate-limit';
 import { CANONICAL_TAGS, TAG_GROUPS, normalizeTags, autoTagEntry, mergeTagsWithExisting } from './tags.js';
+import { rankRelated, buildTagFrequency, splitTags, RELATED_LIMITS } from './related-entries.js';
 import { buildSearchFields, normalizeSearchText } from './search-text.js';
 import { entryCreateData } from './backup-import.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -628,6 +629,27 @@ app.get('/api/music/details/:geniusId', async (req, res) => {
     }
 });
 
+// ---- Tag frequency cache (for Related Films & Music rarity weighting) ----
+// Recomputed at most once a minute. Weighting only needs to reflect the shape of
+// the corpus, not its exact current state, so a short staleness window is fine —
+// and it keeps every On This Day request from scanning ~5,950 tag strings.
+const TAG_FREQUENCY_TTL_MS = 60_000;
+let tagFrequencyCache: { at: number; freq: Map<string, number> } | null = null;
+
+async function getTagFrequency(): Promise<Map<string, number>> {
+    const now = Date.now();
+    if (tagFrequencyCache && now - tagFrequencyCache.at < TAG_FREQUENCY_TTL_MS) {
+        return tagFrequencyCache.freq;
+    }
+    const rows = await prisma.entry.findMany({
+        where: { isPublished: true, tags: { not: null } },
+        select: { tags: true },
+    });
+    const freq = buildTagFrequency(rows);
+    tagFrequencyCache = { at: now, freq };
+    return freq;
+}
+
 // ==================== ON THIS DAY (Public) ====================
 
 // GET entries for a specific month/day, grouped by category
@@ -645,7 +667,11 @@ app.get('/api/on-this-day', async (req, res) => {
         const month = parseInt(monthParam);
         const day = parseInt(dayParam);
 
-        if (month < 1 || month > 12 || day < 1 || day > 31) {
+        // Number.isInteger, not just a range check: parseInt('abc') is NaN, and
+        // every comparison against NaN is false, so a range check alone lets
+        // non-numeric input through and answers 200 with an empty payload.
+        if (!Number.isInteger(month) || !Number.isInteger(day) ||
+            month < 1 || month > 12 || day < 1 || day > 31) {
             return res.status(400).json({ error: 'Invalid month or day' });
         }
 
@@ -697,29 +723,87 @@ app.get('/api/on-this-day', async (req, res) => {
             sections[entry.category].push(entry);
         }
 
-        // Collect years from date-matched HISTORY entries only for year-based
-        // film/music matching. Quote entries are excluded because their year
-        // often reflects when the quote was featured (e.g. 2016-2023), which
-        // pulled in unrelated modern songs/films.
-        const matchedYears = [...new Set(dateEntries.filter(e => e.category === 'history').map(e => e.year).filter((y): y is number => y !== null))];
+        const historyEntries = dateEntries.filter(e => e.category === 'history');
 
-        // Get films and music from matching years (secondary content)
-        let yearMatches: Record<string, typeof dateEntries> = {};
-        if (matchedYears.length > 0) {
+        // Years from date-matched HISTORY entries only. Quote years are excluded
+        // because they record when a quote was featured (2014-2026), which used
+        // to pull unrelated modern songs and films into the day.
+        const matchedYears = [...new Set(historyEntries.map(e => e.year).filter((y): y is number => y !== null))];
+
+        // ---- Related Films & Music ----
+        // Ranked by shared subject tags, weighted by how rare each shared tag is.
+        // See server/related-entries.ts for why ranking rather than filtering.
+        const dayTags = new Set<string>();
+        for (const h of historyEntries) for (const tag of splitTags(h.tags)) dayTags.add(tag);
+
+        const ownIds = new Set(dateEntries.map(e => e.id));
+        const related: Record<string, typeof dateEntries> = {};
+        const matchedTagsByEntry: Record<number, string[]> = {};
+
+        if (dayTags.size > 0) {
+            // Rank over the minimum needed to score — id, category, tags, year.
+            // Selecting whole rows with their images here would pull ~2,100
+            // entries and ~1,200 image rows on every request to return nine.
+            const candidates = await prisma.entry.findMany({
+                where: {
+                    isPublished: true,
+                    category: { in: ['film', 'music'] },
+                    tags: { not: null },
+                },
+                select: { id: true, category: true, tags: true, year: true },
+            });
+
+            const ranked = rankRelated({
+                candidates: candidates.filter(matchesTagFilter),
+                dayTags,
+                tagFrequency: await getTagFrequency(),
+                matchedYears,
+                excludeIds: ownIds,
+            });
+
+            // Now hydrate only the winners.
+            const winners = Object.values(ranked).flat();
+            if (winners.length > 0) {
+                const full = await prisma.entry.findMany({
+                    where: { id: { in: winners.map(r => r.entry.id) } },
+                    include: { images: { orderBy: { sortOrder: 'asc' } } },
+                });
+                const byId = new Map(full.map(e => [e.id, e]));
+
+                for (const [cat, items] of Object.entries(ranked)) {
+                    const bucket: typeof dateEntries = [];
+                    for (const r of items) {
+                        const entry = byId.get(r.entry.id);
+                        // Absent only if the row vanished between the two queries.
+                        // Skip rather than emit a hole the UI would have to handle.
+                        if (!entry) continue;
+                        matchedTagsByEntry[entry.id] = r.matchedTags;
+                        bucket.push(entry);
+                    }
+                    if (bucket.length > 0) related[cat] = bucket;
+                }
+            }
+        } else if (matchedYears.length > 0) {
+            // Fallback: 12 days in the current data have history entries carrying
+            // no tags at all. Rather than show an empty panel, fall back to the
+            // old year rule — now capped per category so films cannot crowd out
+            // music, which the single shared `take: 20` used to allow.
             const yearEntries = await prisma.entry.findMany({
                 where: {
                     isPublished: true,
                     year: { in: matchedYears },
                     category: { in: ['film', 'music'] },
+                    id: { notIn: [...ownIds] },
                 },
                 orderBy: [{ year: 'asc' }],
                 include: { images: { orderBy: { sortOrder: 'asc' } } },
-                take: 20,
             });
 
             for (const entry of yearEntries.filter(matchesTagFilter)) {
-                if (!yearMatches[entry.category]) yearMatches[entry.category] = [];
-                yearMatches[entry.category].push(entry);
+                const limit = RELATED_LIMITS[entry.category];
+                const bucket = (related[entry.category] ??= []);
+                if (limit === undefined || bucket.length >= limit) continue;
+                bucket.push(entry);
             }
         }
 
@@ -728,9 +812,9 @@ app.get('/api/on-this-day', async (req, res) => {
         for (const [cat, entries] of Object.entries(sections)) {
             sectionResult[cat] = entries.map(addImageUrls);
         }
-        const yearMatchResult: Record<string, ReturnType<typeof addImageUrls>[]> = {};
-        for (const [cat, entries] of Object.entries(yearMatches)) {
-            yearMatchResult[cat] = entries.map(addImageUrls);
+        const relatedResult: Record<string, (ReturnType<typeof addImageUrls> & { matchedTags: string[] })[]> = {};
+        for (const [cat, entries] of Object.entries(related)) {
+            relatedResult[cat] = entries.map(e => ({ ...addImageUrls(e), matchedTags: matchedTagsByEntry[e.id] ?? [] }));
         }
 
         // Build counts
@@ -738,14 +822,18 @@ app.get('/api/on-this-day', async (req, res) => {
         for (const [cat, entries] of Object.entries(sections)) {
             counts[cat] = entries.length;
         }
-        for (const [cat, entries] of Object.entries(yearMatches)) {
+        for (const [cat, entries] of Object.entries(related)) {
             counts[cat] = (counts[cat] || 0) + entries.length;
         }
 
         res.json({
             date: { month, day },
             sections: sectionResult,
-            yearMatches: yearMatchResult,
+            related: relatedResult,
+            // `yearMatches` is retained as an alias so an older cached client
+            // bundle keeps rendering the panel rather than showing nothing.
+            yearMatches: relatedResult,
+            dayTags: [...dayTags],
             matchedYears,
             counts,
         });
@@ -765,7 +853,8 @@ app.get('/api/on-this-day/calendar', async (req, res) => {
         }
 
         const month = parseInt(monthParam);
-        if (month < 1 || month > 12) {
+        // See the note on the guard in /api/on-this-day — NaN passes a bare range check.
+        if (!Number.isInteger(month) || month < 1 || month > 12) {
             return res.status(400).json({ error: 'Invalid month' });
         }
 
