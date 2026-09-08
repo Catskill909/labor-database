@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { Search, Plus, Database, Menu, Building2, Landmark, Info, ExternalLink, Shield } from 'lucide-react';
+import { Search, Plus, Database, Menu, Building2, Landmark, Info, ExternalLink, Shield, MessageSquare } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import AboutModal from './AboutModal';
 import PrivacyModal from './PrivacyModal';
+import ContactModal from './ContactModal';
 
 interface HeaderProps {
   searchQuery: string;
@@ -14,6 +15,7 @@ export default function Header({ searchQuery, setSearchQuery, onAddClick }: Head
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
+  const [isContactOpen, setIsContactOpen] = useState(false);
 
   // Close menu when clicking outside
   const menuRef = useRef<HTMLDivElement>(null);
@@ -97,6 +99,19 @@ export default function Header({ searchQuery, setSearchQuery, onAddClick }: Head
             <span>Privacy Policy</span>
           </button>
 
+          <button
+            onClick={() => {
+              setIsMenuOpen(false);
+              setIsContactOpen(true);
+            }}
+            className="w-full text-left px-4 py-3 hover:bg-zinc-800 flex items-center gap-3 text-sm text-gray-200 transition-colors group"
+          >
+            <div className="p-1.5 bg-green-500/10 rounded-md text-green-400 group-hover:bg-green-500/20 transition-colors">
+              <MessageSquare size={16} />
+            </div>
+            <span>Contact &amp; Corrections</span>
+          </button>
+
           {/* Mobile Only: Add to Database */}
           <div className="sm:hidden pt-2 mt-2 border-t border-white/5">
             <button
@@ -178,6 +193,7 @@ export default function Header({ searchQuery, setSearchQuery, onAddClick }: Head
 
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
       <PrivacyModal isOpen={isPrivacyOpen} onClose={() => setIsPrivacyOpen(false)} />
+      <ContactModal isOpen={isContactOpen} onClose={() => setIsContactOpen(false)} />
     </>
   );
 }
