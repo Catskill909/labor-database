@@ -9,6 +9,50 @@
 
 ## Executive Summary
 
+> ## ⚠️ Re-measured against PRODUCTION, 8 September 2026 — read this before the figures below
+>
+> Everything below was measured against a local `prisma/dev.db` copy. It has now
+> been re-run against the **live database** (1,918 quotes, pulled through the
+> public API) using the same folding as `server/search-text.ts`.
+>
+> | | This doc says | Measured against production |
+> |---|---:|---:|
+> | Unique quotes on the site | 701 | **701** ✅ |
+> | Already held | 142 | **123 exact + 24 near = 147** |
+> | Genuinely new | 559 (or 595 with the fallback rule) | **554** |
+>
+> The main-rule figures reconcile. **Use 554** until the fallback-rule blocks are
+> triaged and hand-cleaned.
+>
+> ### The discovery that matters: 1,220 quote TITLES are truncated at 123 characters
+>
+> An earlier importer cut `Entry.title` to 120 characters and appended `...`.
+> **1,220 of 1,918 production quotes** are affected.
+>
+> **No text was lost** — `description` holds the full quote, every UI surface
+> renders `description` (verified in `OnThisDayView.tsx`, `EntryGrid.tsx` and
+> `EntryDetail.tsx`), and search reads the folded `searchAll` which is built from
+> description. **Nothing is visible to any visitor.**
+>
+> **But `POST /api/admin/import` dedupes on `title`.** An incoming quote carries
+> its full text; the stored title says `...`; they do not match; the importer
+> inserts a second copy. Of the 123 quotes we already hold, **only 34 have a
+> title that would match — the other 89 would be silently duplicated.**
+>
+> **Therefore:** repair the 1,220 titles from their own `description` *before*
+> importing, and dedupe during preparation against a fresh production export —
+> never rely on the endpoint's exact match. The original advice below ("needs a
+> normalized dedup pass") was right; this is the mechanism and the number.
+>
+> ### Review pack sent to the client, 8 Sep 2026
+>
+> `labor-quotes-review-2026-09-08.zip` — `1-NEW-QUOTES.csv` (554, attribution
+> split into name / role / year, keep-by-default), `2-NEAR-MATCHES.csv` (24, with
+> ours beside theirs; **12 are fuller on the site than in our database**, so they
+> are candidates to complete rather than discard), and a plain-language README.
+>
+> **12 of the 554 have no attribution at all** — flagged in the README.
+
 The site holds roughly **700 unique quotes** across 32 pages. All of them are machine-extractable — the markup is unusually regular, and a throwaway prototype already pulled 701 of them cleanly in a single pass.
 
 **The headline is not the scrape. It's the overlap.** The Labor Database already contains **1,916 quote entries**. Measured against them, about **20% of the site (142 quotes) is already in the database** and roughly **559 are genuinely new**.

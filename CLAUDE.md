@@ -161,6 +161,29 @@ nothing until they're populated. `docker-entrypoint.sh` runs
 (no-op once populated), and the Dockerfile copies `scripts/` into the runtime
 image for that reason — don't remove it.
 
+### Quote titles are truncated — the importer dedupes on the truncated field
+
+**1,220 of ~1,918 quote entries have a `title` cut to 120 characters with `...`
+appended**, by an importer that predates this note. Discovered 8 Sep 2026.
+
+**Nothing is visible and nothing was lost.** `description` holds the full quote;
+every UI surface for quotes renders `description` (`OnThisDayView.tsx`,
+`EntryGrid.tsx`, `EntryDetail.tsx` — the detail modal uses `creator` as its
+heading); search runs on folded `searchAll`, built from description.
+
+**The trap is `POST /api/admin/import`**, which dedupes with
+`findFirst({ title, category })` — an exact match on the truncated field. An
+incoming quote carrying its full text cannot match a stored `...` title, so the
+importer creates a second copy. Measured against the Labor Quotes scrape: of 123
+quotes already held, only 34 would match — **89 silent duplicates.**
+
+**Rules:**
+- **Never rely on the import endpoint's dedup for quotes.** Match during
+  preparation, against a fresh export, folded with `normalizeSearchText()`.
+- **Repair the titles from their own `description` before any quote import.**
+- The same applies to any category whose title was truncated on the way in —
+  check the length distribution before importing, not after.
+
 ### Related Films & Music ranks on tags — it is not a filter
 
 `GET /api/on-this-day` selects related films and music by **shared subject tags

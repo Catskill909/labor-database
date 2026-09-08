@@ -116,7 +116,7 @@ and media database follow-up questions". **Work from his wording, not paraphrase
 | C2 | Clarify how selections are generated; limit them to entries **"meaningfully connected to the day's history"** | ✅ **LIVE** 8 Sep (`dae2902`) — now tag-ranked, not year-matched. Still owes him the answer that the music was never from another source |
 | A1 | Expand "Add" so users can submit **corrections/updates** to existing entries | ⚠️ **Answered differently.** Chris approved the full flow; we are recommending against building it yet. A **Contact & Corrections** menu item shipped 8 Sep instead — see below |
 | A2 | How can we **add new tags** as the database evolves? | Not started — **the blocker is that the 34 terms are hardcoded in two files**, so nobody can add one without a deploy. See `new-client-dev.md` §4 |
-| A3 | **Bulk-import** from the Labor Quotes site | Content already extracted — **595 new quotes** ready. Blocked only on Chris answering live-vs-review-queue |
+| A3 | **Bulk-import** from the Labor Quotes site | Re-measured against production 8 Sep: **554 new**, 147 already held. Review pack sent to Chris. Blocked on his live-vs-review-queue answer |
 
 ### B1 is fully satisfied — verified against his exact searches
 
@@ -242,6 +242,20 @@ the existing "Add" button routes public submissions to his review queue.
 
 **Revisit the full flow** only if corrections arrive in real numbers, at which
 point it can be designed around what people actually report.
+
+### TASK-A3 · Bulk import from Labor Quotes · ~6–9 hrs
+
+**Re-measured against production, 8 Sep 2026:** **554 genuinely new**, 123 exact
+matches, 24 near matches. (The 595 figure was against a local DB copy.)
+
+**⚠️ Read the truncation trap in CLAUDE.md before importing.** 1,220 quote
+titles are cut at 123 chars, the importer dedupes on `title`, and **89 quotes
+would silently duplicate** if imported blind. Repair the titles from their own
+descriptions first and dedupe during preparation.
+
+**Review pack sent to Chris:** `labor-quotes-review-2026-09-08.zip` — 554 new
+(keep-by-default), 24 near matches (12 are fuller on the source site than ours),
+plain README. Awaiting his answer on live vs review queue.
 
 ### TASK-A3 · Bulk import from Labor Quotes · ~4–8 hrs
 **URL: https://laborquotes.weebly.com/c.html** (it was in Chris's email).
