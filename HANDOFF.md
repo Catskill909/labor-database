@@ -3,10 +3,39 @@
 **Purpose:** pick-up point for a new chat window, session, or assistant.
 Read this first, then `CLAUDE.md` for the hard project rules.
 
-**Last updated:** 8 September 2026
+**Last updated:** 13 September 2026
 **Branch:** `main` · **Production:** https://labor-database.supersoul.top
 **Scope:** this repo only. The Digital Asset Manager / "Labor Heritage Media
 Archive" (`lhf-tools.supersoul.top`) is a **separate project, tracked elsewhere.**
+
+---
+
+## 🔴 FRONT BURNER (13 Sep 2026) — readers blocked with ERR_SSL_PROTOCOL_ERROR
+
+**The investigation lives in `network-error.md`** at the repo root — local-only
+and gitignored, because it records infrastructure detail. Read it before
+anything else on this topic. It has the summary, action tracker, every test
+run, what is ruled out, and how to read Chris's reply.
+
+**In one paragraph:** Chris can't open labor-database or labor-landmarks from his
+parents' home network in Rochester (laptop and phone both fail there; both work
+at his own house). A second newsletter reader reports the same error. **The server
+is not at fault** — TLS Grade A, and both sites load from 34 home-network probes
+including Spectrum in Rochester. The domain is on no public blocklist; one
+predictive vendor (alphaMountain.ai) rates it Suspicious. **Leading explanation,
+not proven:** a home-router security filter, most likely Spectrum Security Shield
+(CUJO AI), scoring the domain as risky on appearance.
+
+**State at end of 13 Sep:**
+- ✅ Asked Chris for provider + router make — **waiting on reply; it decides the next step**
+- ✅ alphaMountain.ai false-positive ticket submitted
+- ⏳ If Spectrum router → Spectrum unblock request + CUJO false-positive email
+- ⏸️ Bare-domain DNS/Coolify cleanup **deliberately deferred** — reasons in the doc
+- 💡 Long-term fix proposed, not decided: move the labor sites to a clean domain
+
+**Rules for this issue:** no diagnostic homework for the client; **no DNS or
+Coolify changes** without reading the doc's §5 first; don't loosen Helmet/CSP/HSTS
+— headers are the wrong layer for this error.
 
 ---
 
