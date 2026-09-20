@@ -371,12 +371,16 @@ older rows. This is also what makes the import idempotent: re-running it reports
   Sueur). The role fields were repaired; the two quotes were **not** created,
   because inventing records from text found in the wrong field is an inference.
   Row 59 has the same defect but its quote (Bismarck) exists separately as row 60.
-- **12 near-match corrections NOT yet applied** — these *overwrite* existing
-  descriptions, so they are deliberately a separate pass, to be done **by hand in
-  the admin edit interface**. `PUT /api/admin/entries/:id` calls `syncSearchText()`,
-  so hand-editing keeps the folded columns correct. Entry ids and replacement text
-  were matched 12/12 with no ambiguity; every replacement is LONGER than what is
-  stored, which is the sanity check while editing.
+- **12 near-match corrections NOT yet applied** — to be done **by hand in the
+  admin edit interface**, per the "small data corrections go through the Admin UI"
+  rule in CLAUDE.md. They *overwrite* existing descriptions, which is the risky
+  direction: a bad insert is deletable, a bad overwrite destroys the original.
+  `PUT /api/admin/entries/:id` calls `syncSearchText()`, so hand-editing keeps the
+  folded columns correct. Entry ids and replacement text matched 12/12 with no
+  ambiguity — worklist at
+  `client-data/quotes-import-2026-09-20/near-match-corrections-worklist.json`.
+  Every replacement is LONGER than what is stored: if a paste shortens a quote,
+  it went wrong.
 - **Live vs review queue — the question is moot, do not re-ask it.** Chris never
   answered it in words, but his files *were* the review: *"I corrected duplicates,
   name and spelling variations, and other inconsistencies, and flagged a few

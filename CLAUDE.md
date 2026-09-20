@@ -161,6 +161,30 @@ nothing until they're populated. `docker-entrypoint.sh` runs
 (no-op once populated), and the Dockerfile copies `scripts/` into the runtime
 image for that reason — don't remove it.
 
+### Small data corrections go through the Admin UI, not through code
+
+**A handful of record edits is a DATA job, done by hand in the admin edit
+interface. Do not write a script or build an import payload for it.**
+
+**Why:** writing the script, reviewing it, and checking what it touched costs
+more than making the edits — and it carries risk the manual path does not. An
+import payload that matches the wrong row **overwrites** a good record silently
+(see the import section below); an admin edit changes exactly the record on
+screen, and you see the before and after. `PUT /api/admin/entries/:id` calls
+`syncSearchText()`, so hand-editing keeps the folded search columns correct.
+There is no technical advantage to automating it.
+
+**Where the line sits:** automation pays for itself on hundreds of rows, where
+hand-editing would be error-prone and slow. Below that, the manual path wins.
+The 20 Sep work is the worked example — 544 new quotes were imported from a
+prepared payload; the 12 text corrections that came with them are being done by
+hand.
+
+**Also:** inserts and edits are not equally risky. Inserting a bad row is
+recoverable — delete it. Overwriting a good row destroys the original. Treat any
+bulk operation that *updates* existing records as the dangerous one, and prefer
+the manual path for it even at slightly larger counts.
+
 ### The JSON import died at 5 seconds — fixed 20 Sep 2026, know why
 
 `POST /api/admin/import` failed in production with **P2028**: *"the timeout for
