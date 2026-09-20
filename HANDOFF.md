@@ -377,9 +377,14 @@ older rows. This is also what makes the import idempotent: re-running it reports
   so hand-editing keeps the folded columns correct. Entry ids and replacement text
   were matched 12/12 with no ambiguity; every replacement is LONGER than what is
   stored, which is the sanity check while editing.
-- **Live vs review queue** — never answered by Chris. Imported as published. If he
-  wants a queue, re-import the same file with `isPublished: false`: one request,
-  `added: 0, updated: 544`. Proven both directions on the local DB.
+- **Live vs review queue — the question is moot, do not re-ask it.** Chris never
+  answered it in words, but his files *were* the review: *"I corrected duplicates,
+  name and spelling variations, and other inconsistencies, and flagged a few
+  entries for deletion."* He reviewed all 554 offline before sending them. Routing
+  them into the app's review queue afterwards would be asking him to review the
+  same list twice. Published was the correct call, not a default.
+  (Mechanically it stays reversible: re-import the same file with
+  `isPublished: false` — one request, `added: 0, updated: 544`, proven locally.)
 
 **Do not reuse `scripts/import-quotes.ts` for this.** Its `parseDateField()` is
 BUG-2 and still broken.
@@ -504,7 +509,7 @@ him to action) or the quote-date findings (he never asked; affects 3 entries).
 - [ ] Phase 1b · tag the 304 untagged songs (music is 30% tagged; auto-tag
       endpoint exists at `server/index.ts`, `POST /api/admin/tags/auto-tag`).
       **Writes to the database — back up first.**
-- [x] ~~Phase 2 · Labor Quotes import~~ — **shipped 20 Sep**, 544 live. Chris never answered live-vs-queue; imported as published, reversible in one request
+- [x] ~~Phase 2 · Labor Quotes import~~ — **shipped 20 Sep**, 544 live and published. Chris's edited files were the review, so a queue would have been redundant
 - [x] ~~Phase 2b · Contact item in the site menu~~ — **shipped 8 Sep**
 - [ ] Phase 5 · shareable entry links — `react-router` is already wired up
 - [ ] Phase 3 · custom tags in the edit interface
