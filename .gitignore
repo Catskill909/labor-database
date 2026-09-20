@@ -81,3 +81,7 @@ network-error.md
 # data-import.md.
 chris-reply-*.md
 new-client-dev.md
+
+# Client-supplied data drops and the payloads built from them.
+# Local-only: this repo is public, and these carry the client's working files.
+client-data/
