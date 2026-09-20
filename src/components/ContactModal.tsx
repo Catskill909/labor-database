@@ -1,46 +1,95 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Mail, AlertCircle, Plus, Link2, HelpCircle } from 'lucide-react';
+import type { Entry } from '../types.ts';
+import { formatFullEntryDate } from '../types.ts';
 
 interface ContactModalProps {
     isOpen: boolean;
     onClose: () => void;
+    /**
+     * The entry being reported, when the modal was opened from a card rather
+     * than from the site menu. Prefills the template's first question.
+     */
+    entry?: Entry | null;
 }
 
 const CONTACT_EMAIL = 'info@laborheritage.org';
 
+const CATEGORY_LABELS: Record<string, string> = {
+    history: 'Labor History',
+    quote: 'Labor Quote',
+    music: 'Music',
+    film: 'Film',
+};
+
+function categoryLabel(entry: Entry): string {
+    return CATEGORY_LABELS[entry.category] ?? 'Entry';
+}
+
+/**
+ * How a card identifies its entry in the email.
+ *
+ * Entries have no individual URLs yet, so a reporter cannot paste a link. The
+ * id is what actually finds the record among nearly 6,000; the title and date
+ * are there so the sender can see they picked the right one.
+ */
+function entryReferenceLines(entry: Entry): string[] {
+    const date = formatFullEntryDate(entry);
+    const lines = [[categoryLabel(entry), date].filter(Boolean).join(' — ')];
+    if (entry.title) lines.push(`"${entry.title}"`);
+    lines.push(`(Reference: entry #${entry.id} — please leave this line in, it is how we find the record.)`);
+    return lines;
+}
+
 /**
  * The body template is the point of this modal.
  *
- * Entries have no individual URLs yet, so someone reporting a problem cannot
- * paste a link — they have to describe the record. Without prompting, that
- * arrives as "the miners film is wrong", which costs whoever reads it a search.
- * Asking for the title and category up front turns a vague report into an
- * actionable one, and costs the sender nothing.
+ * Opened from the menu there is no entry, so it has to ask which record the
+ * message is about — without that prompt, reports arrive as "the miners film is
+ * wrong", which costs whoever reads it a search. Opened from a card we already
+ * know, so the question is answered rather than asked.
  */
-const MAIL_SUBJECT = 'Labor Database — correction or comment';
+function buildMailBody(entry?: Entry | null): string {
+    const whichEntry = entry
+        ? entryReferenceLines(entry)
+        : [
+            '(Please give the title, and whether it is Labor History, a Quote, Music or a Film.',
+            'Skip this if your message is not about a particular entry.)',
+            '',
+        ];
 
-const MAIL_BODY = [
-    'WHICH ENTRY IS THIS ABOUT?',
-    '(Please give the title, and whether it is Labor History, a Quote, Music or a Film.',
-    'Skip this if your message is not about a particular entry.)',
-    '',
-    '',
-    'WHAT WOULD YOU LIKE TO TELL US?',
-    '',
-    '',
-    'DO YOU HAVE A SOURCE WE CAN CHECK?',
-    '(A link or a book reference — helpful, but not required.)',
-    '',
-    '',
-    '—',
-    'Sent from the Labor Arts & Culture Database',
-].join('\n');
+    return [
+        'WHICH ENTRY IS THIS ABOUT?',
+        ...whichEntry,
+        '',
+        'WHAT WOULD YOU LIKE TO TELL US?',
+        '',
+        '',
+        'DO YOU HAVE A SOURCE WE CAN CHECK?',
+        '(A link or a book reference — helpful, but not required.)',
+        '',
+        '',
+        '—',
+        'Sent from the Labor Arts & Culture Database',
+    ].join('\n');
+}
 
-const mailtoHref =
-    `mailto:${CONTACT_EMAIL}` +
-    `?subject=${encodeURIComponent(MAIL_SUBJECT)}` +
-    `&body=${encodeURIComponent(MAIL_BODY)}`;
+function buildMailSubject(entry?: Entry | null): string {
+    if (!entry) return 'Labor Database — correction or comment';
+    const date = formatFullEntryDate(entry);
+    const name = entry.title?.trim() || date || `entry #${entry.id}`;
+    const short = name.length > 60 ? name.slice(0, 57).trimEnd() + '…' : name;
+    return `Labor Database — correction: ${short}`;
+}
+
+function buildMailtoHref(entry?: Entry | null): string {
+    return (
+        `mailto:${CONTACT_EMAIL}` +
+        `?subject=${encodeURIComponent(buildMailSubject(entry))}` +
+        `&body=${encodeURIComponent(buildMailBody(entry))}`
+    );
+}
 
 const WELCOME: { icon: React.ReactNode; text: string }[] = [
     { icon: <AlertCircle size={14} />, text: 'A correction to something we have wrong — a date, a name, a detail' },
@@ -49,8 +98,10 @@ const WELCOME: { icon: React.ReactNode; text: string }[] = [
     { icon: <HelpCircle size={14} />, text: 'A question about the collection, or how to use it' },
 ];
 
-const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose }) => {
+const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, entry }) => {
     if (!isOpen) return null;
+
+    const mailtoHref = buildMailtoHref(entry);
 
     return createPortal(
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
@@ -90,14 +141,31 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose }) => {
                         </ul>
                     </div>
 
-                    <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                        <p className="text-sm text-gray-300">
-                            <span className="font-semibold text-white">If it is about a particular entry,
-                            please tell us its title</span> and whether it is Labor History, a Quote,
-                            Music or a Film. It helps us find the right record quickly — there are
-                            nearly 6,000 of them.
-                        </p>
-                    </div>
+                    {entry ? (
+                        <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                            <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold mb-1.5">
+                                About this entry
+                            </p>
+                            <p className="text-sm text-white font-semibold">
+                                {[categoryLabel(entry), formatFullEntryDate(entry)].filter(Boolean).join(' — ')}
+                            </p>
+                            {entry.title && (
+                                <p className="text-sm text-gray-300 mt-1 line-clamp-3">{entry.title}</p>
+                            )}
+                            <p className="text-xs text-gray-500 mt-2">
+                                We will fill this in for you, so you can go straight to what is wrong.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                            <p className="text-sm text-gray-300">
+                                <span className="font-semibold text-white">If it is about a particular entry,
+                                please tell us its title</span> and whether it is Labor History, a Quote,
+                                Music or a Film. It helps us find the right record quickly — there are
+                                nearly 6,000 of them.
+                            </p>
+                        </div>
+                    )}
 
                     <div className="pt-2">
                         <div className="flex justify-center">
@@ -134,5 +202,45 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose }) => {
         document.body
     );
 };
+
+/**
+ * The correction button shown in an entry's detail modal: a circular mail
+ * button that opens this modal with the entry already identified.
+ *
+ * It owns its own open state, so the detail modal does not have to hold any.
+ * It sits in normal flow — the caller positions it. Keep it that way:
+ * `[data-tooltip] { position: relative }` in index.css is unlayered, and
+ * unlayered rules beat Tailwind's `@layer utilities`, so any `absolute` put on
+ * this element would be silently overridden.
+ *
+ * It carries `data-tooltip-pos="top-end"` because it sits on the popup's bottom
+ * edge, where the default downward bubble would fall outside the panel.
+ */
+export function EntryCorrectionButton({ entry }: { entry: Entry }) {
+    const [isOpen, setIsOpen] = useState(false);
+
+    return (
+        <>
+            <button
+                type="button"
+                onClick={() => setIsOpen(true)}
+                aria-label="Contact & Corrections"
+                data-tooltip={"Contact & Corrections"}
+                data-tooltip-pos="top-end"
+                className={
+                    'grid place-items-center w-10 h-10 shrink-0 rounded-full ' +
+                    'bg-white/[0.06] border border-white/10 text-gray-400 shadow-sm ' +
+                    'hover:bg-white/[0.12] hover:border-white/20 hover:text-gray-100 ' +
+                    'hover:shadow-md active:scale-95 ' +
+                    'focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30 ' +
+                    'transition-all duration-200'
+                }
+            >
+                <Mail size={16} />
+            </button>
+            <ContactModal isOpen={isOpen} onClose={() => setIsOpen(false)} entry={entry} />
+        </>
+    );
+}
 
 export default ContactModal;

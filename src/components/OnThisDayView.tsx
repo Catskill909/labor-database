@@ -15,7 +15,7 @@ import {
   Database,
 } from 'lucide-react';
 import type { Entry } from '../types.ts';
-import { parseMetadata } from '../types.ts';
+import { parseMetadata, formatFullEntryDate } from '../types.ts';
 
 /** A related film or song, carrying the day's tags it shares — shown on the card. */
 type RelatedEntry = Entry & { matchedTags?: string[] };
@@ -462,18 +462,10 @@ function OnThisDayCard({ entry, onClick }: { entry: Entry; onClick: () => void }
   }
 }
 
-function formatFullDate(entry: Pick<Entry, 'month' | 'day' | 'year'>): string {
-  const parts: string[] = [];
-  if (entry.month) parts.push(MONTH_NAMES[entry.month - 1] || String(entry.month));
-  if (entry.day) parts.push(String(entry.day) + ',');
-  if (entry.year) parts.push(String(entry.year));
-  return parts.join(' ');
-}
-
 function HistoryOTDCard({ entry, onClick }: { entry: Entry; onClick: () => void }) {
   // Rough check: ~80 chars per line at card width, 12 lines
   const isLong = entry.description.length > 800;
-  const dateStr = formatFullDate(entry);
+  const dateStr = formatFullEntryDate(entry);
 
   return (
     <button

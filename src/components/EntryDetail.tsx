@@ -1,23 +1,13 @@
 import { useState } from 'react';
 import { X, ExternalLink, Calendar, User, Clock, Globe, Play, MessageSquare, BookOpen, Link2, Users, Lightbulb, FileText } from 'lucide-react';
 import type { Entry, RelatedLink } from '../types.ts';
-import { parseMetadata, formatEntryDate, getRelatedLinks } from '../types.ts';
+import { parseMetadata, formatEntryDate, getRelatedLinks, formatFullEntryDate } from '../types.ts';
+import { EntryCorrectionButton } from './ContactModal';
 
 interface EntryDetailProps {
   entry: Entry;
   onClose: () => void;
   onTagClick?: (tag: string) => void;
-}
-
-// Full month name version for the detail modal
-function formatFullDate(entry: Pick<Entry, 'month' | 'day' | 'year'>): string {
-  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'];
-  const parts: string[] = [];
-  if (entry.month) parts.push(monthNames[entry.month - 1] || String(entry.month));
-  if (entry.day) parts.push(String(entry.day) + ',');
-  if (entry.year) parts.push(String(entry.year));
-  return parts.join(' ');
 }
 
 // History: title is just a truncated description, so don't show it separately
@@ -389,7 +379,7 @@ export default function EntryDetail({ entry, onClose, onTagClick }: EntryDetailP
   }
 
   const meta = parseMetadata(entry);
-  const dateStr = entry.category === 'history' ? formatFullDate(entry) : formatEntryDate(entry);
+  const dateStr = entry.category === 'history' ? formatFullEntryDate(entry) : formatEntryDate(entry);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -557,6 +547,18 @@ export default function EntryDetail({ entry, onClose, onTagClick }: EntryDetailP
             </a>
           )}
         </div>
+
+        {/* Contact & Corrections — history only, matching the scope of the ask.
+            `sticky bottom-0` keeps it in the panel's bottom-right corner while
+            the body scrolls; the wrapper is click-through so it does not steal
+            clicks from the content it floats over. */}
+        {entry.category === 'history' && (
+          <div className="sticky bottom-0 flex justify-end px-6 pb-5 pt-2 pointer-events-none">
+            <div className="pointer-events-auto">
+              <EntryCorrectionButton entry={entry} />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { ExternalLink, Music, Quote as QuoteIcon, Film, Play } from 'lucide-react';
 import type { Entry } from '../types.ts';
-import { parseMetadata, formatEntryDate } from '../types.ts';
+import { parseMetadata, formatEntryDate, formatFullEntryDate } from '../types.ts';
 
 interface EntryGridProps {
   entries: Entry[];
@@ -31,19 +31,8 @@ function Highlight({ text, query }: { text: string; query?: string }) {
   );
 }
 
-// Format a full date like the original Wix site: "July 22, 2023"
-function formatFullDate(entry: Pick<Entry, 'month' | 'day' | 'year'>): string {
-  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'];
-  const parts: string[] = [];
-  if (entry.month) parts.push(monthNames[entry.month - 1] || String(entry.month));
-  if (entry.day) parts.push(String(entry.day) + ',');
-  if (entry.year) parts.push(String(entry.year));
-  return parts.join(' ');
-}
-
 function HistoryCard({ entry, onClick, query }: { entry: Entry; onClick: () => void; query?: string }) {
-  const dateStr = formatFullDate(entry);
+  const dateStr = formatFullEntryDate(entry);
 
   return (
     <button

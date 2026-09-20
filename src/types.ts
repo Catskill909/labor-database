@@ -106,3 +106,14 @@ export function formatEntryDate(entry: Pick<Entry, 'month' | 'day' | 'year'>): s
   if (entry.year) parts.push(String(entry.year));
   return parts.join(' ');
 }
+
+// Long-form date: "March 25, 1911". Shared by the cards and the correction email.
+export function formatFullEntryDate(entry: Pick<Entry, 'month' | 'day' | 'year'>): string {
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
+  const parts: string[] = [];
+  if (entry.month) parts.push(monthNames[entry.month - 1] || String(entry.month));
+  if (entry.day) parts.push(String(entry.day) + ',');
+  if (entry.year) parts.push(String(entry.year));
+  return parts.join(' ');
+}
