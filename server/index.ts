@@ -2441,6 +2441,36 @@ app.post('/api/admin/import', adminAuth, async (req, res) => {
             let updatedCount = 0;
             let skippedCount = 0;
 
+            /**
+             * Dedup index, built with ONE query instead of a findFirst per row.
+             *
+             * This used to run `findFirst({ title, category })` for every
+             * incoming entry. `Entry` has no index on either column — only the
+             * `id` primary key — so each of those was a full table scan over
+             * every row in the category. A 544-row quote import meant ~544
+             * scans of ~1,900 rows *inside* the transaction, which on
+             * production's volume was slow enough to blow Prisma's default 5s
+             * interactive-transaction timeout and roll the whole import back.
+             *
+             * Read inside the transaction so it stays consistent with the
+             * writes that follow.
+             */
+            const payloadCategories = [...new Set(
+                entries.map((e: any) => e?.category).filter((c: any) => typeof c === 'string'),
+            )] as string[];
+            const existingRows = payloadCategories.length
+                ? await tx.entry.findMany({
+                    where: { category: { in: payloadCategories } },
+                    select: { id: true, category: true, title: true },
+                })
+                : [];
+            // \u0000 cannot occur in a title, so it is a safe composite separator.
+            const dedupKey = (category: string, title: string) => `${category}\u0000${title}`;
+            const existingByKey = new Map<string, number>(
+                existingRows.map((r: { id: number; category: string; title: string }) =>
+                    [dedupKey(r.category, r.title), r.id] as const),
+            );
+
             // Import categories if provided
             if (categories && Array.isArray(categories)) {
                 for (const cat of categories) {
@@ -2454,18 +2484,13 @@ app.post('/api/admin/import', adminAuth, async (req, res) => {
 
             for (const rawItem of entries) {
                 const item = cleanEntryText(rawItem);
-                // Check for existing entry by title + category (dedup strategy)
-                const existing = await tx.entry.findFirst({
-                    where: {
-                        title: item.title,
-                        category: item.category,
-                    }
-                });
+                // Dedup on title + category, via the in-memory index above.
+                const existingId = existingByKey.get(dedupKey(item.category, item.title));
 
-                if (existing) {
+                if (existingId !== undefined) {
                     // Update existing
                     await tx.entry.update({
-                        where: { id: existing.id },
+                        where: { id: existingId },
                         data: {
                             description: item.description,
                             month: item.month,
@@ -2478,7 +2503,7 @@ app.post('/api/admin/import', adminAuth, async (req, res) => {
                             isPublished: item.isPublished,
                         }
                     });
-                    touchedIds.push(existing.id);
+                    touchedIds.push(existingId);
                     updatedCount++;
                 } else {
                     const created = await tx.entry.create({
@@ -2499,12 +2524,24 @@ app.post('/api/admin/import', adminAuth, async (req, res) => {
                             submitterComment: item.submitterComment,
                         }
                     });
+                    // Register it so a later row in the SAME payload carrying
+                    // this title updates it, rather than inserting a duplicate —
+                    // the behaviour the per-row findFirst used to give for free.
+                    existingByKey.set(dedupKey(item.category, item.title), created.id);
                     touchedIds.push(created.id);
                     addedCount++;
                 }
             }
 
             return { added: addedCount, updated: updatedCount, skipped: skippedCount };
+        }, {
+            // Prisma's defaults are 5s timeout / 2s maxWait, which are sized for
+            // request-scoped work, not a bulk restore. A full backup can be
+            // thousands of rows; the import is admin-only and runs rarely, so a
+            // generous ceiling is the right trade. Without this, a large import
+            // fails with P2028 and rolls back *after* doing all the work.
+            timeout: 120_000,
+            maxWait: 15_000,
         });
 
         await syncSearchText(touchedIds);
