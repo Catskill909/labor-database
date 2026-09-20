@@ -240,19 +240,9 @@ export const TAG_NORMALIZATION: Record<string, string | null> = {
   'history': null,
 
   // === CURATION ===
-  // normalizeTags() drops anything absent from this map, so every canonical tag
-  // must map to itself here or the bulk normalize action deletes it from every
-  // entry that carries it.
-  'Festival Watchlist': 'Festival Watchlist',
-  'festival watchlist': 'Festival Watchlist',
+  // Only the hyphenated slug form needs stating: the loop below registers every
+  // canonical tag as itself, and normalizeTags() already retries case-insensitively.
   'festival-watchlist': 'Festival Watchlist',
-
-  // Repairs the same omission for two pre-existing canonical tags that were
-  // never added here, and would have been stripped by a normalize run.
-  'Domestic Workers': 'Domestic Workers',
-  'domestic workers': 'Domestic Workers',
-  'Unemployment': 'Unemployment',
-  'unemployment': 'Unemployment',
 };
 
 // Tags that are already canonical — pass through unchanged

@@ -283,6 +283,36 @@ Year is a tiebreak only.
 - A day whose history entries carry **no** tags falls back to the old year rule
   (12 such days currently). Keep the fallback, or those days show an empty panel.
 
+### Adding a tag takes TWO edits — and they must not drift apart
+
+The taxonomy (35 terms) is hardcoded in **two** places, and both must be updated:
+
+1. `server/tags.ts` → `TAG_GROUPS` — the canonical list
+2. `src/components/TagSelector.tsx` — its own duplicate copy, for the picker
+
+**You do NOT need to touch `TAG_NORMALIZATION`.** A loop right below it
+(`server/tags.ts`, "Tags that are already canonical") registers every canonical
+tag as mapping to itself, and `normalizeTags()` also retries case-insensitively.
+Only add an entry there for a genuine *alias* — a legacy WordPress slug, say —
+not for the tag's own name.
+
+**The real risk is drift between #1 and #2.** A tag in `TAG_GROUPS` but missing
+from the picker exists but cannot be selected; the reverse offers a tag that
+`normalizeTags()` will strip. Neither errors.
+
+**Check after any taxonomy change:**
+
+```bash
+npm run check:tags
+```
+
+It verifies the two lists match, that every canonical tag survives its own round
+trip through `normalizeTags()`, and that no tag contains a comma. Exits non-zero
+on any problem. Verified to fail on a real break, not just to pass.
+
+**Chris cannot add tags himself** — that is TASK-A2, and it is why the answer to
+"can I do this myself?" is still no.
+
 ### Tag storage will break on any tag containing a comma
 
 **Not a bug today. A trap with a known trigger.** Noted 9 August 2026.

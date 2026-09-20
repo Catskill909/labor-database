@@ -39,6 +39,38 @@ the wrong layer for this error.
 
 ---
 
+## ✅ SHIPPED 20 Sep 2026 — Chris's two requests, same day
+
+From his email after the rollout ("response has been terrific"):
+
+**1. "I find the grey type in the genre dropdown difficult to see."**
+Not cosmetic preference — the app never declared `color-scheme`, so browsers
+rendered native controls in **light** mode: the `<select>` popup was drawn as a
+white OS panel while its options inherited the page's pale grey text. Fixed with
+`color-scheme: dark` on `:root` plus explicit `select option` colours, which
+repairs **every** native control at once (selects, scrollbars, date and file
+pickers), not only the genre filter he noticed.
+
+**2. "Could we add Festival Watchlist now?"**
+Added as its own **`Curation`** group rather than folded into Theme/Industry/
+Social — it flags *why* an entry is on a list, not what it is about, and it must
+not be mistaken for a subject heading during the tag review. Taxonomy 34 → 35.
+
+**A false alarm, recorded so nobody re-raises it:** `Domestic Workers` and
+`Unemployment` look absent from `TAG_NORMALIZATION`, and a first pass concluded a
+normalize run would strip them. **It would not.** A loop below that map registers
+every canonical tag as itself, and `normalizeTags()` also retries
+case-insensitively — measured by running the pre-change code against all 34 tags:
+zero dropped. Adding a tag needs **two** edits, not three. `npm run check:tags`
+now proves it rather than leaving it to inspection.
+
+**His sub-question — "or maybe that's something I can do myself?" — is answered
+honestly as "not yet".** The taxonomy is hardcoded, so a new tag needs a
+developer and a deploy. That is exactly what TASK-A2 would change, and it is
+worth citing as the business case for doing it.
+
+---
+
 ## 🔴 START HERE — deployment storage migration is the open work
 
 **Before changing anything under Coolify → Persistent Storage on this app, read
