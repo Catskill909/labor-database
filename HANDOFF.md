@@ -145,7 +145,7 @@ and media database follow-up questions". **Work from his wording, not paraphrase
 | C2 | Clarify how selections are generated; limit them to entries **"meaningfully connected to the day's history"** | ✅ **LIVE** 8 Sep (`dae2902`) — now tag-ranked, not year-matched. Still owes him the answer that the music was never from another source |
 | A1 | Expand "Add" so users can submit **corrections/updates** to existing entries | ⚠️ **Answered differently.** Chris approved the full flow; we are recommending against building it yet. A **Contact & Corrections** menu item shipped 8 Sep instead — see below |
 | A2 | How can we **add new tags** as the database evolves? | Not started — **the blocker is that the 34 terms are hardcoded in two files**, so nobody can add one without a deploy. See `new-client-dev.md` §4 |
-| A3 | **Bulk-import** from the Labor Quotes site | Re-measured against production 8 Sep: **554 new**, 147 already held. Review pack sent to Chris. Blocked on his live-vs-review-queue answer |
+| A3 | **Bulk-import** from the Labor Quotes site | ✅ **LIVE** 20 Sep — 544 imported, quotes 1,918 → 2,462. 12 near-match corrections and 3 held-back quotes still open |
 
 ### B1 is fully satisfied — verified against his exact searches
 
@@ -331,30 +331,58 @@ the existing "Add" button routes public submissions to his review queue.
 **Revisit the full flow** only if corrections arrive in real numbers, at which
 point it can be designed around what people actually report.
 
-### TASK-A3 · Bulk import from Labor Quotes · ~6–9 hrs
+### ✅ TASK-A3 · Bulk import from Labor Quotes · **DONE, LIVE 20 Sep 2026**
 
-**Re-measured against production, 8 Sep 2026:** **554 genuinely new**, 123 exact
-matches, 24 near matches. (The 595 figure was against a local DB copy.)
+**544 quotes imported to production.** Quote count **1,918 → 2,462**. Verified:
+no duplicates created, no empty rows, no implausible years, `searchAll` populated
+on every row, other categories untouched, On This Day unaffected.
 
-**⚠️ Read the truncation trap in CLAUDE.md before importing.** 1,220 quote
-titles are cut at 123 chars, the importer dedupes on `title`, and **89 quotes
-would silently duplicate** if imported blind. Repair the titles from their own
-descriptions first and dedupe during preparation.
+**Source:** Chris's two edited files (`1-NEW-QUOTES-EDITED.csv`, 560 rows, and
+`2-NEAR-MATCHES-EDITED.xlsx`, 24 rows), returned 20 Sep.
 
-**Review pack sent to Chris:** `labor-quotes-review-2026-09-08.zip` — 554 new
-(keep-by-default), 24 near matches (12 are fuller on the source site than ours),
-plain README. Awaiting his answer on live vs review queue.
+**How the 560 became 544:**
 
-### TASK-A3 · Bulk import from Labor Quotes · ~4–8 hrs
-**URL: https://laborquotes.weebly.com/c.html** (it was in Chris's email).
-Weebly has no structured export like WordPress WXR. In order of preference:
-1. **Blog RSS/Atom feed** if quotes are posts — cleanest; check how far back it goes.
-2. **HTML scraping** of archive pages — likely fallback.
-3. Any export the site owner can produce.
+```
+560  rows in Chris's file
+554  minus 6 he marked N
+549  minus 5 exact duplicates he did not flag (kept the fuller copy)
+547  minus 2 already held in production
+544  minus 3 quotes wholly contained in another row  <- HELD BACK
+```
 
-Import machinery exists: `POST /api/admin/import` smart-merges by title+category
-in a transaction. Precedent: `scripts/import-quotes.ts`. **Back up before
-importing** (rule 5). Fold BUG-2 (below) into this work.
+**The preparation is the safety, not the endpoint.** `scripts/prepare-quotes-import.ts`
+reads the CSV plus a **fresh export of the target database** and writes JSON. It
+never opens the database. It **refuses to emit a payload** if any incoming title
+collides with a stored one, because the import endpoint UPDATES on a title match
+— a bad collision silently overwrites a good record rather than being skipped.
+It also rejects implausible years rather than storing them (the BUG-1 class).
+
+**New rows carry the FULL quote as `title`**, not a 123-char truncation. They
+dedup correctly forever instead of inheriting the trap that affects the 1,220
+older rows. This is also what makes the import idempotent: re-running it reports
+`added: 0, updated: 544` and creates nothing.
+
+**Still outstanding from this work:**
+- **3 quotes held back** — `held-back-for-review.json`. Each is wholly contained
+  in another row (Debs #139 ⊂ #140; Flynn #173+#174 = #175; Lepore #315 ⊂ #316).
+  Editorial call, not mechanical.
+- **2 quotes buried in Chris's spreadsheet** — rows 218 and 314 carry a second
+  quote *inside the "Role / publication" column* (Abraham Heschel; Meridel Le
+  Sueur). The role fields were repaired; the two quotes were **not** created,
+  because inventing records from text found in the wrong field is an inference.
+  Row 59 has the same defect but its quote (Bismarck) exists separately as row 60.
+- **12 near-match corrections NOT yet applied** — these *overwrite* existing
+  descriptions, so they are deliberately a separate pass, to be done **by hand in
+  the admin edit interface**. `PUT /api/admin/entries/:id` calls `syncSearchText()`,
+  so hand-editing keeps the folded columns correct. Entry ids and replacement text
+  were matched 12/12 with no ambiguity; every replacement is LONGER than what is
+  stored, which is the sanity check while editing.
+- **Live vs review queue** — never answered by Chris. Imported as published. If he
+  wants a queue, re-import the same file with `isPublished: false`: one request,
+  `added: 0, updated: 544`. Proven both directions on the local DB.
+
+**Do not reuse `scripts/import-quotes.ts` for this.** Its `parseDateField()` is
+BUG-2 and still broken.
 
 ### TASK-A2 · Admin-managed tags · ~16–20 hrs
 **Must land before any LCSH subject-heading mapping.** Real Library of Congress
@@ -476,7 +504,7 @@ him to action) or the quote-date findings (he never asked; affects 3 entries).
 - [ ] Phase 1b · tag the 304 untagged songs (music is 30% tagged; auto-tag
       endpoint exists at `server/index.ts`, `POST /api/admin/tags/auto-tag`).
       **Writes to the database — back up first.**
-- [ ] Phase 2 · Labor Quotes import — blocked on Chris: live or review queue?
+- [x] ~~Phase 2 · Labor Quotes import~~ — **shipped 20 Sep**, 544 live. Chris never answered live-vs-queue; imported as published, reversible in one request
 - [x] ~~Phase 2b · Contact item in the site menu~~ — **shipped 8 Sep**
 - [ ] Phase 5 · shareable entry links — `react-router` is already wired up
 - [ ] Phase 3 · custom tags in the edit interface

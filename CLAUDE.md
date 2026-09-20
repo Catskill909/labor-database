@@ -161,6 +161,49 @@ nothing until they're populated. `docker-entrypoint.sh` runs
 (no-op once populated), and the Dockerfile copies `scripts/` into the runtime
 image for that reason — don't remove it.
 
+### The JSON import died at 5 seconds — fixed 20 Sep 2026, know why
+
+`POST /api/admin/import` failed in production with **P2028**: *"the timeout for
+this transaction was 5000 ms, however 5013 ms passed"*. Thirteen milliseconds
+over. A 544-entry quote import; nothing was written, because the transaction
+rolled back cleanly.
+
+**Cause:** the handler ran `findFirst({ title, category })` **once per incoming
+row** to decide insert-vs-update. `Entry` has **no index on `title` or
+`category`** — only the `id` primary key — so every one of those was a full
+table scan. 544 rows × ~1,900 stored quotes, inside a single interactive
+transaction whose timeout was Prisma's undeclared 5-second default.
+
+**Fix:** build the dedup index with ONE query into a `Map`, and set the
+transaction timeout explicitly to 120s. Measured: **1.61s → 0.244s** for the same
+544 rows.
+
+**Rules:**
+- **Never add a per-row query inside that transaction.** There is still no index
+  on `title`/`category`, so any `findFirst`/`findUnique` on them is a table scan.
+  If you need another lookup, preload it into a `Map` the same way.
+- Newly created rows are **registered in the Map** so a repeated title inside one
+  payload updates rather than duplicating — the behaviour the per-row `findFirst`
+  gave for free. Keep that, or a payload with two identical titles inserts twice.
+- **`skippedCount` is dead code** — declared, never incremented. The `skipped`
+  number in the response is always 0. Do not trust it.
+- **A title collision UPDATES, it does not skip.** This is the sharp edge of the
+  whole endpoint: an unintended match silently overwrites a stored row's
+  description, creator, metadata, tags and year. Match at *preparation* time
+  against a fresh export, and refuse to import on any collision.
+- The endpoint validates **nothing** else. No check that title/description are
+  non-empty, that `category` exists, or that month/day/year are sane. Prisma
+  rejects wrong *types*; `year: 5` and `month: 13` are valid integers and go
+  straight in. That is how BUG-1 happened.
+- The **ZIP restore** (`/api/admin/import-zip`) is a different path and was never
+  exposed — it already batches at 50 entries per transaction. `syncSearchText`
+  uses the *array* form of `$transaction`, which has no interactive timeout.
+
+**No regression test exists.** Catching this automatically needs a seeded-DB
+fixture and a payload large enough to matter; the current tests are pure
+functions with no database. The guard is structural: the lookup is now O(1) per
+row instead of O(n), so it cannot scale back into a timeout.
+
 ### Quote titles are truncated — the importer dedupes on the truncated field
 
 **1,220 of ~1,918 quote entries have a `title` cut to 120 characters with `...`
@@ -183,6 +226,9 @@ quotes already held, only 34 would match — **89 silent duplicates.**
 - **Repair the titles from their own `description` before any quote import.**
 - The same applies to any category whose title was truncated on the way in —
   check the length distribution before importing, not after.
+- **Rows imported on/after 20 Sep 2026 carry the FULL quote as `title`** and are
+  not affected. The 1,220 truncated titles are all older rows. Do not "fix" new
+  rows to match the old shape.
 
 ### Related Films & Music ranks on tags — it is not a filter
 
