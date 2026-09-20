@@ -3,39 +3,39 @@
 **Purpose:** pick-up point for a new chat window, session, or assistant.
 Read this first, then `CLAUDE.md` for the hard project rules.
 
-**Last updated:** 13 September 2026
+**Last updated:** 20 September 2026
 **Branch:** `main` · **Production:** https://labor-database.supersoul.top
 **Scope:** this repo only. The Digital Asset Manager / "Labor Heritage Media
 Archive" (`lhf-tools.supersoul.top`) is a **separate project, tracked elsewhere.**
 
 ---
 
-## 🔴 FRONT BURNER (13 Sep 2026) — readers blocked with ERR_SSL_PROTOCOL_ERROR
+## ✅ FIXED (14 Sep 2026) — readers blocked with ERR_SSL_PROTOCOL_ERROR
 
 **The investigation lives in `network-error.md`** at the repo root — local-only
-and gitignored, because it records infrastructure detail. Read it before
-anything else on this topic. It has the summary, action tracker, every test
-run, what is ruled out, and how to read Chris's reply.
+and gitignored, because it records infrastructure detail. Read it if this error
+is ever reported again.
 
-**In one paragraph:** Chris can't open labor-database or labor-landmarks from his
-parents' home network in Rochester (laptop and phone both fail there; both work
-at his own house). A second newsletter reader reports the same error. **The server
-is not at fault** — TLS Grade A, and both sites load from 34 home-network probes
-including Spectrum in Rochester. The domain is on no public blocklist; one
-predictive vendor (alphaMountain.ai) rates it Suspicious. **Leading explanation,
-not proven:** a home-router security filter, most likely Spectrum Security Shield
-(CUJO AI), scoring the domain as risky on appearance.
+**In one paragraph:** Chris couldn't open labor-database or labor-landmarks from
+his parents' Spectrum home network in Rochester; a second newsletter reader
+reported the same error. **The server was never at fault** (TLS Grade A, 34
+home-network probes load both sites). **Cause, confirmed 13 Sep:** Spectrum
+Security Shield (CUJO AI) was blocking `supersoul.top` on predictive scoring —
+Spectrum's own Verify URL tool reported the block. The unblock request was filed
+13 Sep and **Spectrum approved it 14 Sep; the sites are unblocked.**
 
-**State at end of 13 Sep:**
-- ✅ Asked Chris for provider + router make — **waiting on reply; it decides the next step**
-- ✅ alphaMountain.ai false-positive ticket submitted
-- ⏳ If Spectrum router → Spectrum unblock request + CUJO false-positive email
+**Loose ends (none blocking):**
+- ⏳ Tell Chris; ask him to confirm the sites load from his parents' house
+- ⏳ Chris is finding out the second reader's provider (covered already if Spectrum)
+- ⏳ alphaMountain.ai false-positive ticket — awaiting response
 - ⏸️ Bare-domain DNS/Coolify cleanup **deliberately deferred** — reasons in the doc
-- 💡 Long-term fix proposed, not decided: move the labor sites to a clean domain
+- 💡 Long-term fix proposed, not decided: move the labor sites to a clean domain.
+  Still worth it — predictive scoring can re-flag the domain or a new hostname.
+  lhf-media proposed to LHF as the first site to move
 
-**Rules for this issue:** no diagnostic homework for the client; **no DNS or
-Coolify changes** without reading the doc's §5 first; don't loosen Helmet/CSP/HSTS
-— headers are the wrong layer for this error.
+**If it recurs:** re-run Spectrum's Verify URL check first. No DNS or Coolify
+changes without reading the doc's §5; don't loosen Helmet/CSP/HSTS — headers are
+the wrong layer for this error.
 
 ---
 
@@ -234,7 +234,7 @@ when adding entries. Drake was in his own database, matched by release year.
 ### ✅ TASK-C2 · Related Films/Music · **DONE, LIVE 8 Sep (`dae2902`)**
 See the C2 section above. Pin/override deferred to Phase 4 by Chris's own wording.
 
-### TASK-A1 · Corrections · **Chris approved the full flow. We are not building it yet.**
+### TASK-A1 · Corrections · **Per-entry entry point shipped 20 Sep. The full edit flow is still not built.**
 
 **His September wording:** *"Let's put a small 'Suggest a correction' link on each
 individual entry and show the current information in an editable form. The
@@ -249,10 +249,18 @@ than related films and the quotes import combined. And it is the only item where
 demand is unmeasured, because there is currently no way to submit a correction at
 all. It also commits LHF to working a moderation queue indefinitely.
 
-**A per-entry link was considered and rejected.** A "something wrong here?" prompt
-on 5,955 records implies the data is unreliable, and only films and music have
-anything at the foot of the detail modal — quotes and history, **3,327 entries,
-over half the database**, would carry it on an otherwise bare panel.
+**A per-entry link was considered and rejected on 8 Sep — and that decision was
+reversed on 20 Sep.** The original objection: a "something wrong here?" prompt on
+5,955 records implies the data is unreliable, and only films and music have
+anything at the foot of the detail modal, so quotes and history — **3,327
+entries, over half the database** — would carry it on an otherwise bare panel.
+
+**What changed (20 Sep 2026, Paul's call).** The entry point is scoped to
+**history entries only**, and it lives in the **detail popup**, not on the browse
+or On This Day cards — so no "something wrong here?" prompt sits on thousands of
+cards, and the other 4,500-odd records are untouched. A reporter sees it only
+once they have opened the record they want to comment on. See the 20 Sep section
+below.
 
 **✅ SHIPPED 8 Sep instead — Phase 2b, `src/components/ContactModal.tsx`.**
 A **Contact & Corrections** item in the hamburger menu, beside About and Privacy.
@@ -265,6 +273,57 @@ is wrong, and whether they have a source.
 cannot paste a link — without prompting, reports arrive as "the miners film is
 wrong". **TASK-5 (shareable entry links) removes that limitation**; when it lands,
 swap the template's first question for "paste the link".
+
+### ✅ SHIPPED 20 Sep 2026 — correction button in the history detail modal
+
+A circular mail button in the **bottom-right corner of the entry detail popup**
+opens the same **Contact & Corrections** modal with the entry already
+identified. **History only** — `entry.category === 'history'` in
+`EntryDetail.tsx`. Films route through a separate `FilmDetail` component and do
+not have it. The button is `sticky bottom-0` inside the scrolling panel so it
+stays in the corner rather than being stranded below long entries; its wrapper
+is `pointer-events-none` so it does not steal clicks from the text it floats
+over.
+
+**Not on the cards.** The first cut put the icon on `HistoryOTDCard`
+(On This Day) and `HistoryCard` (category browse); that was **reverted the same
+day** in favour of the popup alone. This keeps the 8 Sep objection intact — no
+"something wrong here?" prompt sitting on thousands of browse cards — while
+still giving a reporter a per-entry route once they have opened the record.
+
+**The modal now takes an optional `entry`.** With one, the template's first
+question is *answered* rather than asked — category, full date, title, and
+`(Reference: entry #<id>)`, which is what actually finds the record among ~6,000.
+The subject line carries the title too. Opened from the hamburger menu the
+behaviour is unchanged, so `Header.tsx` needed no edit.
+
+**The button is `EntryCorrectionButton`, exported from `ContactModal.tsx`.** It
+owns its own open state, so the detail modal holds none.
+
+**Two CSS traps, both hit while building this — read before moving the button:**
+
+1. **The button itself must stay in normal flow.**
+   `[data-tooltip] { position: relative }` in `index.css` is written outside any
+   `@layer`, and Tailwind v4 emits its utilities inside `@layer utilities`.
+   Unlayered rules beat layered ones regardless of specificity or source order,
+   so an `absolute` put on this element is silently overridden. The positioning
+   lives on a wrapper instead. Anything absolutely positioned that also wants a
+   tooltip hits this.
+2. **The tooltip bubble causes horizontal overflow near a panel edge.** It is
+   always in the DOM — `opacity: 0` hides it but it still takes part in layout
+   and still counts toward the container's scrollable overflow. Centred on a
+   corner button with a wide label it overhangs the right edge, and because
+   `overflow-y: auto` forces `overflow-x` to `auto`, that raises a stray
+   horizontal scrollbar across the panel. Hence `data-tooltip-pos="top-end"`
+   (added to `index.css`), which anchors the bubble to the button's right edge
+   so it opens upward and leftward, inside the panel.
+
+**Same-pattern candidate, not a bug today:** the admin entry table
+(`AdminDashboard.tsx`, `overflow-y-auto`) has row-action tooltips at the right
+end of each row. Its 24px row padding and the ordering of the buttons absorb the
+overhang, so no scrollbar appears — but a wider label on the rightmost button
+would trip it. The other `data-tooltip` usages are not inside scrolling
+containers.
 
 **His sub-question is already answered:** suggested *additions* need nothing new —
 the existing "Add" button routes public submissions to his review queue.
