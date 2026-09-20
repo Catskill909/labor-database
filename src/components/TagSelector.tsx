@@ -50,6 +50,12 @@ const TAG_GROUPS: TagGroup[] = [
     ],
   },
   {
+    name: 'Curation',
+    tags: [
+      'Festival Watchlist',
+    ],
+  },
+  {
     name: 'Social',
     tags: [
       'Civil Rights & Race',

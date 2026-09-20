@@ -18,6 +18,23 @@ button,
   cursor: pointer;
 }
 
+/* Tell the browser this is a dark UI.
+   Without this, native controls render in LIGHT mode: a <select>'s dropdown
+   panel is drawn by the OS as a white popup, while its <option>s inherit the
+   page's pale text. Light grey on white — the genre filter was effectively
+   unreadable when open. This fixes every native control at once (selects,
+   scrollbars, date and file pickers), not just the one that was reported. */
+:root {
+  color-scheme: dark;
+}
+
+/* Belt and braces: some browsers still paint option rows from the page's own
+   colours rather than the colour-scheme, so state them explicitly. */
+select option {
+  background-color: #18181b;
+  color: #f4f4f5;
+}
+
 html,
 body {
   overflow-x: hidden;

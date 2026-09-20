@@ -39,6 +39,12 @@ export const TAG_GROUPS = {
     'Maritime & Dockworkers',
     'Domestic Workers',
   ],
+  /* Curation is not a subject heading — it marks why an entry is on a list,
+     not what it is about. Kept as its own group so it never gets mistaken for
+     a topical tag when the taxonomy is reviewed. */
+  'Curation': [
+    'Festival Watchlist',
+  ],
   'Social Dimension': [
     'Civil Rights & Race',
     'Women & Gender',
@@ -232,6 +238,21 @@ export const TAG_NORMALIZATION: Record<string, string | null> = {
   'workers': null, // too generic
   "worker's rights": null, // too generic
   'history': null,
+
+  // === CURATION ===
+  // normalizeTags() drops anything absent from this map, so every canonical tag
+  // must map to itself here or the bulk normalize action deletes it from every
+  // entry that carries it.
+  'Festival Watchlist': 'Festival Watchlist',
+  'festival watchlist': 'Festival Watchlist',
+  'festival-watchlist': 'Festival Watchlist',
+
+  // Repairs the same omission for two pre-existing canonical tags that were
+  // never added here, and would have been stripped by a normalize run.
+  'Domestic Workers': 'Domestic Workers',
+  'domestic workers': 'Domestic Workers',
+  'Unemployment': 'Unemployment',
+  'unemployment': 'Unemployment',
 };
 
 // Tags that are already canonical — pass through unchanged
