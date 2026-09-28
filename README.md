@@ -6,6 +6,8 @@ A unified, searchable platform for labor history, quotes, music, films, and futu
 
 **Live at https://labor-database.supersoul.top**
 
+**What it does:** see [FEATURES.md](FEATURES.md) — for visitors, LHF editors, and developers.
+
 ---
 
 ## Deploy to Any Server (Coolify)
@@ -115,7 +117,7 @@ In local dev, admin login is required but any password works when `ADMIN_PASSWOR
 | Film Data | TMDB API (server-side proxy) |
 | Music Data | Genius API + LRCLIB API + YouTube search |
 | AI Research | Google Gemini 2.0 Flash |
-| Deployment | Docker → Coolify (auto-deploy from `main`) |
+| Deployment | Docker → Coolify, from `main` (production deploys by hand — press Deploy after pushing) |
 
 Same architecture as the [Labor Landmarks Map](https://github.com/Catskill909/labor-map).
 

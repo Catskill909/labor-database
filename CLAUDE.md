@@ -104,7 +104,7 @@
 - **Frontend:** React + Vite (builds to `dist/`)
 - **Backend:** Express server at `server/index.ts`, runs via `tsx`
 - **Database:** SQLite via Prisma ORM
-- **Deployment:** Coolify (auto-deploys from `main` branch via Docker)
+- **Deployment:** Coolify, Docker build from `main` — **no auto-deploy**; press Deploy after pushing
 - **Port:** 3001 (standardized everywhere)
 - **Repo:** https://github.com/Catskill909/labor-database
 

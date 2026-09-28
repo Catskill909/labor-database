@@ -2,6 +2,8 @@
 
 **Purpose:** pick-up point for a new chat window, session, or assistant.
 Read this first, then `CLAUDE.md` for the hard project rules.
+**What the app does**, for the client, LHF editors and developers: `FEATURES.md`
+— update it when a feature ships.
 
 **Last updated:** 28 September 2026
 **Branch:** `main` · **Production:** https://labor-database.supersoul.top
@@ -151,6 +153,20 @@ contention (33s gap plus a 12×5s retry, both still failed).
 - **Make `/api/health` touch the Entry table.** It runs a raw `SELECT 1`, so it
   reported healthy through the entire 25 Aug outage. This is why nothing caught it.
 - **Add a SIGTERM handler** for clean shutdown and WAL checkpoint.
+
+### Deploys cause a brief outage — accepted, 28 Sep 2026
+
+The 28 Sep deploy (`3b9dd58`) showed **~15 seconds of 503** at the container
+handover, measured by polling `/api/health` every 15s. Build, migrate, seed and
+backfill were all clean; the old container served throughout the build. Both
+containers do run side by side — the gap is the traffic switch, not the
+database.
+
+**Decision (Paul): not a big deal for a site this size.** Deploy at a quiet
+hour. Fold the SIGTERM handler above into the next server-side change — it
+lets in-flight requests finish. Proxy-level retries would hide the gap
+entirely, but that is Coolify configuration: read the private runbook first,
+and only pursue it if deploys become frequent or the gap grows.
 
 ### INCIDENT — 25 Aug 2026, ~19:30–19:48 UTC (~18 min)
 
