@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Mail, AlertCircle, Plus, Link2, HelpCircle } from 'lucide-react';
 import type { Entry } from '../types.ts';
-import { formatFullEntryDate } from '../types.ts';
+import { formatFullEntryDate, parseMetadata } from '../types.ts';
 
 interface ContactModalProps {
     isOpen: boolean;
@@ -27,17 +27,92 @@ function categoryLabel(entry: Entry): string {
     return CATEGORY_LABELS[entry.category] ?? 'Entry';
 }
 
+function clip(text: string, max: number): string {
+    const t = text.trim().replace(/\s+/g, ' ');
+    return t.length > max ? t.slice(0, max - 1).trimEnd() + '…' : t;
+}
+
 /**
- * How a card identifies its entry in the email.
+ * Wraps text in quotation marks, without doubling them. About 4 in 10 stored
+ * quotes already carry their own (`“America wasn't built…”`). The closing mark
+ * is removed only when an opening one was, so a trailing apostrophe on its own
+ * (`… the workers'`) is left alone.
+ */
+function quoted(text: string, max: number): string {
+    let t = text.trim();
+    if (/^["“‘']/.test(t)) t = t.slice(1).replace(/["”’']$/, '');
+    return `"${clip(t, max)}"`;
+}
+
+interface EntryDescription {
+    /** Short name for the subject line and the summary heading. */
+    name: string;
+    /** "Labor History — March 25, 1911", "Film — Salt of the Earth (1954)". */
+    heading: string;
+    /** A second line that lets the sender confirm it is the right record. */
+    detail: string;
+}
+
+/**
+ * How each category is recognised by a person reading the email.
+ *
+ * History is known by its date. Films and songs are known by their title, and
+ * quotes by their author. A quote's `title` is the quote itself, and for most
+ * older rows it is cut to 120 characters, so the opening words come from
+ * `description`. A quote's date is when it was published on the old site, not
+ * when it was said, so it is left out rather than presented as historical.
+ */
+function describeEntry(entry: Entry): EntryDescription {
+    const label = categoryLabel(entry);
+    const title = entry.title?.trim() ?? '';
+    const creator = entry.creator?.trim() ?? '';
+    const withYear = (t: string) => (entry.year ? `${t} (${entry.year})` : t);
+
+    switch (entry.category) {
+        case 'quote': {
+            const author = creator || 'Unknown author';
+            return {
+                name: `quote by ${author}`,
+                heading: `${label} — ${author}`,
+                detail: quoted(entry.description || title, 140),
+            };
+        }
+        case 'film':
+            return {
+                name: title,
+                heading: `${label} — ${withYear(title)}`,
+                detail: creator ? `Directed by ${creator}` : '',
+            };
+        case 'music': {
+            const performer = String(parseMetadata(entry).performer ?? '').trim() || creator;
+            return {
+                name: title,
+                heading: `${label} — ${withYear(title)}`,
+                detail: performer ? `Performed by ${performer}` : '',
+            };
+        }
+        default: {
+            const date = formatFullEntryDate(entry);
+            return {
+                name: title || date,
+                heading: [label, date].filter(Boolean).join(' — '),
+                detail: title ? quoted(title, 140) : '',
+            };
+        }
+    }
+}
+
+/**
+ * How a detail popup identifies its entry in the email.
  *
  * Entries have no individual URLs yet, so a reporter cannot paste a link. The
- * id is what actually finds the record among nearly 6,000; the title and date
- * are there so the sender can see they picked the right one.
+ * id is what actually finds the record among nearly 6,000; the heading and
+ * detail are there so the sender can see they picked the right one.
  */
 function entryReferenceLines(entry: Entry): string[] {
-    const date = formatFullEntryDate(entry);
-    const lines = [[categoryLabel(entry), date].filter(Boolean).join(' — ')];
-    if (entry.title) lines.push(`"${entry.title}"`);
+    const { heading, detail } = describeEntry(entry);
+    const lines = [heading];
+    if (detail) lines.push(detail);
     lines.push(`(Reference: entry #${entry.id} — please leave this line in, it is how we find the record.)`);
     return lines;
 }
@@ -77,10 +152,8 @@ function buildMailBody(entry?: Entry | null): string {
 
 function buildMailSubject(entry?: Entry | null): string {
     if (!entry) return 'Labor Database — correction or comment';
-    const date = formatFullEntryDate(entry);
-    const name = entry.title?.trim() || date || `entry #${entry.id}`;
-    const short = name.length > 60 ? name.slice(0, 57).trimEnd() + '…' : name;
-    return `Labor Database — correction: ${short}`;
+    const name = describeEntry(entry).name || `entry #${entry.id}`;
+    return `Labor Database — correction: ${clip(name, 60)}`;
 }
 
 function buildMailtoHref(entry?: Entry | null): string {
@@ -102,6 +175,7 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, entry }) =
     if (!isOpen) return null;
 
     const mailtoHref = buildMailtoHref(entry);
+    const about = entry ? describeEntry(entry) : null;
 
     return createPortal(
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
@@ -141,16 +215,16 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, entry }) =
                         </ul>
                     </div>
 
-                    {entry ? (
+                    {about ? (
                         <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                             <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold mb-1.5">
                                 About this entry
                             </p>
                             <p className="text-sm text-white font-semibold">
-                                {[categoryLabel(entry), formatFullEntryDate(entry)].filter(Boolean).join(' — ')}
+                                {about.heading}
                             </p>
-                            {entry.title && (
-                                <p className="text-sm text-gray-300 mt-1 line-clamp-3">{entry.title}</p>
+                            {about.detail && (
+                                <p className="text-sm text-gray-300 mt-1 line-clamp-3">{about.detail}</p>
                             )}
                             <p className="text-xs text-gray-500 mt-2">
                                 We will fill this in for you, so you can go straight to what is wrong.
@@ -229,9 +303,11 @@ export function EntryCorrectionButton({ entry }: { entry: Entry }) {
                 data-tooltip-pos="top-end"
                 className={
                     'grid place-items-center w-10 h-10 shrink-0 rounded-full ' +
-                    'bg-white/[0.06] border border-white/10 text-gray-400 shadow-sm ' +
-                    'hover:bg-white/[0.12] hover:border-white/20 hover:text-gray-100 ' +
-                    'hover:shadow-md active:scale-95 ' +
+                    // Opaque fill: in film and music popups the button floats
+                    // over text and trailers, which showed through a translucent one.
+                    'bg-zinc-800 border border-white/15 text-gray-300 shadow-lg shadow-black/40 ' +
+                    'hover:bg-zinc-700 hover:border-white/25 hover:text-gray-100 ' +
+                    'active:scale-95 ' +
                     'focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30 ' +
                     'transition-all duration-200'
                 }

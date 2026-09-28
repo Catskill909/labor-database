@@ -3,7 +3,7 @@
 **Purpose:** pick-up point for a new chat window, session, or assistant.
 Read this first, then `CLAUDE.md` for the hard project rules.
 
-**Last updated:** 20 September 2026
+**Last updated:** 28 September 2026
 **Branch:** `main` · **Production:** https://labor-database.supersoul.top
 **Scope:** this repo only. The Digital Asset Manager / "Labor Heritage Media
 Archive" (`lhf-tools.supersoul.top`) is a **separate project, tracked elsewhere.**
@@ -310,12 +310,27 @@ swap the template's first question for "paste the link".
 
 A circular mail button in the **bottom-right corner of the entry detail popup**
 opens the same **Contact & Corrections** modal with the entry already
-identified. **History only** — `entry.category === 'history'` in
-`EntryDetail.tsx`. Films route through a separate `FilmDetail` component and do
-not have it. The button is `sticky bottom-0` inside the scrolling panel so it
+identified. The button is `sticky bottom-0` inside the scrolling panel so it
 stays in the corner rather than being stranded below long entries; its wrapper
 is `pointer-events-none` so it does not steal clicks from the text it floats
 over.
+
+**Extended to all four categories on 28 Sep 2026.** It is `CorrectionCorner`
+in `EntryDetail.tsx`, placed in both the generic popup and `FilmDetail` (films
+have their own layout — anything added to one popup must be added to both).
+The fill is opaque (`bg-zinc-800`): in film and music popups it floats over
+text and trailers, which showed through the original translucent style.
+
+**The email identifies each category the way a reader recognises it**
+(`describeEntry()` in `ContactModal.tsx`): history by date + title, film by
+title (year) + director, music by title (year) + performer, quote by author +
+opening words. Quotes deliberately leave out the date — it is the old site's
+publication date, not a historical one — and take their text from
+`description`, because most older quote titles are truncated. About 4 in 10
+stored quotes already carry their own quotation marks; `quoted()` strips them
+before wrapping, or the email reads `"“…”"`. Audited over all 6,499 local
+entries: longest `mailto:` 1,285 chars (safe under the ~2,000 some clients
+accept), no doubled years or marks.
 
 **Not on the cards.** The first cut put the icon on `HistoryOTDCard`
 (On This Day) and `HistoryCard` (category browse); that was **reverted the same

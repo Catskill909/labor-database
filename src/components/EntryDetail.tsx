@@ -334,6 +334,8 @@ function FilmDetail({ entry, onClose, onTagClick }: EntryDetailProps) {
             </div>
           )}
         </div>
+
+        <CorrectionCorner entry={entry} />
       </div>
 
       {/* Image lightbox */}
@@ -548,17 +550,23 @@ export default function EntryDetail({ entry, onClose, onTagClick }: EntryDetailP
           )}
         </div>
 
-        {/* Contact & Corrections — history only, matching the scope of the ask.
-            `sticky bottom-0` keeps it in the panel's bottom-right corner while
-            the body scrolls; the wrapper is click-through so it does not steal
-            clicks from the content it floats over. */}
-        {entry.category === 'history' && (
-          <div className="sticky bottom-0 flex justify-end px-6 pb-5 pt-2 pointer-events-none">
-            <div className="pointer-events-auto">
-              <EntryCorrectionButton entry={entry} />
-            </div>
-          </div>
-        )}
+        <CorrectionCorner entry={entry} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Contact & Corrections button, pinned to the bottom-right corner of a detail
+ * popup. Must be the last child of the popup's scrolling panel: `sticky
+ * bottom-0` keeps it in the corner while the body scrolls, and the wrapper is
+ * click-through so it does not steal clicks from the content it floats over.
+ */
+function CorrectionCorner({ entry }: { entry: Entry }) {
+  return (
+    <div className="sticky bottom-0 flex justify-end px-6 pb-5 pt-2 pointer-events-none">
+      <div className="pointer-events-auto">
+        <EntryCorrectionButton entry={entry} />
       </div>
     </div>
   );
