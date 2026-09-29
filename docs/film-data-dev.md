@@ -17,7 +17,7 @@
 | **Total items** | **2,490** |
 
 ### 11 Authors
-- biglabornews (Chris Garlock, cgarlock@laborheritage.org) — primary
+- biglabornews (Chris Garlock) — primary
 - lookbacklabor, andrew765, info4db353274e3, iwwggrandson, juliakann, jckozlowski, londonlabourfilmfest, siddawson, others
 
 ---

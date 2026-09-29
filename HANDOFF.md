@@ -5,10 +5,19 @@ Read this first, then `CLAUDE.md` for the hard project rules.
 **What the app does**, for the client, LHF editors and developers: `FEATURES.md`
 — update it when a feature ships.
 
-**Last updated:** 28 September 2026
+**Last updated:** 29 September 2026
 **Branch:** `main` · **Production:** https://labor-database.supersoul.top
 **Scope:** this repo only. The Digital Asset Manager / "Labor Heritage Media
 Archive" (`lhf-tools.supersoul.top`) is a **separate project, tracked elsewhere.**
+
+---
+
+## ⏸️ QUEUED (29 Sep 2026) — waiting on LHF to prioritise
+
+New requests (Labor Grammys/Oscars sharing and nominee collection, and a
+Podcast directory tab) are waiting on LHF's priority order. **Do not start them
+until LHF replies.** The details, open questions and client pipeline are in
+`INTERNAL-client-notes.md`, which is local-only and gitignored.
 
 ---
 
@@ -19,7 +28,7 @@ and gitignored, because it records infrastructure detail. Read it if this error
 is ever reported again.
 
 **In one paragraph:** Chris couldn't open labor-database or labor-landmarks from
-his parents' Spectrum home network in Rochester; a second newsletter reader
+a Spectrum home network; a second newsletter reader
 reported the same error. **The server was never at fault** (TLS Grade A, 34
 home-network probes load both sites). **Cause, confirmed 13 Sep:** Spectrum
 Security Shield (CUJO AI) was blocking `supersoul.top` on predictive scoring —
@@ -27,7 +36,7 @@ Spectrum's own Verify URL tool reported the block. The unblock request was filed
 13 Sep and **Spectrum approved it 14 Sep; the sites are unblocked.**
 
 **Loose ends (none blocking):**
-- ⏳ Tell Chris; ask him to confirm the sites load from his parents' house
+- ⏳ Tell Chris; ask him to confirm the sites load from that network
 - ⏳ Chris is finding out the second reader's provider (covered already if Spectrum)
 - ⏳ alphaMountain.ai false-positive ticket — awaiting response
 - ⏸️ Bare-domain DNS/Coolify cleanup **deliberately deferred** — reasons in the doc
@@ -543,33 +552,8 @@ wider question of what should relate to a day.
 - **Radio and icecast are STOPPED and staying stopped** for now. Nobody uses
   them, and leaving them off keeps the client app clear until they are isolated
   properly. Their sites are currently down, deliberately.
-- Billing for 25 Aug: **2.0 hrs**, reduced rate (progressive non-profit).
-- The 25 Aug outage is **not** being raised with the client.
 
-**For the reply to Chris — three things**
-
-*Report as done:*
-- Search flickering fixed; accented search fixed — **his exact "Misère" and
-  "Misère au Borinage" both work now**; "Related Films/Music" renamed;
-  Drake/Gaynor/Moby gone from July 12
-- Scale worth mentioning: roughly 1 entry in 7 was affected by the search bug —
-  864 with curly apostrophes, 150 with accented letters
-
-*Answer his direct question:*
-- The music was **never** from another source. Every selection came from the LHF
-  database itself; Genius/TMDB are only used when adding entries. Drake was in his
-  own database, matched by release year.
-
-*Ask him:*
-- **C2** — should Related Films/Music match on **shared tags** (the 34-term
-  taxonomy already exists) rather than year? Or curated manual links?
-- **A1** — corrections: where should the entry point live, and should the form
-  pre-fill editable fields or take a freeform note? (Draft wording in the session
-  notes; recommend in-entry link + pre-filled fields, and mention that corrections
-  go to a review queue, nothing changes live without his approval.)
-
-*Do not raise:* the 25 Aug outage (18 min, resolved, no data lost, nothing for
-him to action) or the quote-date findings (he never asked; affects 3 entries).
+*Client correspondence notes and billing are in `INTERNAL-client-notes.md` (local only).*
 
 **Next dev session** — see `new-client-dev.md` for the full phase plan
 - [x] ~~TASK-C2~~ — **shipped 8 Sep**
