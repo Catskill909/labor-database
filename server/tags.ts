@@ -44,6 +44,7 @@ export const TAG_GROUPS = {
      a topical tag when the taxonomy is reviewed. */
   'Curation': [
     'Festival Watchlist',
+    'Labor Awards Watchlist',
   ],
   'Social Dimension': [
     'Civil Rights & Race',
@@ -59,6 +60,10 @@ export const TAG_GROUPS = {
 
 // Flat list of all canonical tags
 export const CANONICAL_TAGS: string[] = Object.values(TAG_GROUPS).flat();
+
+// Curation tags don't count toward the per-entry tag cap — they flag a list,
+// not a subject. The picker (TagSelector.tsx) applies the same rule.
+export const CURATION_TAGS: ReadonlySet<string> = new Set(TAG_GROUPS['Curation']);
 
 // ─── Normalization Map ───────────────────────────────────────────────────────
 // Maps old WordPress/Labor Film Database tags → canonical tag (or null to drop)
@@ -243,6 +248,7 @@ export const TAG_NORMALIZATION: Record<string, string | null> = {
   // Only the hyphenated slug form needs stating: the loop below registers every
   // canonical tag as itself, and normalizeTags() already retries case-insensitively.
   'festival-watchlist': 'Festival Watchlist',
+  'labor-awards-watchlist': 'Labor Awards Watchlist',
 };
 
 // Tags that are already canonical — pass through unchanged
@@ -1005,8 +1011,9 @@ export function mergeTagsWithExisting(
     : [];
 
   const merged = new Set<string>(existing);
+  const subjectCount = () => [...merged].filter(t => !CURATION_TAGS.has(t)).length;
   for (const tag of newTags) {
-    if (merged.size >= maxTags) break;
+    if (subjectCount() >= maxTags) break;
     merged.add(tag);
   }
 

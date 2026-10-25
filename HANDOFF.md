@@ -5,19 +5,22 @@ Read this first, then `CLAUDE.md` for the hard project rules.
 **What the app does**, for the client, LHF editors and developers: `FEATURES.md`
 — update it when a feature ships.
 
-**Last updated:** 29 September 2026
+**Last updated:** 25 October 2026
 **Branch:** `main` · **Production:** https://labor-database.supersoul.top
 **Scope:** this repo only. The Digital Asset Manager / "Labor Heritage Media
 Archive" (`lhf-tools.supersoul.top`) is a **separate project, tracked elsewhere.**
 
 ---
 
-## ⏸️ QUEUED (29 Sep 2026) — waiting on LHF to prioritise
+## ▶️ LHF PRIORITIES RECEIVED (25 Oct 2026) — phase plan in place
 
-New requests (Labor Grammys/Oscars sharing and nominee collection, and a
-Podcast directory tab) are waiting on LHF's priority order. **Do not start them
-until LHF replies.** The details, open questions and client pipeline are in
-`INTERNAL-client-notes.md`, which is local-only and gitignored.
+LHF sent their priority order. The cross-app phase plan (this app, Labor
+Landmarks and the Media Archive) is in `INTERNAL-lhf-phase-plan.md` —
+local-only and gitignored. **Phase 1 shipped 25 Oct:** `Labor Awards Watchlist`
+added to the `Curation` tag group (36 tags). Curation tags no longer count toward
+the 5-tag limit — in the picker and in auto-tag's `mergeTagsWithExisting()` —
+because 348 films already had 5+ subject tags and could not take the watchlist
+tag. `server/tags.test.ts` covers every Curation tag.
 
 ---
 

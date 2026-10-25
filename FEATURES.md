@@ -128,9 +128,10 @@ The admin dashboard is at **`/admin`** and needs the admin password.
 - **Music:** search **Genius** to fill in artist, songwriter and year, with
   **lyrics** and a suggested **YouTube** link. Every field stays editable.
 - **Images:** upload images to any entry.
-- **Tags:** pick from the subject taxonomy — 35 terms in four groups: *Theme*,
+- **Tags:** pick from the subject taxonomy — 36 terms in four groups: *Theme*,
   *Industry*, *Social Dimension*, and *Curation* (which holds
-  *Festival Watchlist*).
+  *Festival Watchlist* and *Labor Awards Watchlist*). Up to 5 subject tags per
+  entry; Curation tags don't count toward that limit.
 
 ### Research tools
 

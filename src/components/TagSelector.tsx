@@ -53,6 +53,7 @@ const TAG_GROUPS: TagGroup[] = [
     name: 'Curation',
     tags: [
       'Festival Watchlist',
+      'Labor Awards Watchlist',
     ],
   },
   {
@@ -70,14 +71,20 @@ const TAG_GROUPS: TagGroup[] = [
   },
 ];
 
+// Curation tags (e.g. Labor Awards Watchlist) mark why an entry is on a list, not
+// what it is about, so they don't use up one of the subject-tag slots.
+const CURATION_TAGS = new Set(TAG_GROUPS.find(g => g.name === 'Curation')?.tags ?? []);
+
 export default function TagSelector({ value, onChange, maxTags = 5, className = '' }: TagSelectorProps) {
   const selectedTags = value ? value.split(',').map(t => t.trim()).filter(Boolean) : [];
+  const subjectCount = selectedTags.filter(t => !CURATION_TAGS.has(t)).length;
+  const isAtCap = (tag: string) => !CURATION_TAGS.has(tag) && subjectCount >= maxTags;
 
   const toggleTag = (tag: string) => {
     if (selectedTags.includes(tag)) {
       const newTags = selectedTags.filter(t => t !== tag);
       onChange(newTags.join(', '));
-    } else if (selectedTags.length < maxTags) {
+    } else if (!isAtCap(tag)) {
       onChange([...selectedTags, tag].join(', '));
     }
   };
@@ -91,7 +98,7 @@ export default function TagSelector({ value, onChange, maxTags = 5, className = 
       {/* Header with explanation */}
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs text-gray-400">
-          Click to select up to {maxTags} tags from our Labor taxonomy
+          Click to select up to {maxTags} subject tags (Curation tags don't count)
         </p>
         {selectedTags.length > 0 && (
           <button
@@ -115,7 +122,7 @@ export default function TagSelector({ value, onChange, maxTags = 5, className = 
             <div className="flex flex-wrap gap-1.5">
               {group.tags.map(tag => {
                 const isSelected = selectedTags.includes(tag);
-                const isDisabled = !isSelected && selectedTags.length >= maxTags;
+                const isDisabled = !isSelected && isAtCap(tag);
 
                 return (
                   <button
