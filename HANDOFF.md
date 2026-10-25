@@ -8,7 +8,7 @@ Read this first, then `CLAUDE.md` for the hard project rules.
 **Last updated:** 25 October 2026
 **Branch:** `main` · **Production:** https://labor-database.supersoul.top
 **Scope:** this repo only. The Digital Asset Manager / "Labor Heritage Media
-Archive" (`lhf-tools.supersoul.top`) is a **separate project, tracked elsewhere.**
+Archive" (`lhf-media.supersoul.top`) is a **separate project, tracked elsewhere.**
 
 ---
 
@@ -20,7 +20,16 @@ local-only and gitignored. **Phase 1 shipped 25 Oct:** `Labor Awards Watchlist`
 added to the `Curation` tag group (36 tags). Curation tags no longer count toward
 the 5-tag limit — in the picker and in auto-tag's `mergeTagsWithExisting()` —
 because 348 films already had 5+ subject tags and could not take the watchlist
-tag. `server/tags.test.ts` covers every Curation tag.
+tag. `server/tags.test.ts` covers every Curation tag. **Deployed and verified live.**
+Phase 2 (Labor Landmarks map button) also shipped 25 Oct — Landmarks detail lives in
+`~/Desktop/labor-map/HANDOFF.md`.
+
+**Open — same weakness that broke Landmarks deploys on 25 Oct:** `docker-entrypoint.sh` here runs
+`prisma migrate deploy` on **every** start. On Landmarks, Coolify's rolling update kept the old
+container holding the SQLite lock, so every deploy failed with "database is locked". This app is
+spared today only because its port mapping stops Coolify doing rolling updates — change that and
+every deploy fails. Fix when convenient: port `labor-map/docker-entrypoint.sh` (check
+`prisma migrate status` first; migrate only when pending). Not urgent; don't do it mid-feature.
 
 ---
 
