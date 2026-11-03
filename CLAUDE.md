@@ -1,5 +1,21 @@
 # CLAUDE.md - Project Guardrails for Labor Arts & Culture Database
 
+> 🏠 **Managed from `~/Desktop/lhf-server` since 2026-11-03.** LHF's apps are moving to
+> LHF's own server. Deploys, domains, backups and server work for this app are run
+> from that folder, and its manual is the private repo
+> `Labor-Heritage-Foundation/lhf-server-manual` (see `docs/09-apps.md` there).
+> Start any hosting or deploy session in `lhf-server`; this folder is for the app's code.
+>
+> **Status: not moved yet** — still on the old server. **Required before the move:**
+> fix the startup migration lock (`docker-entrypoint.sh` runs `prisma migrate deploy`
+> on every start). On the LHF server apps have no host port mapping, so Coolify does
+> rolling deploys and the old container holds the lock — without the fix every deploy
+> fails, as Labor Landmarks did on 25 Oct. Fix: copy Landmarks' entrypoint (check
+> `prisma migrate status` first, migrate only when needed). Move the data by direct
+> SQLite copy (all database files + uploads, checksummed); take a Full Backup export
+> as well, as a safety copy. The database itself is fine — only the startup script
+> needs changing.
+
 > **Starting a new session?** Read [HANDOFF.md](HANDOFF.md) first — current state,
 > open bugs (BUG-1/2/3), next tasks, and what is blocked on the client.
 > This file is the permanent rules; HANDOFF.md is the moving state.
