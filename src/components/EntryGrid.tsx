@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { ExternalLink, Music, Quote as QuoteIcon, Film, Play } from 'lucide-react';
+import { ExternalLink, Music, Quote as QuoteIcon, Film, Play, Podcast, MapPin } from 'lucide-react';
+import { parsePodcastMeta, visibleBadges, visibleListenLinks, isOnHiatus } from '../podcast.ts';
+import { PodcastBadge, HiatusBadge } from './PodcastBadges.tsx';
 import type { Entry } from '../types.ts';
 import { parseMetadata, formatEntryDate, formatFullEntryDate } from '../types.ts';
 
@@ -196,6 +198,64 @@ function FilmCard({ entry, onClick, query }: { entry: Entry; onClick: () => void
   );
 }
 
+function PodcastCard({ entry, onClick, query }: { entry: Entry; onClick: () => void; query?: string }) {
+  const meta = parsePodcastMeta(entry.metadata);
+  const logoUrl = entry.images?.[0]?.thumbnailUrl || null;
+  const badges = visibleBadges(meta);
+  const links = visibleListenLinks(meta);
+  const hiatus = isOnHiatus(meta);
+  const details = [meta.location, meta.frequency].filter(Boolean).join(' · ');
+
+  return (
+    <button
+      onClick={onClick}
+      className="text-left w-full h-full flex flex-col bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-red-500/30 transition-colors group overflow-hidden"
+    >
+      <div className="relative w-full aspect-square overflow-hidden bg-black/30">
+        {logoUrl ? (
+          <img
+            src={logoUrl}
+            alt=""
+            loading="lazy"
+            className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${hiatus ? 'opacity-70' : ''}`}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-white/5">
+            <Podcast size={36} className="text-gray-600" />
+          </div>
+        )}
+        {(badges.length > 0 || hiatus) && (
+          <div className="absolute top-2 left-2 right-2 flex flex-wrap gap-1">
+            {badges.map(b => <PodcastBadge key={b.key} badge={b.key} label={b.label} compact />)}
+            {hiatus && <HiatusBadge compact />}
+          </div>
+        )}
+      </div>
+
+      <div className="flex-1 flex flex-col p-3">
+        <h3 className="text-sm font-semibold leading-snug line-clamp-2 group-hover:text-red-300 transition-colors">
+          <Highlight text={entry.title} query={query} />
+        </h3>
+        {entry.creator && (
+          <p className="text-xs text-gray-400 mt-1 line-clamp-1"><Highlight text={entry.creator} query={query} /></p>
+        )}
+        {details && (
+          <p className="text-[11px] text-gray-500 mt-1.5 flex items-start gap-1">
+            <MapPin size={11} className="mt-0.5 shrink-0" />
+            <span className="line-clamp-2">{details}</span>
+          </p>
+        )}
+        {links.length > 0 && (
+          <p className="text-[10px] text-gray-500 mt-auto pt-2 truncate">
+            Listen: {links.slice(0, 2).map(l => l.label).join(', ')}
+            {links.length > 2 && ` +${links.length - 2}`}
+          </p>
+        )}
+      </div>
+    </button>
+  );
+}
+
 function GenericCard({ entry, onClick, query }: { entry: Entry; onClick: () => void; query?: string }) {
   const dateStr = formatEntryDate(entry);
 
@@ -285,6 +345,9 @@ export default function EntryGrid({ entries, onSelectEntry, searchQuery }: Entry
               break;
             case 'film':
               card = <FilmCard entry={entry} onClick={onClick} query={q} />;
+              break;
+            case 'podcast':
+              card = <PodcastCard entry={entry} onClick={onClick} query={q} />;
               break;
             default:
               card = <GenericCard entry={entry} onClick={onClick} query={q} />;

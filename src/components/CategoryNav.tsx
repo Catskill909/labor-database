@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { ScrollText, Quote, Music, Film, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ScrollText, Quote, Music, Film, Podcast, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Category } from '../types.ts';
 
 interface CategoryNavProps {
@@ -14,6 +14,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   'quote': <Quote size={16} />,
   'music': <Music size={16} />,
   'film': <Film size={16} />,
+  'podcast': <Podcast size={16} />,
 };
 
 export default function CategoryNav({ categories, selectedCategory, setSelectedCategory, counts }: CategoryNavProps) {

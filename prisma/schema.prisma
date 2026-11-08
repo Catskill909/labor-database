@@ -50,6 +50,11 @@ model Entry {
   submitterEmail String?
   submitterComment String?
 
+  // Admin-only extra details as JSON (e.g. podcast contact phone, role, network
+  // commitments). Never returned by public endpoints and never added to the
+  // search columns. See server/public-entry.ts.
+  privateMetadata  String?
+
   // Images (optional — used for film posters, etc.)
   images      EntryImage[]
 

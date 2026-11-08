@@ -57,6 +57,7 @@ export function entryCreateData(item: Record<string, unknown>) {
         submitterName: item.submitterName as string | null,
         submitterEmail: item.submitterEmail as string | null,
         submitterComment: item.submitterComment as string | null,
+        privateMetadata: item.privateMetadata as string | null,
         createdAt: restoreDate(item.createdAt),
         updatedAt: restoreDate(item.updatedAt),
     };

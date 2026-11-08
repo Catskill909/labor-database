@@ -19,6 +19,9 @@ import { buildSearchFields, normalizeSearchText } from './search-text.js';
 import { entryCreateData } from './backup-import.js';
 import { entryPath, parseEntryRef } from './entry-link.js';
 import { buildEntryShareMeta, injectShareMeta } from './share-meta.js';
+import { toPublicEntry } from './public-entry.js';
+import { visibleBadges, visibleListenLinks } from './podcast-meta.js';
+import type { PodcastMeta } from './podcast-meta.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -296,7 +299,7 @@ app.get('/api/feed.json', async (req, res) => {
         const baseUrl = `${protocol}://${host}`;
 
         const items = entries.map(e => {
-            const { submitterName: _sn, submitterEmail: _se, submitterComment: _sc, ...rest } = e;
+            const rest = toPublicEntry(e);
             // Sanitize text fields for RFC 8259 JSON compliance
             const safeTitle = sanitizeForJson(rest.title) || '';
             const safeDescription = sanitizeForJson(rest.description);
@@ -709,7 +712,7 @@ app.get('/api/on-this-day', async (req, res) => {
         const baseUrl = `${protocol}://${host}`;
 
         const addImageUrls = (e: typeof dateEntries[number]) => {
-            const { submitterName: _sn, submitterEmail: _se, submitterComment: _sc, ...rest } = e;
+            const rest = toPublicEntry(e);
             const sanitized = sanitizeEntryForJson(rest);
             return {
                 ...sanitized,
@@ -1306,7 +1309,7 @@ app.get('/api/entries', async (req, res) => {
 
         // Strip submitter contact info, sanitize text, and add full image URLs
         const publicEntries = entries.map((e) => {
-            const { submitterName: _sn, submitterEmail: _se, submitterComment: _sc, ...rest } = e;
+            const rest = toPublicEntry(e);
             const sanitized = sanitizeEntryForJson(rest);
             return {
                 ...sanitized,
@@ -1434,7 +1437,7 @@ app.get('/api/entries/:id', async (req, res) => {
             include: { images: { orderBy: { sortOrder: 'asc' } } }
         });
         if (entry) {
-            const { submitterName: _sn, submitterEmail: _se, submitterComment: _sc, ...rest } = entry;
+            const rest = toPublicEntry(entry);
             const sanitized = sanitizeEntryForJson(rest);
             const protocol = req.headers['x-forwarded-proto'] || req.protocol;
             const host = req.headers['x-forwarded-host'] || req.get('host');
@@ -1764,8 +1767,18 @@ app.get('/api/admin/entries', adminAuth, async (req, res) => {
 });
 
 // POST admin create entry (published by default)
+/**
+ * A JSON text column from a request body: an object is stringified, '' or null
+ * clears it, and undefined (field not sent) leaves the stored value alone.
+ */
+function jsonColumn(value: unknown): string | null | undefined {
+    if (value === undefined) return undefined;
+    if (value === null || value === '') return null;
+    return typeof value === 'string' ? value : JSON.stringify(value);
+}
+
 app.post('/api/admin/entries', adminAuth, async (req, res) => {
-    const { category, title, description, month, day, year, creator, metadata, tags, sourceUrl, isPublished, submitterName, submitterEmail, submitterComment } = cleanEntryText(req.body);
+    const { category, title, description, month, day, year, creator, metadata, tags, sourceUrl, isPublished, submitterName, submitterEmail, submitterComment, privateMetadata } = cleanEntryText(req.body);
     try {
         const entry = await prisma.entry.create({
             data: {
@@ -1783,6 +1796,7 @@ app.post('/api/admin/entries', adminAuth, async (req, res) => {
                 submitterName: submitterName || null,
                 submitterEmail: submitterEmail || null,
                 submitterComment: submitterComment || null,
+                privateMetadata: jsonColumn(privateMetadata) ?? null,
             }
         });
         await syncSearchText([entry.id]);
@@ -1796,7 +1810,7 @@ app.post('/api/admin/entries', adminAuth, async (req, res) => {
 // PUT update entry (Admin)
 app.put('/api/admin/entries/:id', adminAuth, async (req, res) => {
     const id = req.params.id as string;
-    const { category, title, description, month, day, year, creator, metadata, tags, sourceUrl, isPublished } = cleanEntryText(req.body);
+    const { category, title, description, month, day, year, creator, metadata, tags, sourceUrl, isPublished, privateMetadata } = cleanEntryText(req.body);
     try {
         const entry = await prisma.entry.update({
             where: { id: parseInt(id) },
@@ -1811,6 +1825,7 @@ app.put('/api/admin/entries/:id', adminAuth, async (req, res) => {
                 metadata: metadata !== undefined ? (metadata ? (typeof metadata === 'string' ? metadata : JSON.stringify(metadata)) : null) : undefined,
                 tags: tags !== undefined ? (tags || null) : undefined,
                 sourceUrl: sourceUrl !== undefined ? (sourceUrl || null) : undefined,
+                privateMetadata: jsonColumn(privateMetadata),
                 isPublished,
             }
         });
@@ -2128,6 +2143,23 @@ const researchColumns: { header: string; key: string; width?: number }[] = [
 ];
 
 const categoryColumns: Record<string, { header: string; key: string; width?: number }[]> = {
+    // Contact details (privateMetadata) are deliberately not exported to
+    // spreadsheets — those get emailed around. The Full Backup carries them.
+    podcast: [
+        { header: 'Show', key: 'title', width: 35 },
+        { header: 'Hosts / Producers', key: 'creator', width: 30 },
+        { header: 'Description', key: 'description', width: 60 },
+        { header: 'Location', key: 'location', width: 25 },
+        { header: 'How Often', key: 'frequency', width: 18 },
+        { header: 'Status', key: 'status', width: 10 },
+        { header: 'Badges', key: '_badges', width: 25 },
+        { header: 'Union', key: 'union', width: 20 },
+        { header: 'Website', key: 'sourceUrl', width: 40 },
+        { header: 'RSS Feed', key: 'rssUrl', width: 40 },
+        { header: 'Listen Links', key: '_listenLinks', width: 60 },
+        { header: 'Tags', key: 'tags', width: 25 },
+        { header: 'Published', key: 'isPublished', width: 10 },
+    ],
     music: [
         { header: 'Title', key: 'title', width: 30 },
         { header: 'Performer', key: 'performer', width: 25 },
@@ -2226,6 +2258,12 @@ function entryToRow(entry: Record<string, unknown>, cols: { key: string }[]): st
         }
         if (col.key === '_aiEnhanced') {
             return meta.aiEnhanced ? 'Yes' : '';
+        }
+        if (col.key === '_badges') {
+            return visibleBadges(meta as PodcastMeta).map(b => b.label).join(', ');
+        }
+        if (col.key === '_listenLinks') {
+            return visibleListenLinks(meta as PodcastMeta).map(l => `${l.label}: ${l.url}`).join(' | ');
         }
 
         // Check entry-level fields first, then metadata
@@ -2505,6 +2543,7 @@ app.post('/api/admin/import', adminAuth, async (req, res) => {
                             metadata: item.metadata,
                             tags: item.tags,
                             sourceUrl: item.sourceUrl,
+                            privateMetadata: jsonColumn(item.privateMetadata),
                             isPublished: item.isPublished,
                         }
                     });
@@ -2527,6 +2566,7 @@ app.post('/api/admin/import', adminAuth, async (req, res) => {
                             submitterName: item.submitterName,
                             submitterEmail: item.submitterEmail,
                             submitterComment: item.submitterComment,
+                            privateMetadata: jsonColumn(item.privateMetadata) ?? null,
                         }
                     });
                     // Register it so a later row in the SAME payload carrying
@@ -2659,6 +2699,7 @@ app.post('/api/admin/import-zip', adminAuth, zipUpload.single('backup'), async (
                                 month: item.month, day: item.day, year: item.year,
                                 creator: item.creator, metadata: item.metadata,
                                 tags: item.tags, sourceUrl: item.sourceUrl,
+                                privateMetadata: jsonColumn(item.privateMetadata),
                                 isPublished: item.isPublished,
                             }
                         });

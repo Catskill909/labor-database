@@ -9,11 +9,14 @@
  * - a quote (named by author in links; general popup layout)
  * - a film whose title is an HTML/script injection attempt
  * - an unpublished entry, which must behave like a missing one
+ * - a podcast with badges, On Hiatus, mixed listen links and private contact
+ *   details (PRIVATE_MARKER) that must never reach a public page or API
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PrismaClient } from '@prisma/client';
+import { PRIVATE_MARKER } from './constants';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const db = process.env.DATABASE_URL ?? '';
@@ -83,6 +86,34 @@ async function main() {
             description: 'Test fixture song.', tags: 'Organizing',
         },
     });
+    const podcast = await prisma.entry.create({
+        data: {
+            category: 'podcast', isPublished: true,
+            title: 'Test fixture: Union Hall Radio',
+            creator: 'Pat Organizer, host',
+            description: 'Test fixture podcast about union news.',
+            sourceUrl: 'https://example.org/union-hall-radio',
+            metadata: JSON.stringify({
+                rssUrl: 'https://example.org/feed.xml',
+                location: 'Washington, DC',
+                frequency: 'Weekly',
+                status: 'hiatus',
+                badges: ['founder', 'builder'],
+                listenLinks: {
+                    apple: 'https://podcasts.apple.com/us/podcast/test/id1',
+                    spotify: '',
+                    youtube: 'javascript:window.__pwned=3',
+                },
+                extraLinks: [{ label: 'Station archive', url: 'https://example.org/archive' }, { label: 'Blank', url: '' }],
+            }),
+            privateMetadata: JSON.stringify({
+                contactName: `Contact ${PRIVATE_MARKER}`,
+                contactEmail: `${PRIVATE_MARKER}@example.org`,
+                contactPhone: '555-0100',
+            }),
+            submitterEmail: `submitter-${PRIVATE_MARKER}@example.org`,
+        },
+    });
     for (let i = 1; i <= 80; i++) {
         await prisma.entry.create({
             data: {
@@ -94,7 +125,7 @@ async function main() {
         });
     }
 
-    const ids = { history: history.id, quote: quote.id, salt: salt.id, hostile: hostile.id, unpublished: unpublished.id };
+    const ids = { history: history.id, quote: quote.id, salt: salt.id, hostile: hostile.id, unpublished: unpublished.id, podcast: podcast.id };
     fs.writeFileSync(path.join(here, '.tmp', 'fixtures.json'), JSON.stringify(ids, null, 2));
     console.log('Test fixtures written:', ids);
 }

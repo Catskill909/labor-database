@@ -99,16 +99,23 @@
 - After schema changes: run `npx prisma generate` before building
 
 ### 7. Unified Entry Model
-- ALL content types (history, quotes, music, films, plays, poetry) live in ONE `Entry` table
+- ALL content types (history, quotes, music, films, podcasts; future plays, poetry) live in ONE `Entry` table
+- Podcasts (`category: 'podcast'`, tab "Labor Radio/Podcast") — see [podcast-dev.md](podcast-dev.md)
 - Category-specific fields go in the `metadata` JSON column
 - The `category` field determines the content type: "history", "quote", "music", "film", etc.
 - The `Category` model is a registry of available categories — admin-managed
 - Adding a new category = add a Category row + build its form + push
 
-### 8. Submitter Contact Fields (Admin-Only)
+### 8. Private Fields (Admin-Only)
 - `submitterName`, `submitterEmail`, `submitterComment` are collected in public submission forms
-- These are **never** exposed in the public API — stripped server-side
-- They **are** returned by the admin API and admin backup
+- `privateMetadata` (JSON, added 8 Nov 2026) holds podcast contact names, emails, phones and
+  network commitments from the LRPN form
+- These are **never** exposed in the public API — every public endpoint passes entries through
+  `toPublicEntry()` (`server/public-entry.ts`). **Never strip fields by hand at an endpoint.**
+- A new private column goes in `PRIVATE_ENTRY_FIELDS`; `server/public-entry.test.ts` fails if a
+  `submitter*`/`private*` column is missing from it
+- **Never put private data in `metadata`** — metadata is public *and* folded into search
+- They **are** returned by the admin API and the JSON/Full Backup exports (not XLSX/CSV)
 
 ### 9. HTML Entity Sanitization
 - Imported data (especially from WordPress) may contain HTML entities (`&amp;`, `&quot;`, etc.)

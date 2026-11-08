@@ -11,6 +11,7 @@ export interface FixtureIds {
     salt: number;
     hostile: number;
     unpublished: number;
+    podcast: number;
 }
 
 /** Ids written by fixtures.ts when the test server started. Call inside a test. */

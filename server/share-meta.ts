@@ -73,6 +73,8 @@ function entryTitle(entry: ShareableEntry): string {
         case 'film':
         case 'music':
             return withYear(clip(title, TITLE_LENGTH));
+        case 'podcast':
+            return clip(title || 'Labor radio/podcast', TITLE_LENGTH);
         default:
             return withYear(clip(title || 'Labor history', TITLE_LENGTH));
     }

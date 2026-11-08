@@ -37,6 +37,11 @@ export const SORT_OPTIONS: Record<string, SortOption[]> = {
     { value: 'newest', label: 'Date Added (newest)' },
     { value: 'oldest', label: 'Date Added (oldest)' },
   ],
+  podcast: [
+    { value: 'title-asc', label: 'Show A–Z' },
+    { value: 'title-desc', label: 'Show Z–A' },
+    { value: 'newest', label: 'Date Added (newest)' },
+  ],
 };
 
 export const ADMIN_SORT_OPTIONS: Record<string, SortOption[]> = {
@@ -73,6 +78,12 @@ export const ADMIN_SORT_OPTIONS: Record<string, SortOption[]> = {
     { value: 'title-desc', label: 'Title Z–A' },
     { value: 'researched', label: 'Researched' },
     { value: 'not-researched', label: 'Not Researched' },
+  ],
+  podcast: [
+    { value: 'title-asc', label: 'Show A–Z' },
+    { value: 'title-desc', label: 'Show Z–A' },
+    { value: 'newest', label: 'Date Added (newest)' },
+    { value: 'oldest', label: 'Date Added (oldest)' },
   ],
   default: [
     { value: 'newest', label: 'Date Added (newest)' },

@@ -14,6 +14,7 @@ export interface Entry {
   submitterName?: string | null;
   submitterEmail?: string | null;
   submitterComment?: string | null;
+  privateMetadata?: string | null;  // admin API only
   images: EntryImage[];
   createdAt: string;
   updatedAt: string;

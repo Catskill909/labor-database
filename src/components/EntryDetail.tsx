@@ -4,6 +4,7 @@ import type { Entry, RelatedLink } from '../types.ts';
 import { parseMetadata, formatEntryDate, getRelatedLinks, formatFullEntryDate } from '../types.ts';
 import { EntryCorrectionButton } from './ContactModal';
 import CopyLinkButton from './CopyLinkButton.tsx';
+import PodcastDetail from './PodcastDetail.tsx';
 
 interface EntryDetailProps {
   entry: Entry;
@@ -382,6 +383,9 @@ export default function EntryDetail({ entry, onClose, onTagClick }: EntryDetailP
   // Use dedicated film layout
   if (entry.category === 'film') {
     return <FilmDetail entry={entry} onClose={onClose} onTagClick={onTagClick} />;
+  }
+  if (entry.category === 'podcast') {
+    return <PodcastDetail entry={entry} onClose={onClose} onTagClick={onTagClick} />;
   }
 
   const meta = parseMetadata(entry);

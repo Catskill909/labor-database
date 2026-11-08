@@ -85,6 +85,10 @@ new-client-dev.md
 # Client-supplied data drops and the payloads built from them.
 # Local-only: this repo is public, and these carry the client's working files.
 client-data/
+# Podcast directory import (LRPN form): holds contact names, emails, phones.
+# Belongs in client-data/podcasts/; this catches a copy saved anywhere else.
+podcasts-import*
+lrpn-*.csv
 
 # Browser tests: throwaway database, results and traces (tests/browser/serve.sh)
 tests/browser/.tmp/

@@ -7,6 +7,7 @@ const DEFAULT_CATEGORIES = [
     { slug: 'quote', label: 'Labor Quotes', icon: 'quote', sortOrder: 1 },
     { slug: 'music', label: 'Labor Music', icon: 'music', sortOrder: 2 },
     { slug: 'film', label: 'Labor Films', icon: 'film', sortOrder: 3 },
+    { slug: 'podcast', label: 'Labor Radio/Podcast', icon: 'podcast', sortOrder: 4 },
 ];
 
 async function main() {

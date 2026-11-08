@@ -22,6 +22,7 @@ const CATEGORY_LABELS: Record<string, string> = {
     quote: 'Labor Quote',
     music: 'Music',
     film: 'Film',
+    podcast: 'Radio/Podcast',
 };
 
 function categoryLabel(entry: Entry): string {
@@ -83,6 +84,12 @@ function describeEntry(entry: Entry): EntryDescription {
                 name: title,
                 heading: `${label} — ${withYear(title)}`,
                 detail: creator ? `Directed by ${creator}` : '',
+            };
+        case 'podcast':
+            return {
+                name: title,
+                heading: `${label} — ${title}`,
+                detail: creator ? `Hosted by ${creator}` : '',
             };
         case 'music': {
             const performer = String(parseMetadata(entry).performer ?? '').trim() || creator;

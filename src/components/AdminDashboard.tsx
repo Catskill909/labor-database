@@ -17,6 +17,7 @@ import ResearchFieldsSection from './ResearchFieldsSection.tsx';
 import RelatedLinksEditor from './RelatedLinksEditor.tsx';
 import AiSandbox from './AiSandbox.tsx';
 import AdminHelpPanel from './AdminHelpPanel.tsx';
+import PodcastEditModal from './PodcastEditModal.tsx';
 
 const PAGE_SIZE = 60;
 
@@ -414,6 +415,21 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                           </p>
                           <p className="text-xs text-gray-300 truncate mt-0.5">{entry.creator || 'Unknown Director'}</p>
                         </>
+                      ) : entry.category === 'podcast' ? (
+                        <div className="flex items-center gap-3">
+                          {entry.images?.[0] ? (
+                            <img src={entry.images[0].thumbnailUrl || entry.images[0].url} alt="" className="w-9 h-9 rounded object-cover shrink-0 bg-black/30" />
+                          ) : (
+                            <div className="w-9 h-9 rounded bg-white/5 shrink-0" />
+                          )}
+                          <div className="min-w-0">
+                            <p className="font-bold text-sm text-orange-400 group-hover:text-orange-300 transition-colors truncate">
+                              {entry.title}
+                              {parseMetadata(entry).status === 'hiatus' && <span className="ml-2 text-[10px] font-semibold text-gray-400">ON HIATUS</span>}
+                            </p>
+                            <p className="text-xs text-gray-300 truncate mt-0.5">{entry.creator || parseMetadata(entry).location || ''}</p>
+                          </div>
+                        </div>
                       ) : (
                         <>
                           <p className="font-bold text-sm uppercase tracking-wide group-hover:text-red-400 transition-colors truncate">
@@ -524,7 +540,14 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
       )}
 
       {/* Edit Modal */}
-      {editingEntry && (
+      {editingEntry?.category === 'podcast' && (
+        <PodcastEditModal
+          entry={editingEntry}
+          onClose={() => setEditingEntry(null)}
+          onSaved={() => { setEditingEntry(null); refetch(); }}
+        />
+      )}
+      {editingEntry && editingEntry.category !== 'podcast' && (
         <EditEntryModal
           entry={editingEntry}
           categories={categories}

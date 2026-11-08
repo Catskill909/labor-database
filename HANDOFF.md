@@ -12,6 +12,23 @@ Archive" (`lhf-media.supersoul.top`) is a **separate project, tracked elsewhere.
 
 ---
 
+## 🎙️ LABOR RADIO/PODCAST TAB (Phase 1) — pushed 8 Nov 2026 · import pending
+
+New category `podcast`: 50 LRPN shows, cards + popup, badges (Founder/Builder/
+Steward), On Hiatus, 15 listen platforms + custom links (blank = hidden), admin
+edit with a private contacts section. Plan, decisions and what's left:
+[podcast-dev.md](podcast-dev.md).
+
+- **Schema:** new column `Entry.privateMetadata` (migration runs on start).
+- **Data is not in git.** The import is `client-data/podcasts/podcasts-import.zip`
+  (gitignored — holds contact details). Load it via Admin → Import → ZIP after
+  the deploy. Re-importing updates, never duplicates.
+- **Privacy:** all public endpoints go through `toPublicEntry()`; checked by
+  `server/public-entry.test.ts` and `tests/browser/podcasts.spec.ts`.
+- **Left:** Spotify links (no open lookup — admins/shows fill them), union + tags
+  (starter list to LHF), Workers Rising logo, 6 name-only Apple matches to eyeball
+  (`client-data/podcasts/report.txt`). Phase 2 = player + embed.
+
 ## 🔗 SHAREABLE LINKS (Phase 3) — live 8 Nov 2026 · ⚠️ three steps at the server move
 
 **Deployed and verified live (8 Nov, ~13:10, at `4713219`):** links, Copy link, previews, the

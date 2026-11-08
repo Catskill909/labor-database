@@ -8,6 +8,9 @@ import MusicSearch from './MusicSearch.tsx';
 import type { MusicDetails } from './MusicSearch.tsx';
 import TagSelector from './TagSelector.tsx';
 import ResearchFieldsSection from './ResearchFieldsSection.tsx';
+import { PodcastFields } from './PodcastFields.tsx';
+import { cleanPodcastMeta } from '../podcast.ts';
+import type { PodcastMeta } from '../podcast.ts';
 
 interface SubmissionWizardProps {
   categories: Category[];
@@ -55,6 +58,10 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
   const [wikipediaUrl, setWikipediaUrl] = useState('');
   const [relatedLinks, setRelatedLinks] = useState<RelatedLink[]>([]);
   const [moreResearch, setMoreResearch] = useState('');
+
+  // Podcast-specific (public show details; admin-only parts are set later in the edit form)
+  const [podcastMeta, setPodcastMeta] = useState<PodcastMeta>({});
+  const [podcastLogoLink, setPodcastLogoLink] = useState('');
 
   // Contact
   const [submitterName, setSubmitterName] = useState('');
@@ -119,6 +126,8 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
           entryTitle = description.substring(0, 80) + (description.length > 80 ? '...' : '');
         }
         if (!entryCreator && creator) entryCreator = creator;
+      } else if (selectedCategory === 'podcast') {
+        metadata = cleanPodcastMeta(podcastMeta);
       } else if (selectedCategory === 'history') {
         if (!entryTitle && description) {
           entryTitle = description.substring(0, 80) + (description.length > 80 ? '...' : '');
@@ -148,7 +157,11 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
       } else {
         body.submitterName = submitterName || null;
         body.submitterEmail = submitterEmail || null;
-        body.submitterComment = submitterComment || null;
+        // Public visitors can't upload images, so a podcast's logo arrives as a
+        // link for an admin to fetch. It rides in the admin-only comment.
+        const logoNote = selectedCategory === 'podcast' && podcastLogoLink.trim()
+          ? `Logo link: ${podcastLogoLink.trim()}` : '';
+        body.submitterComment = [submitterComment.trim(), logoNote].filter(Boolean).join('\n\n') || null;
       }
 
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -419,6 +432,28 @@ export default function SubmissionWizard({ categories, onClose, onSubmitted, isA
                 <label className="text-xs text-gray-400 block mb-1.5">Poster Image <span className="text-gray-600">(optional)</span></label>
                 <ImageDropzone files={imageFiles} setFiles={setImageFiles} maxFiles={3} />
               </div>
+              )}
+            </div>
+          )}
+
+          {step === 2 && selectedCategory === 'podcast' && (
+            <div className="space-y-3">
+              <input type="text" placeholder="Show name" value={title} onChange={e => setTitle(e.target.value)} className="input-field" />
+              <input type="text" placeholder="Host(s) / producer(s)" value={creator} onChange={e => setCreator(e.target.value)} className="input-field" />
+              <textarea placeholder="Short description of the show" value={description} onChange={e => setDescription(e.target.value)} rows={4} className="input-field" />
+              <input type="url" placeholder="Show website (https://…)" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} className="input-field" />
+              <PodcastFields value={podcastMeta} onChange={setPodcastMeta} admin={isAdmin} />
+              <div>
+                <label className="text-xs text-gray-400 block mb-1.5">Tags <span className="text-gray-600">(optional, max 5)</span></label>
+                <TagSelector value={tags} onChange={setTags} />
+              </div>
+              {isAdmin ? (
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1.5">Logo <span className="text-gray-600">(square works best)</span></label>
+                  <ImageDropzone files={imageFiles} setFiles={setImageFiles} maxFiles={1} />
+                </div>
+              ) : (
+                <input type="url" placeholder="Link to your show's logo (optional)" value={podcastLogoLink} onChange={e => setPodcastLogoLink(e.target.value)} className="input-field" />
               )}
             </div>
           )}
