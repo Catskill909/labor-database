@@ -221,6 +221,15 @@ are run by a developer, and each **writes to the database — back up first.**
   backfill, and `npm run check:tags`. After running any script that writes
   entries, run `npm run backfill:search`.
 
+### Tests
+
+- **`npm test`** — server tests, a few seconds: links, previews (including
+  hostile text), search folding, related films and music, tags, imports.
+- **`npm run test:browser`** — about 30 seconds in Google Chrome against a
+  throwaway test database (never the real one): shareable links, Copy link,
+  Back/Forward, failed links, previews, tag clicks and tabs. How it works:
+  `tests/browser/README.md`.
+
 ### Where the rules live
 
 - **`CLAUDE.md`** — permanent project rules: build checks, backups, the search

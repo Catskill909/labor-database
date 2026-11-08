@@ -19,7 +19,8 @@
     "import:all": "tsx scripts/import-history.ts && tsx scripts/import-quotes.ts && tsx scripts/import-music.ts && tsx scripts/import-films.ts",
     "backfill:search": "tsx scripts/backfill-search-text.ts",
     "test": "tsx --test server/*.test.ts",
-    "check:tags": "tsx scripts/check-tags.ts"
+    "check:tags": "tsx scripts/check-tags.ts",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
@@ -53,6 +54,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@playwright/test": "1.62.1",
     "@types/archiver": "^7.0.0",
     "@types/cheerio": "^0.22.35",
     "@types/cors": "^2.8.19",

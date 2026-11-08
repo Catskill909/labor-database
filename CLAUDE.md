@@ -134,6 +134,11 @@
 1. `npx tsc --noEmit` passes with zero errors
 2. No secrets in Dockerfile ARG/ENV
 3. `npm run build` succeeds locally
+4. `npm test` passes (server tests, seconds)
+5. `npm run test:browser` passes when pages changed (Chrome, ~30 s; throwaway
+   test database, never `prisma/dev.db` — see `tests/browser/README.md`).
+   A new page behaviour gets a check there; a bug fix gets a check that fails
+   with the bug put back.
 
 ## Pre-Deploy Checklist (Before First Coolify Launch)
 1. All items in Pre-Push Checklist pass

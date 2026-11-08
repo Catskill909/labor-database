@@ -171,7 +171,7 @@ function FilmDetail({ entry, onClose, onTagClick }: EntryDetailProps) {
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
       {/* Wider modal for films */}
-      <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-2xl">
+      <div role="dialog" aria-modal="true" aria-label={entry.title} className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-2xl">
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-start justify-between p-6 pb-4 bg-[var(--card)] border-b border-[var(--border)] rounded-t-xl">
           <div className="flex-1 min-w-0">
@@ -393,7 +393,7 @@ export default function EntryDetail({ entry, onClose, onTagClick }: EntryDetailP
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative w-full max-w-2xl max-h-[85vh] overflow-y-auto bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-2xl">
+      <div role="dialog" aria-modal="true" aria-label={entry.category === 'quote' && entry.creator ? `Quote by ${entry.creator}` : entry.title} className="relative w-full max-w-2xl max-h-[85vh] overflow-y-auto bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-2xl">
         {/* Header */}
         <div className="sticky top-0 flex items-start justify-between p-6 pb-4 bg-[var(--card)] border-b border-[var(--border)] rounded-t-xl">
           <div className="flex-1 min-w-0">

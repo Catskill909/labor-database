@@ -48,9 +48,21 @@ the tag was set and wiped it. Fix: every tab change goes through
 `changeCategory()`, which sets filters and sort in the same step; the search
 box's "leave On This Day" rule moved into the input handler too. **Rule: don't
 reset state in an effect that watches another piece of state** — set both
-together where the change happens. No automated test (no React test setup);
-checked in Chrome: tag from link / On This Day card / Films tab, same-tab click,
-tab switch, search from On This Day — 7/7.
+together where the change happens. Covered by `tests/browser/tags.spec.ts`
+(below): with the bug put back, all three tab-switching tag tests fail.
+
+## 🧪 BROWSER TESTS — added 8 Nov 2026
+
+`npm run test:browser` — 16 checks in Google Chrome, ~30 s: shareable links,
+Copy link, Back/Forward + scroll kept, unknown/unpublished/malformed links,
+server redirects and previews, a script-injection title, phone width, tag
+clicks and tabs. Runs the built app on port 3101 against a **throwaway test
+database** rebuilt each run (`tests/browser/serve.sh`, data in `fixtures.ts`);
+refuses to run against anything else, so `prisma/dev.db` is never touched.
+Verified: 48/48 over three runs in a row; the tag bug put back is caught.
+New setting `API_RATE_LIMIT_PER_MINUTE` exists only so the test copy isn't
+throttled — **leave it unset in Coolify** (default 100). Details:
+`tests/browser/README.md`. **Labor Landmarks should get the same setup.**
 
 **Next:** the same links for Labor Landmarks (`/landmark/<id>-<name>`).
 

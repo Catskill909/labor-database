@@ -146,9 +146,12 @@ app.use(express.json({ limit: '10mb' }));
 app.set('trust proxy', 1);
 
 // Rate limiting
+// API_RATE_LIMIT_PER_MINUTE is for the browser tests (tests/browser/serve.sh),
+// which load pages faster than any visitor. Leave it unset in Coolify: 100.
+const generalLimitPerMinute = Number(process.env.API_RATE_LIMIT_PER_MINUTE) || 100;
 const generalLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 100,
+    max: generalLimitPerMinute,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Too many requests, please try again later' },
