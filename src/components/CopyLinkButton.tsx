@@ -53,6 +53,8 @@ export default function CopyLinkButton({ entry }: { entry: Entry }) {
     <button
       onClick={copy}
       title="Copy a link to this entry"
+      // On phones only the icon shows, so the name has to come from here.
+      aria-label={state === 'copied' ? 'Link copied' : 'Copy link to this entry'}
       className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-medium text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors shrink-0"
     >
       {state === 'copied' ? <Check size={16} className="text-green-400" /> : <Link2 size={16} />}

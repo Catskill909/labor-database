@@ -142,6 +142,7 @@
 4. `ADMIN_PASSWORD` set in Coolify environment variables
 5. `TMDB_API_KEY` set if film enrichment needed
 6. `CORS_ORIGIN` set to `https://labor-database.supersoul.top`
+6b. `PUBLIC_BASE_URL` set to the same address, no trailing slash (link previews)
 7. Port `3001` exposed
 8. Health check configured: `GET /api/health` on port `3001`
 9. First deploy: import data via Admin Dashboard (`/admin` → Import JSON backup)

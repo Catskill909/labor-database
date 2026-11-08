@@ -4,7 +4,7 @@
 Built for the Labor Heritage Foundation. Live at
 **https://labor-database.supersoul.top**
 
-*Last updated 28 September 2026. Counts are published entries on the live site.*
+*Last updated 8 November 2026 (shareable links). Counts are published entries on the live site, as of 28 September 2026.*
 
 | Collection | Entries |
 |---|---:|
@@ -73,6 +73,23 @@ Click any card to open the full entry.
   and further context.
 - **Images** open full-screen when clicked.
 
+### Shareable links (since 8 November 2026)
+
+- **Every entry has its own web address**, e.g.
+  `https://labor-database.supersoul.top/entry/1412-joe-biden`. Opening it shows
+  the database with that entry open; closing it (or the Back button) returns to
+  the database.
+- **Copy link** — top of every entry, next to the close button (just the link
+  icon on phones). Paste the link into an email, a post or a message.
+- **Previews** — pasted into Facebook, Bluesky, iMessage, Slack and similar,
+  the link shows the entry's title, a short summary and a picture: a film's
+  poster, or the LHF logo for entries without a picture.
+- The number in the link finds the entry; the words after it are for readers
+  (a quote is named by its author). If an entry's title is edited later, links
+  shared earlier still work.
+- A link to an entry that has been unpublished or removed opens the database
+  with a short "That entry isn't available" note.
+
 ### Contact & Corrections
 
 - **On every entry**, a mail button in the bottom-right corner opens
@@ -80,10 +97,12 @@ Click any card to open the full entry.
   opens the visitor's email program with a short template addressed to
   info@laborheritage.org. The template names the entry the way a reader
   recognises it — a film by title, year and director; a song by title and
-  performer; a quote by its author; a history entry by its date — plus a
-  reference number that finds the exact record.
+  performer; a quote by its author; a history entry by its date — plus the
+  entry's link and a reference number that finds the exact record.
 - **From the site menu**, the same form opens without an entry, for general
-  questions, missing items and broken links.
+  questions, missing items and broken links. If the message is about a
+  particular entry, the template asks the visitor to paste its link (from
+  *Copy link*).
 
 ### Add to the Database
 
@@ -182,6 +201,12 @@ Documented in the admin **API reference**. All read-only, all published data.
 
 Submitter contact details are stripped from every public response.
 
+**Entry pages** — `GET /entry/<id>-<words>` returns the site with Open Graph
+link-preview tags for that entry (`server/share-meta.ts`). Only the number is
+read; a link with missing or outdated words gets a permanent redirect (301) to
+the current form. Unknown or unpublished entries answer 404. Needs the
+`PUBLIC_BASE_URL` setting for the preview's picture and page address.
+
 ### Tools with no button
 
 These exist on the server but have **no control in the admin dashboard**. They
@@ -209,8 +234,8 @@ are run by a developer, and each **writes to the database — back up first.**
 
 Recorded so nobody reads the list above as more than it is.
 
-- **Shareable links to individual entries.** Entries have no web address of
-  their own yet, which is why the correction email carries a reference number.
+- **Share buttons** (Facebook, Bluesky, X) and the phone's share menu. Copy
+  link covers sharing for now. (Instagram has no web share link.)
 - **Adding new tags without a developer.** The taxonomy is fixed in code;
   a new tag currently needs a code change and a deploy.
 - **An in-site correction form with review.** Corrections arrive by email today.

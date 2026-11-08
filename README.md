@@ -41,6 +41,7 @@ In Coolify: **Configuration → Environment Variables**
 |----------|----------|---------|
 | `ADMIN_PASSWORD` | **Yes** | Protects the admin dashboard |
 | `CORS_ORIGIN` | Recommended | Your domain (e.g. `https://your-domain.com`). Unset = allow all |
+| `PUBLIC_BASE_URL` | Recommended | The site's public address, no trailing slash (e.g. `https://your-domain.com`). Link previews for shared `/entry/...` links need it for their picture and page address. **Change it if the site moves** |
 | `TMDB_API_KEY` | No | Film search + poster auto-fill |
 | `GENIUS_API_KEY` | No | Music search + songwriter/lyrics auto-fill |
 | `GOOGLE_AI_API_KEY` | No | AI research assistant (Gemini) |

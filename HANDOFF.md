@@ -15,7 +15,7 @@ Archive" (`lhf-media.supersoul.top`) is a **separate project, tracked elsewhere.
 ## 🔗 SHAREABLE LINKS (Phase 3) — shipped 8 Nov 2026 · ⚠️ three steps at the server move
 
 Every entry has its own address: `/entry/<id>-<words>`, e.g.
-`/entry/5955-10000-black-men-named-george`. The number finds the record; the
+`/entry/1412-joe-biden`. The number finds the record; the
 words are for readers (quotes use the author's name). Links with stale or
 missing words 301 to the current form. "Copy link" sits in both popup layouts;
 the correction email includes the link. Server-side link previews (Open Graph)
