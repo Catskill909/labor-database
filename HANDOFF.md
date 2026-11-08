@@ -40,12 +40,17 @@ slash. Without it previews have no picture or page address.
 Full steps (private): `lhf-server` → `docs/09-apps.md`, "Shareable links: three
 things to do at the move".
 
-**Open bug, already live before this work (found 8 Nov):** clicking a tag in a
-popup sets the tag filter, but if the click also switches category (entry opened
-from On This Day, search, or a direct link) the filter is wiped a moment later.
-Cause: the "reset filters when category changes" effect in `src/App.tsx` runs
-after the tag is set. Fix: reset filters where the category is changed by the
-user, not in an effect.
+**✅ Fixed 8 Nov — tag click lost its filter** (bug was live before the links
+work): clicking a tag in a popup that also switched category (entry opened from
+On This Day, search, or a link) showed the whole category instead of the tag.
+Cause: a "reset filters when category changes" effect in `src/App.tsx` ran after
+the tag was set and wiped it. Fix: every tab change goes through
+`changeCategory()`, which sets filters and sort in the same step; the search
+box's "leave On This Day" rule moved into the input handler too. **Rule: don't
+reset state in an effect that watches another piece of state** — set both
+together where the change happens. No automated test (no React test setup);
+checked in Chrome: tag from link / On This Day card / Films tab, same-tab click,
+tab switch, search from On This Day — 7/7.
 
 **Next:** the same links for Labor Landmarks (`/landmark/<id>-<name>`).
 

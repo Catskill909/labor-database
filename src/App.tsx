@@ -147,11 +147,22 @@ function HomePage() {
       .catch(err => console.error('Failed to fetch counts:', err));
   }, []);
 
-  // Reset filters when category changes
-  useEffect(() => {
-    setFilters({});
+  // Every tab change goes through here, and sets the tab's filters and sort in
+  // the same step. Not an effect that reacts to the tab changing: an effect runs
+  // after the change and wiped a filter set together with it — clicking a tag
+  // in a popup opened from On This Day, search or a link showed the whole tab
+  // instead of the tag (fixed 8 Nov 2026).
+  const changeCategory = useCallback((slug: string, nextFilters: Record<string, string> = {}) => {
+    setSelectedCategory(slug);
+    setFilters(nextFilters);
     setSort('');
-  }, [selectedCategory]);
+  }, []);
+
+  // Typing a search on On This Day switches to results across all collections.
+  const handleSearchChange = useCallback((query: string) => {
+    setSearchQuery(query);
+    if (query.trim() && selectedCategory === 'on-this-day') changeCategory('');
+  }, [selectedCategory, changeCategory]);
 
   // Debounce search input so a request isn't fired on every keystroke
   useEffect(() => {
@@ -250,13 +261,6 @@ function HomePage() {
     return () => el.removeEventListener('scroll', handleScroll);
   }, [loadMore, isOnThisDay]);
 
-  // When search is typed, switch away from On This Day to show search results
-  useEffect(() => {
-    if (searchQuery.trim() && isOnThisDay) {
-      setSelectedCategory('');
-    }
-  }, [searchQuery, isOnThisDay]);
-
   const totalCount = Object.values(counts).reduce((a, b) => a + b, 0);
   const displayTotal = selectedCategory && selectedCategory !== 'on-this-day'
     ? (counts[selectedCategory] || 0)
@@ -266,14 +270,15 @@ function HomePage() {
     <div className="h-screen flex flex-col bg-[var(--background)] text-[var(--foreground)]">
       <Header
         searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
+        setSearchQuery={handleSearchChange}
         onAddClick={() => setShowSubmissionWizard(true)}
       />
 
       <CategoryNav
         categories={categories}
         selectedCategory={selectedCategory}
-        setSelectedCategory={setSelectedCategory}
+        // Clicking the tab you're on keeps its filters, as before.
+        setSelectedCategory={(slug) => { if (slug !== selectedCategory) changeCategory(slug); }}
         counts={counts}
       />
 
@@ -355,8 +360,7 @@ function HomePage() {
             onTagClick={(tag) => {
               const category = shownEntry.category;
               closeEntry();
-              setSelectedCategory(category);
-              setFilters({ tag });
+              changeCategory(category, { tag });
             }}
           />
         )}
