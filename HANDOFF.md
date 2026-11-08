@@ -5,10 +5,49 @@ Read this first, then `CLAUDE.md` for the hard project rules.
 **What the app does**, for the client, LHF editors and developers: `FEATURES.md`
 — update it when a feature ships.
 
-**Last updated:** 25 October 2026
+**Last updated:** 8 November 2026
 **Branch:** `main` · **Production:** https://labor-database.supersoul.top
 **Scope:** this repo only. The Digital Asset Manager / "Labor Heritage Media
 Archive" (`lhf-media.supersoul.top`) is a **separate project, tracked elsewhere.**
+
+---
+
+## 🔗 SHAREABLE LINKS (Phase 3) — shipped 8 Nov 2026 · ⚠️ three steps at the server move
+
+Every entry has its own address: `/entry/<id>-<words>`, e.g.
+`/entry/5955-10000-black-men-named-george`. The number finds the record; the
+words are for readers (quotes use the author's name). Links with stale or
+missing words 301 to the current form. "Copy link" sits in both popup layouts;
+the correction email includes the link. Server-side link previews (Open Graph)
+for Facebook, iMessage etc.; entries without a picture use
+`public/laborheritage.png`. Code: `server/entry-link.ts` (shared with the
+browser), `server/share-meta.ts`, `/entry/:ref` route in `server/index.ts`.
+Tests: `server/entry-link.test.ts`, `server/share-meta.test.ts`.
+Decision 8 Nov: links keep the number (title-only would need a stored link-name
+column; 1,465 entries clash when quotes are named by author).
+
+**Coolify setting:** `PUBLIC_BASE_URL` = the site's public address, no trailing
+slash. Without it previews have no picture or page address.
+
+**⚠️ When this app moves to the LHF server (December) — do not miss:**
+1. Set `PUBLIC_BASE_URL` (and `CORS_ORIGIN`) to the **new** address. Don't copy
+   the old value across.
+2. The old address must redirect **keeping the full path**, so
+   `/entry/...` links shared before the move still open the right entry. Test
+   with a deep link, not just the home page.
+3. That redirect has to keep running as long as old links should work.
+
+Full steps (private): `lhf-server` → `docs/09-apps.md`, "Shareable links: three
+things to do at the move".
+
+**Open bug, already live before this work (found 8 Nov):** clicking a tag in a
+popup sets the tag filter, but if the click also switches category (entry opened
+from On This Day, search, or a direct link) the filter is wiped a moment later.
+Cause: the "reset filters when category changes" effect in `src/App.tsx` runs
+after the tag is set. Fix: reset filters where the category is changed by the
+user, not in an effect.
+
+**Next:** the same links for Labor Landmarks (`/landmark/<id>-<name>`).
 
 ---
 

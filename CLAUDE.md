@@ -15,6 +15,11 @@
 > SQLite copy (all database files + uploads, checksummed); take a Full Backup export
 > as well, as a safety copy. The database itself is fine — only the startup script
 > needs changing.
+>
+> **Also at the move (since 8 Nov 2026, shareable links):** set `PUBLIC_BASE_URL`
+> and `CORS_ORIGIN` to the new address; the old address must redirect **keeping
+> the path** (`/entry/...`) and stay up while old links should work. See
+> HANDOFF.md → "Shareable links".
 
 > **Starting a new session?** Read [HANDOFF.md](HANDOFF.md) first — current state,
 > open bugs (BUG-1/2/3), next tasks, and what is blocked on the client.
