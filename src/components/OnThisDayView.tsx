@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { Entry } from '../types.ts';
 import { parseMetadata, formatFullEntryDate } from '../types.ts';
+import { quoteForDisplay } from '../quote-text.ts';
 
 /** A related film or song, carrying the day's tags it shares — shown on the card. */
 type RelatedEntry = Entry & { matchedTags?: string[] };
@@ -494,7 +495,10 @@ function QuoteOTDCard({ entry, onClick }: { entry: Entry; onClick: () => void })
       className="text-left w-full p-4 bg-[var(--card)] border border-[var(--border)] rounded-lg hover:border-red-500/30 transition-colors group flex flex-col items-start"
     >
       <p className="text-sm leading-relaxed italic text-gray-200 group-hover:text-white transition-colors line-clamp-12">
-        &ldquo;{entry.description}&rdquo;
+        {(() => {
+          const q = quoteForDisplay(entry.description);
+          return q.addMarks ? <>&ldquo;{q.text}&rdquo;</> : q.text;
+        })()}
       </p>
       {isLong && (
         <span className="text-xs text-red-400/70 mt-1.5">More...</span>

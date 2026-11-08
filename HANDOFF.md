@@ -12,7 +12,7 @@ Archive" (`lhf-media.supersoul.top`) is a **separate project, tracked elsewhere.
 
 ---
 
-## 🎙️ LABOR RADIO/PODCAST TAB (Phase 1) — pushed 8 Nov 2026 · import pending
+## 🎙️ LABOR RADIO/PODCAST TAB (Phase 1) — LIVE 8 Nov 2026 · imported + audited
 
 New category `podcast`: 50 LRPN shows, cards + popup, badges (Founder/Builder/
 Steward), On Hiatus, 15 listen platforms + custom links (blank = hidden), admin
@@ -20,6 +20,7 @@ edit with a private contacts section. Plan, decisions and what's left:
 [podcast-dev.md](podcast-dev.md).
 
 - **Schema:** new column `Entry.privateMetadata` (migration runs on start).
+- **Live audit 8 Nov:** 50 shows, 49 logos load, 0 contact details in 57 public responses or search, admin routes refuse without password, no page errors desktop/phone.
 - **Data is not in git.** The import is `client-data/podcasts/podcasts-import.zip`
   (gitignored — holds contact details). Load it via Admin → Import → ZIP after
   the deploy. Re-importing updates, never duplicates.

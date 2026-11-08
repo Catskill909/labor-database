@@ -4,6 +4,7 @@ import { X, Mail, AlertCircle, Plus, Link2, HelpCircle } from 'lucide-react';
 import type { Entry } from '../types.ts';
 import { formatFullEntryDate, parseMetadata } from '../types.ts';
 import { entryUrl } from '../entry-url.ts';
+import { quoteForDisplay } from '../quote-text.ts';
 
 interface ContactModalProps {
     isOpen: boolean;
@@ -35,15 +36,12 @@ function clip(text: string, max: number): string {
 }
 
 /**
- * Wraps text in quotation marks, without doubling them. About 4 in 10 stored
- * quotes already carry their own (`“America wasn't built…”`). The closing mark
- * is removed only when an opening one was, so a trailing apostrophe on its own
- * (`… the workers'`) is left alone.
+ * Wraps text in quotation marks, without doubling them — many stored quotes
+ * already carry their own. The rules live in server/quote-text.ts (tested).
  */
 function quoted(text: string, max: number): string {
-    let t = text.trim();
-    if (/^["“‘']/.test(t)) t = t.slice(1).replace(/["”’']$/, '');
-    return `"${clip(t, max)}"`;
+    const q = quoteForDisplay(text);
+    return q.addMarks ? `"${clip(q.text, max)}"` : clip(q.text, max);
 }
 
 interface EntryDescription {

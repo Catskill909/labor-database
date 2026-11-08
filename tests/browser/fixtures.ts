@@ -61,6 +61,22 @@ async function main() {
             tags: 'Organizing',
         },
     });
+    // Quotes dated today whose stored text already carries marks: On This Day
+    // adds its own, and must not show two sets.
+    await prisma.entry.create({
+        data: {
+            category: 'quote', isPublished: true, month, day, creator: 'Fixture Author',
+            title: 'Fixture quote with its own marks',
+            description: '"Fixture quote with its own marks."',
+        },
+    });
+    await prisma.entry.create({
+        data: {
+            category: 'quote', isPublished: true, month, day, creator: 'Fixture Author',
+            title: 'Fixture quote with only a closing mark',
+            description: 'Fixture quote with only a closing mark.”',
+        },
+    });
     const salt = await prisma.entry.create({
         data: {
             category: 'film', isPublished: true, year: 1954, creator: 'Herbert J. Biberman',

@@ -35,11 +35,24 @@ export default function CategoryNav({ categories, selectedCategory, setSelectedC
     checkScroll();
     el.addEventListener('scroll', checkScroll, { passive: true });
     window.addEventListener('resize', checkScroll);
+    // The tabs change width after first paint (counts load, fonts swap), which
+    // neither scroll nor resize reports — watch the bar and its tabs directly.
+    const observer = new ResizeObserver(checkScroll);
+    observer.observe(el);
+    Array.from(el.children).forEach(child => observer.observe(child));
     return () => {
       el.removeEventListener('scroll', checkScroll);
       window.removeEventListener('resize', checkScroll);
+      observer.disconnect();
     };
   }, [checkScroll, categories]);
+
+  // Keep the selected tab visible — it can be chosen from elsewhere (search,
+  // a shared link) while scrolled out of view.
+  useEffect(() => {
+    const active = scrollRef.current?.querySelector<HTMLElement>('[aria-current="page"]');
+    active?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [selectedCategory]);
 
   const scroll = (direction: 'left' | 'right') => {
     const el = scrollRef.current;
@@ -53,7 +66,7 @@ export default function CategoryNav({ categories, selectedCategory, setSelectedC
       <div className="max-w-7xl mx-auto relative">
         {/* Left chevron with fade backdrop */}
         {canScrollLeft && (
-          <div className="absolute left-0 top-0 bottom-0 z-20 flex items-center sm:hidden">
+          <div className="absolute left-0 top-0 bottom-0 z-20 flex items-center">
             <div className="flex items-center h-full pl-0.5 pr-3 bg-gradient-to-r from-zinc-900 via-zinc-900/95 to-transparent rounded-l-xl">
               <button
                 onClick={() => scroll('left')}
@@ -68,7 +81,7 @@ export default function CategoryNav({ categories, selectedCategory, setSelectedC
 
         {/* Right chevron with fade backdrop */}
         {canScrollRight && (
-          <div className="absolute right-0 top-0 bottom-0 z-20 flex items-center sm:hidden">
+          <div className="absolute right-0 top-0 bottom-0 z-20 flex items-center">
             <div className="flex items-center h-full pr-0.5 pl-3 bg-gradient-to-l from-zinc-900 via-zinc-900/95 to-transparent rounded-r-xl">
               <button
                 onClick={() => scroll('right')}
@@ -84,11 +97,12 @@ export default function CategoryNav({ categories, selectedCategory, setSelectedC
         {/* Scrollable tab bar */}
         <div
           ref={scrollRef}
-          className="flex sm:inline-flex items-center gap-1 bg-zinc-900 border border-white/10 rounded-xl p-1.5 overflow-x-auto no-scrollbar shadow-lg"
+          className="flex sm:inline-flex max-w-full items-center gap-1 bg-zinc-900 border border-white/10 rounded-xl p-1.5 overflow-x-auto no-scrollbar shadow-lg"
         >
           {/* On This Day — first tab */}
           <button
             onClick={() => setSelectedCategory('on-this-day')}
+            aria-current={selectedCategory === 'on-this-day' ? 'page' : undefined}
             className={`flex shrink-0 items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${selectedCategory === 'on-this-day'
               ? 'bg-red-600 text-white shadow-md'
               : 'text-gray-200 hover:text-white hover:bg-white/10'
@@ -102,6 +116,7 @@ export default function CategoryNav({ categories, selectedCategory, setSelectedC
             <button
               key={cat.slug}
               onClick={() => setSelectedCategory(cat.slug)}
+              aria-current={selectedCategory === cat.slug ? 'page' : undefined}
               className={`flex shrink-0 items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${selectedCategory === cat.slug
                 ? 'bg-red-600 text-white shadow-md'
                 : 'text-gray-200 hover:text-white hover:bg-white/10'

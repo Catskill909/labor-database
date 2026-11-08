@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { ExternalLink, Music, Quote as QuoteIcon, Film, Play, Podcast, MapPin } from 'lucide-react';
-import { parsePodcastMeta, visibleBadges, visibleListenLinks, isOnHiatus } from '../podcast.ts';
+import { parsePodcastMeta, visibleBadges, isOnHiatus } from '../podcast.ts';
 import { PodcastBadge, HiatusBadge } from './PodcastBadges.tsx';
 import type { Entry } from '../types.ts';
 import { parseMetadata, formatEntryDate, formatFullEntryDate } from '../types.ts';
@@ -202,7 +202,6 @@ function PodcastCard({ entry, onClick, query }: { entry: Entry; onClick: () => v
   const meta = parsePodcastMeta(entry.metadata);
   const logoUrl = entry.images?.[0]?.thumbnailUrl || null;
   const badges = visibleBadges(meta);
-  const links = visibleListenLinks(meta);
   const hiatus = isOnHiatus(meta);
   const details = [meta.location, meta.frequency].filter(Boolean).join(' · ');
 
@@ -237,18 +236,12 @@ function PodcastCard({ entry, onClick, query }: { entry: Entry; onClick: () => v
           <Highlight text={entry.title} query={query} />
         </h3>
         {entry.creator && (
-          <p className="text-xs text-gray-400 mt-1 line-clamp-1"><Highlight text={entry.creator} query={query} /></p>
+          <p className="text-xs text-gray-300 mt-1 line-clamp-1"><Highlight text={entry.creator} query={query} /></p>
         )}
         {details && (
-          <p className="text-[11px] text-gray-500 mt-1.5 flex items-start gap-1">
+          <p className="text-xs text-gray-400 mt-1.5 flex items-start gap-1">
             <MapPin size={11} className="mt-0.5 shrink-0" />
             <span className="line-clamp-2">{details}</span>
-          </p>
-        )}
-        {links.length > 0 && (
-          <p className="text-[10px] text-gray-500 mt-auto pt-2 truncate">
-            Listen: {links.slice(0, 2).map(l => l.label).join(', ')}
-            {links.length > 2 && ` +${links.length - 2}`}
           </p>
         )}
       </div>
