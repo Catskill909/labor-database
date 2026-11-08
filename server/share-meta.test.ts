@@ -16,7 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
     buildEntryShareMeta, injectShareMeta, escapeHtml, clip,
-    SHARE_META_START, SHARE_META_END, type ShareableEntry,
+    SHARE_META_START, SHARE_META_END, DEFAULT_SHARE_IMAGE, type ShareableEntry,
 } from './share-meta.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -102,10 +102,21 @@ test('an odd image filename cannot break out of the URL', () => {
     assert.ok(!meta.image!.includes('"'));
 });
 
-test('no picture gives a small card instead of a large one', () => {
-    const b = block(injectShareMeta(INDEX_HTML, buildEntryShareMeta(entry({ images: [] }), BASE)));
-    assert.match(b, /twitter:card" content="summary"/);
-    assert.ok(!b.includes('og:image'));
+test('every entry has og:image; without its own picture it uses the logo in a small card', () => {
+    // Facebook warns when og:image is missing — this covers every category.
+    for (const category of ['film', 'music', 'quote', 'history']) {
+        const withPic = block(injectShareMeta(INDEX_HTML, buildEntryShareMeta(entry({ category }), BASE)));
+        assert.match(withPic, /og:image" content="https:\/\/labor-database\.example\.org\/uploads\/entries\/poster\.jpg"/, category);
+        assert.match(withPic, /twitter:card" content="summary_large_image"/, category);
+
+        const noPic = block(injectShareMeta(INDEX_HTML, buildEntryShareMeta(entry({ category, images: [] }), BASE)));
+        assert.match(noPic, /og:image" content="https:\/\/labor-database\.example\.org\/laborheritage\.png"/, category);
+        assert.match(noPic, /twitter:card" content="summary"/, category);
+    }
+});
+
+test('the default picture exists in public/', () => {
+    assert.ok(fs.existsSync(path.join(here, '../public', DEFAULT_SHARE_IMAGE)));
 });
 
 test('titles per category', () => {

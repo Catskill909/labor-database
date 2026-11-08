@@ -27,7 +27,12 @@ export interface ShareMeta {
     url?: string;
     /** Absolute URL of a picture. */
     image?: string;
+    /** The picture is the site logo, not the entry's own: show a small card. */
+    imageIsDefault?: boolean;
 }
+
+/** Square LHF logo (1560×1560, public/), used when an entry has no picture of its own. */
+export const DEFAULT_SHARE_IMAGE = '/laborheritage.png';
 
 export interface ShareableEntry {
     id: number;
@@ -87,7 +92,14 @@ export function buildEntryShareMeta(entry: ShareableEntry, baseUrl: string | nul
     if (baseUrl) {
         meta.url = `${baseUrl}${entryPath(entry)}`;
         const first = entry.images[0];
-        if (first) meta.image = `${baseUrl}/uploads/entries/${encodeURIComponent(first.filename)}`;
+        if (first) {
+            meta.image = `${baseUrl}/uploads/entries/${encodeURIComponent(first.filename)}`;
+        } else {
+            // Most quotes, songs and history items have no picture. Facebook
+            // warns when og:image is missing, so they share with the logo.
+            meta.image = `${baseUrl}${DEFAULT_SHARE_IMAGE}`;
+            meta.imageIsDefault = true;
+        }
     }
     return meta;
 }
@@ -102,7 +114,8 @@ function renderShareMeta(meta: ShareMeta): string {
         tag('property', 'og:type', 'article'),
         tag('property', 'og:title', meta.title),
         tag('property', 'og:description', meta.description),
-        tag('name', 'twitter:card', meta.image ? 'summary_large_image' : 'summary'),
+        // A large card stretches a square logo; keep those small.
+        tag('name', 'twitter:card', meta.image && !meta.imageIsDefault ? 'summary_large_image' : 'summary'),
     ];
     if (meta.url) {
         lines.push(tag('property', 'og:url', meta.url));
