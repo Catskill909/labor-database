@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, Mail, AlertCircle, Plus, Link2, HelpCircle } from 'lucide-react';
 import type { Entry } from '../types.ts';
 import { formatFullEntryDate, parseMetadata } from '../types.ts';
+import { entryUrl } from '../entry-url.ts';
 
 interface ContactModalProps {
     isOpen: boolean;
@@ -105,14 +106,15 @@ function describeEntry(entry: Entry): EntryDescription {
 /**
  * How a detail popup identifies its entry in the email.
  *
- * Entries have no individual URLs yet, so a reporter cannot paste a link. The
- * id is what actually finds the record among nearly 6,000; the heading and
- * detail are there so the sender can see they picked the right one.
+ * The link opens the record directly; the id line stays as well, because it is
+ * how staff search the admin list. The heading and detail are there so the
+ * sender can see they picked the right one.
  */
 function entryReferenceLines(entry: Entry): string[] {
     const { heading, detail } = describeEntry(entry);
     const lines = [heading];
     if (detail) lines.push(detail);
+    lines.push(entryUrl(entry));
     lines.push(`(Reference: entry #${entry.id} — please leave this line in, it is how we find the record.)`);
     return lines;
 }
@@ -129,7 +131,8 @@ function buildMailBody(entry?: Entry | null): string {
     const whichEntry = entry
         ? entryReferenceLines(entry)
         : [
-            '(Please give the title, and whether it is Labor History, a Quote, Music or a Film.',
+            '(Easiest: open the entry, press "Copy link" and paste it here.',
+            'Or give the title, and whether it is Labor History, a Quote, Music or a Film.',
             'Skip this if your message is not about a particular entry.)',
             '',
         ];

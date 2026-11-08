@@ -65,6 +65,7 @@
   - `GENIUS_API_KEY` — optional, enables Genius music search/lyrics/YouTube enrichment in submission forms
   - `GOOGLE_AI_API_KEY` — optional, enables AI research assistant (Gemini 2.0 Flash) in admin panel
   - `CORS_ORIGIN` — optional, restricts CORS to specified origin (e.g. `https://your-domain.com`). If unset, allows all origins.
+  - `PUBLIC_BASE_URL` — the site's public address, no trailing slash (e.g. `https://labor-database.supersoul.top`). Used for link previews on shared `/entry/...` links (`server/share-meta.ts`). If unset, previews have no picture or page URL. **Change it when the site moves domain.**
 - **Pre-set in Dockerfile (do NOT override unless intentional):**
   - `DATABASE_URL=file:/app/data/dev.db`
   - `PORT=3001`

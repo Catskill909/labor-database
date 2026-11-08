@@ -3,6 +3,7 @@ import { X, ExternalLink, Calendar, User, Clock, Globe, Play, MessageSquare, Boo
 import type { Entry, RelatedLink } from '../types.ts';
 import { parseMetadata, formatEntryDate, getRelatedLinks, formatFullEntryDate } from '../types.ts';
 import { EntryCorrectionButton } from './ContactModal';
+import CopyLinkButton from './CopyLinkButton.tsx';
 
 interface EntryDetailProps {
   entry: Entry;
@@ -196,9 +197,12 @@ function FilmDetail({ entry, onClose, onTagClick }: EntryDetailProps) {
               )}
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg transition-colors shrink-0 ml-4">
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-1 shrink-0 ml-4">
+            <CopyLinkButton key={entry.id} entry={entry} />
+            <button onClick={onClose} aria-label="Close" className="p-2 hover:bg-white/5 rounded-lg transition-colors shrink-0">
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
@@ -392,7 +396,7 @@ export default function EntryDetail({ entry, onClose, onTagClick }: EntryDetailP
       <div className="relative w-full max-w-2xl max-h-[85vh] overflow-y-auto bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-2xl">
         {/* Header */}
         <div className="sticky top-0 flex items-start justify-between p-6 pb-4 bg-[var(--card)] border-b border-[var(--border)] rounded-t-xl">
-          <div>
+          <div className="flex-1 min-w-0">
             <span className="text-[10px] uppercase tracking-wider font-semibold text-red-400">
               {entry.category}
             </span>
@@ -405,12 +409,16 @@ export default function EntryDetail({ entry, onClose, onTagClick }: EntryDetailP
               <h2 className="text-lg font-bold mt-1 leading-snug">{entry.title}</h2>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-white/5 rounded-lg transition-colors shrink-0 ml-4"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-1 shrink-0 ml-4">
+            <CopyLinkButton key={entry.id} entry={entry} />
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              className="p-2 hover:bg-white/5 rounded-lg transition-colors shrink-0"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Body */}

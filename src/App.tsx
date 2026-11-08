@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation, useMatch } from 'react-router-dom';
+import { X } from 'lucide-react';
+import { entryPath, parseEntryRef } from './entry-url.ts';
 import Header from './components/Header.tsx';
 import CategoryNav from './components/CategoryNav.tsx';
 import FilterBar, { SORT_OPTIONS } from './components/FilterBar.tsx';
@@ -13,6 +15,8 @@ const AdminDashboard = lazy(() => import('./components/AdminDashboard.tsx'));
 import type { Entry, Category } from './types.ts';
 
 const PAGE_SIZE = 60;
+const SITE_TITLE = 'LHF Labor Arts & Culture Database';
+const NOT_AVAILABLE = "That entry isn't available. It may have been removed or the link may be incomplete.";
 
 function HomePage() {
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -32,6 +36,103 @@ function HomePage() {
   const offsetRef = useRef(0);
 
   const isOnThisDay = selectedCategory === 'on-this-day';
+
+  // ---- Shareable links: /entry/123-title opens that entry's popup ----
+  // The popup lives on top of this page, so the list keeps its scroll position
+  // and filters while a link is open, and Back closes the popup.
+  const navigate = useNavigate();
+  const location = useLocation();
+  const entryMatch = useMatch('/entry/:ref');
+  const isEntryRoute = entryMatch !== null;
+  const linkedId = parseEntryRef(entryMatch?.params.ref);
+  const navState = location.state as { openedInApp?: boolean; linkNotice?: string } | null;
+  const openedInApp = navState?.openedInApp === true;
+  // A failed link sends the reader home with the reason in the history entry,
+  // so the notice needs no state of its own. Dismissing it (or 8 s passing)
+  // clears it from history; a refresh before then shows it again, harmlessly.
+  const linkNotice = navState?.linkNotice ?? null;
+  // The entry on screen. `selectedEntry` can hold the last one opened after
+  // its popup closes; only show it while the address points at it.
+  const shownEntry = isEntryRoute && selectedEntry && selectedEntry.id === linkedId ? selectedEntry : null;
+  const selectedId = selectedEntry?.id;
+
+  const goHomeWithNotice = useCallback((notice: string) => {
+    navigate('/', { replace: true, state: { linkNotice: notice } });
+  }, [navigate]);
+
+  const dismissNotice = useCallback(() => {
+    navigate(location.pathname + location.search, { replace: true, state: null });
+  }, [navigate, location.pathname, location.search]);
+
+  const openEntry = useCallback((entry: Entry) => {
+    setSelectedEntry(entry);
+    navigate(entryPath(entry), { state: { openedInApp: true } });
+  }, [navigate]);
+
+  // Opened from a card: step back to the list. Arrived by link: there is no
+  // list behind it in history, so go to the home page instead of off the site.
+  const closeEntry = useCallback(() => {
+    if (openedInApp) navigate(-1);
+    else navigate('/', { replace: true });
+  }, [openedInApp, navigate]);
+
+  // Keep the popup in step with the address (links, Back/Forward buttons).
+  useEffect(() => {
+    if (!isEntryRoute) return;
+    if (linkedId === null) {
+      goHomeWithNotice(NOT_AVAILABLE);
+      return;
+    }
+    if (linkedId === selectedId) return;
+
+    const controller = new AbortController();
+    fetch(`/api/entries/${linkedId}`, { signal: controller.signal })
+      .then(r => {
+        if (r.status === 404) return null;
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json() as Promise<Entry>;
+      })
+      .then(data => {
+        if (!data) {
+          goHomeWithNotice(NOT_AVAILABLE);
+          return;
+        }
+        setSelectedEntry(data);
+      })
+      .catch(err => {
+        if (err.name === 'AbortError') return;
+        console.error('Failed to fetch linked entry:', err);
+        goHomeWithNotice('That entry could not be loaded. Please try again in a moment.');
+      });
+    return () => controller.abort();
+  }, [isEntryRoute, linkedId, selectedId, goHomeWithNotice]);
+
+  // Show the current form of the address (the server redirects too; this
+  // covers local development, where Vite serves the page).
+  useEffect(() => {
+    if (!shownEntry) return;
+    const canonical = entryPath(shownEntry);
+    if (location.pathname !== canonical) {
+      navigate(canonical + location.search, { replace: true, state: location.state });
+    }
+  }, [shownEntry, location.pathname, location.search, location.state, navigate]);
+
+  // Tab title names the open entry, so bookmarks and history are readable.
+  useEffect(() => {
+    if (!shownEntry) return;
+    const name = shownEntry.category === 'quote' && shownEntry.creator
+      ? `Quote by ${shownEntry.creator}`
+      : shownEntry.title;
+    const short = name.length > 70 ? `${name.slice(0, 69).trimEnd()}…` : name;
+    document.title = `${short} | ${SITE_TITLE}`;
+    return () => { document.title = SITE_TITLE; };
+  }, [shownEntry]);
+
+  useEffect(() => {
+    if (!linkNotice) return;
+    const timer = setTimeout(dismissNotice, 8000);
+    return () => clearTimeout(timer);
+  }, [linkNotice, dismissNotice]);
 
   // Fetch categories
   useEffect(() => {
@@ -192,7 +293,7 @@ function HomePage() {
           {isOnThisDay ? (
             /* On This Day tab content */
             <OnThisDayView
-              onSelectEntry={setSelectedEntry}
+              onSelectEntry={openEntry}
               onAddClick={() => setShowSubmissionWizard(true)}
             />
           ) : loading ? (
@@ -212,7 +313,7 @@ function HomePage() {
             <>
               <EntryGrid
                 entries={entries}
-                onSelectEntry={setSelectedEntry}
+                onSelectEntry={openEntry}
                 searchQuery={searchQuery}
               />
 
@@ -247,18 +348,31 @@ function HomePage() {
 
 
       <Suspense fallback={null}>
-        {selectedEntry && (
+        {shownEntry && (
           <EntryDetail
-            entry={selectedEntry}
-            onClose={() => setSelectedEntry(null)}
+            entry={shownEntry}
+            onClose={closeEntry}
             onTagClick={(tag) => {
-              setSelectedEntry(null);
-              setSelectedCategory(selectedEntry.category);
+              const category = shownEntry.category;
+              closeEntry();
+              setSelectedCategory(category);
               setFilters({ tag });
             }}
           />
         )}
       </Suspense>
+
+      {linkNotice && (
+        <div
+          role="status"
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-[70] w-[calc(100%-2rem)] max-w-md flex items-start gap-3 px-4 py-3 rounded-lg bg-[var(--card)] border border-[var(--border)] shadow-2xl text-sm"
+        >
+          <span className="flex-1">{linkNotice}</span>
+          <button onClick={dismissNotice} aria-label="Dismiss" className="text-gray-400 hover:text-white shrink-0">
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       <Suspense fallback={null}>
         {showSubmissionWizard && (
@@ -304,7 +418,11 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<HomePage />} />
+        <Route path="/" element={<HomePage />}>
+          {/* HomePage reads this itself (useMatch) and opens the popup, so the
+              list stays mounted underneath instead of reloading. */}
+          <Route path="entry/:ref" element={null} />
+        </Route>
         <Route path="/admin" element={<AdminRoute />} />
       </Routes>
     </Router>

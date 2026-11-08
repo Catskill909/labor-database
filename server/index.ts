@@ -17,6 +17,8 @@ import { CANONICAL_TAGS, TAG_GROUPS, normalizeTags, autoTagEntry, mergeTagsWithE
 import { rankRelated, buildTagFrequency, splitTags, RELATED_LIMITS } from './related-entries.js';
 import { buildSearchFields, normalizeSearchText } from './search-text.js';
 import { entryCreateData } from './backup-import.js';
+import { entryPath, parseEntryRef } from './entry-link.js';
+import { buildEntryShareMeta, injectShareMeta } from './share-meta.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -2972,6 +2974,60 @@ Generate research suggestions to enrich this entry.`;
         console.error('AI enhance error:', error instanceof Error ? error.message : String(error), error);
         res.status(500).json({ error: 'AI research enhancement failed. Please try again.' });
     }
+});
+
+// ==================== SHAREABLE ENTRY PAGES ====================
+// `/entry/123-some-title` is the React app with the entry's popup open. The
+// server's part is the link preview (server/share-meta.ts) and sending links
+// with stale or missing words to the current form of the address.
+
+// The site's public address, e.g. https://labor-database.supersoul.top — set in
+// Coolify. Previews need absolute URLs; request headers can't be trusted for them.
+const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').trim().replace(/\/+$/, '') || null;
+if (!PUBLIC_BASE_URL && process.env.NODE_ENV === 'production') {
+    console.warn('PUBLIC_BASE_URL is not set: shared entry links will preview without a picture or page URL.');
+}
+
+// dist/index.html only changes on a rebuild, which means a new container.
+let indexHtml: string | null = null;
+function readIndexHtml(): string {
+    indexHtml ??= fs.readFileSync(path.join(__dirname, '../dist/index.html'), 'utf8');
+    return indexHtml;
+}
+
+app.get('/entry/:ref', async (req, res) => {
+    const id = parseEntryRef(req.params.ref);
+    let entry = null;
+    if (id !== null) {
+        try {
+            entry = await prisma.entry.findFirst({
+                where: { id, isPublished: true },
+                select: {
+                    id: true, category: true, title: true, creator: true, description: true, year: true,
+                    images: { orderBy: { sortOrder: 'asc' }, take: 1, select: { filename: true } },
+                },
+            });
+        } catch (error) {
+            // A database failure costs only the preview: send the plain app,
+            // which loads the entry itself through /api/entries/:id (and shows
+            // its own error if the database is still down).
+            console.error('Entry page lookup error:', error);
+            return res.type('html').send(readIndexHtml());
+        }
+    }
+    if (!entry) {
+        // Unknown or unpublished: the app shows "not available". 404 keeps
+        // search engines from indexing the address.
+        return res.status(404).type('html').send(readIndexHtml());
+    }
+    const canonical = entryPath(entry);
+    if (req.path !== canonical) {
+        // Keep any query string (e.g. a newsletter's tracking tags).
+        const queryStart = req.originalUrl.indexOf('?');
+        const query = queryStart === -1 ? '' : req.originalUrl.slice(queryStart);
+        return res.redirect(301, canonical + query);
+    }
+    res.type('html').send(injectShareMeta(readIndexHtml(), buildEntryShareMeta(entry, PUBLIC_BASE_URL)));
 });
 
 // ==================== STATIC FILES ====================
