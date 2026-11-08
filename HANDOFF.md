@@ -12,7 +12,12 @@ Archive" (`lhf-media.supersoul.top`) is a **separate project, tracked elsewhere.
 
 ---
 
-## 🔗 SHAREABLE LINKS (Phase 3) — shipped 8 Nov 2026 · ⚠️ three steps at the server move
+## 🔗 SHAREABLE LINKS (Phase 3) — live 8 Nov 2026 · ⚠️ three steps at the server move
+
+**Deployed and verified live (8 Nov, ~13:10, at `4713219`):** links, Copy link, previews, the
+tag-filter fix and the screen-reader labels. Live Chrome check: tag "Agriculture & Farm Work"
+clicked in entry 6659 opened by link keeps its filter. `main` = production; working tree clean.
+Labor Landmarks got the same links the same day (`labor-map/HANDOFF.md`).
 
 Every entry has its own address: `/entry/<id>-<words>`, e.g.
 `/entry/1412-joe-biden`. The number finds the record; the
@@ -62,9 +67,9 @@ refuses to run against anything else, so `prisma/dev.db` is never touched.
 Verified: 48/48 over three runs in a row; the tag bug put back is caught.
 New setting `API_RATE_LIMIT_PER_MINUTE` exists only so the test copy isn't
 throttled — **leave it unset in Coolify** (default 100). Details:
-`tests/browser/README.md`. **Labor Landmarks should get the same setup.**
+`tests/browser/README.md`. Labor Landmarks has the same setup (port 3102) since 8 Nov.
 
-**Next:** the same links for Labor Landmarks (`/landmark/<id>-<name>`).
+**Done the same day:** Labor Landmarks has the same links (`/landmark/<id>-<name>`).
 
 ---
 
