@@ -1,7 +1,19 @@
 # Labor Podcasts — development plan
 
-*Started 8 Nov 2026. Status: **Phase 1 built and tested locally (8 Nov) — not
-committed, not deployed.***
+*Started 8 Nov 2026. Status: **Phase 1 LIVE since 8 Nov 2026** (`a4569af`,
+follow-up `67ed23b`), 50 shows imported, live audit clean. Next: tags (starter
+list in the 8 Nov roundup email to Chris and Harold), then Phase 2.*
+
+**Proposed tags (awaiting LHF's reply):** show type — News & Current Affairs,
+Labor History, Commentary & Analysis, Interviews, Organizing & Rank-and-File,
+Workers' Rights, Music & Culture, Local & Regional, International, Live Radio
+(1–3 per show; a new tag group = `server/tags.ts` + `TagSelector.tsx` +
+`npm run check:tags`). **Union** goes in `metadata.union` (admin form field
+already exists), not tags: AAUP, IATSE Local 891, IAM, USW, SAG-AFTRA, BCTGM,
+CFMEU, NALC, Montana AFL-CIO, LCLAA, SW Washington CLC; Roswell Hub asked.
+
+**After launch (`67ed23b`):** cards no longer show a "Listen:" line (links are
+in the popup); hosts/location text brightened.
 
 ### Phase 1 — what was built (8 Nov 2026)
 
@@ -30,8 +42,9 @@ endpoint and all 50 show pages scanned for every contact email and phone — non
 found; contact details are not searchable; admin edit saves and shows publicly;
 phone layout has no sideways scroll; no page errors.
 
-**To go live:** production Full Backup → push + Deploy (the migration runs on
-start) → Admin → Import → `podcasts-import.zip` → check the tab.
+**How it went live (8 Nov):** production Full Backup → push + Deploy (the
+migration ran on start) → Admin → Import → `podcasts-import.zip` → checked.
+Re-importing the same ZIP updates, never duplicates.
 
 A new **Labor Podcasts** tab: the Labor Radio Podcast Network (LRPN) directory,
 added as a sixth category. It has its own cards, a detail popup, public

@@ -26,9 +26,15 @@ edit with a private contacts section. Plan, decisions and what's left:
   the deploy. Re-importing updates, never duplicates.
 - **Privacy:** all public endpoints go through `toPublicEntry()`; checked by
   `server/public-entry.test.ts` and `tests/browser/podcasts.spec.ts`.
-- **Left:** Spotify links (no open lookup — admins/shows fill them), union + tags
-  (starter list to LHF), Workers Rising logo, 6 name-only Apple matches to eyeball
-  (`client-data/podcasts/report.txt`). Phase 2 = player + embed.
+- **Same day, `67ed23b`:** tab bar no longer runs off screen above phone width
+  (arrows at any width; `tests/browser/layout.spec.ts` checks 5 widths); On This
+  Day no longer doubles quote marks (1,060 of 2,460 stored quotes carry their own;
+  shared `server/quote-text.ts`, stored data unchanged); podcast cards dropped the
+  "Listen:" line.
+- **Left:** tags — starter list drafted in the 8 Nov roundup email, apply after
+  LHF replies (see podcast-dev.md); Spotify links (no open lookup); Workers Rising
+  logo; 6 name-only Apple matches to eyeball (`client-data/podcasts/report.txt`).
+  Phase 2 = player + embed.
 
 ## 🔗 SHAREABLE LINKS (Phase 3) — live 8 Nov 2026 · ⚠️ three steps at the server move
 
