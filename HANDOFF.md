@@ -22,11 +22,11 @@ Note: live show titles differ from the import file ("Labor Exchange", not "KGNU 
 
 ### Build notes (originally: built + tested locally, branch `p9-podcast-round2`)
 
-Worktree `~/Desktop/labor-database-p9` (main folder keeps the uncommitted P6 player work). Commit `b90640b`.
+Built in a temporary worktree (removed 15 Nov); merged to `main`. Commit `b90640b`.
 - **Union/Org** (15, Chris's sheet) + **Region** (11, Harold) = podcast-only tag groups in `server/tags.ts`
   + `TagSelector.tsx` (`category="podcast"`); uncapped (`UNCAPPED_TAGS`). **Stream Live** listen link, first.
 - **Fix:** canonical tags always self-map in `TAG_NORMALIZATION` (old loop kept `'Africa': null`).
-- Tests: `npm test` 162 ✓, `npm run test:browser` 26 ✓, `check:tags` ✓, tsc ✓. Local site: `PORT=3011 npx tsx server/index.ts`.
+- Tests: `npm test` 162 ✓, `npm run test:browser` 26 ✓, `check:tags` ✓, tsc ✓.
 - **Data (local only):** `client-data/podcasts-p9/` — Chris's sheet, Workers Rising logo, `union-region-table.txt`,
   `plan.tsv`, `apply.py <plan> <base-url>` (matches shows **by title** — IDs differ per database).
 - **Waiting on LHF** (questions in `lhf-server/HANDOFF.md` roundup): Canada region? 21 National/International/Online
