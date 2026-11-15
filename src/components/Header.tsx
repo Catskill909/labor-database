@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import AboutModal from './AboutModal';
 import PrivacyModal from './PrivacyModal';
 import ContactModal from './ContactModal';
+import SearchClearButton, { clearOnEscape } from './SearchClearButton';
 
 interface HeaderProps {
   searchQuery: string;
@@ -16,6 +17,7 @@ export default function Header({ searchQuery, setSearchQuery, onAddClick }: Head
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
   const [isContactOpen, setIsContactOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   // Close menu when clicking outside
   const menuRef = useRef<HTMLDivElement>(null);
@@ -148,12 +150,16 @@ export default function Header({ searchQuery, setSearchQuery, onAddClick }: Head
             <div className="relative flex-1">
               <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
               <input
+                ref={searchRef}
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
+                onKeyDown={clearOnEscape(searchQuery, () => setSearchQuery(''))}
                 placeholder="Search all categories..."
-                className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm placeholder:text-gray-500 focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/25 transition-colors"
+                aria-label="Search all categories"
+                className="w-full pl-10 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm placeholder:text-gray-500 focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/25 transition-colors"
               />
+              <SearchClearButton value={searchQuery} onClear={() => setSearchQuery('')} inputRef={searchRef} />
             </div>
 
             {/* Hamburger — mobile only, next to search */}

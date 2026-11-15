@@ -12,6 +12,7 @@ import ExportModal from './ExportModal.tsx';
 import ImportModal from './ImportModal.tsx';
 import ApiModal from './ApiModal.tsx';
 import TagSelector from './TagSelector.tsx';
+import SearchClearButton, { clearOnEscape } from './SearchClearButton';
 import ConfirmModal from './ConfirmModal.tsx';
 import ResearchFieldsSection from './ResearchFieldsSection.tsx';
 import RelatedLinksEditor from './RelatedLinksEditor.tsx';
@@ -316,15 +317,18 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
               <div className="absolute top-4 right-4 w-3 h-3 bg-red-500 rounded-full animate-pulse" />
             )}
           </div>
-          <div className="bg-zinc-900 border border-white/5 px-5 py-4 rounded-2xl flex items-center gap-4">
+          <div className="relative bg-zinc-900 border border-white/5 pl-5 pr-12 py-4 rounded-2xl flex items-center gap-4">
             <Search size={20} className="text-gray-500 shrink-0" />
             <input
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
+              onKeyDown={clearOnEscape(search, () => setSearch(''))}
               placeholder="Search by title, creator, or tag..."
+              aria-label="Search entries"
               className="bg-transparent border-none text-white focus:outline-none w-full text-lg placeholder:text-gray-600"
             />
+            <SearchClearButton value={search} onClear={() => setSearch('')} />
           </div>
         </div>
 
