@@ -8,45 +8,52 @@ if [ ! -f /app/data/dev.db ]; then
     echo '========================================'
 fi
 
-# ALWAYS run migrations - prisma migrate deploy only applies pending migrations
-# This is safe and idempotent, and ensures schema changes reach production
+# Migrate ONLY when a migration is pending (same fix as Labor Landmarks, 25 Oct
+# 2026). `prisma migrate deploy` needs a lock on the SQLite file, which the OLD
+# container still holds while it serves - always on a rolling update (the LHF
+# server's Coolify, no host port mapping), and for up to 10 s on this server's
+# stop-then-start. Running it on every start is what failed every Landmarks
+# deploy and caused this app's 25 Aug 2026 outage. `prisma migrate status` is
+# read-only and works alongside the old server, so check first.
 #
-# Retry generously: Coolify removes the old container and starts the new one
-# within a few seconds ("rolling update is not supported" - ports are mapped to
-# the host), but Docker allows a stopping container up to a 10s grace period and
-# the server has no SIGTERM handler. The old process can therefore still hold
-# /app/data/dev.db (SQLite, WAL mode) when this runs. A single 3s retry was not
-# long enough, so migrations failed on every deploy - unnoticed until a deploy
-# actually depended on one (25 Aug 2026 outage; see HANDOFF.md).
-echo "Running database migrations..."
-MIGRATION_ATTEMPTS=12
-MIGRATION_DELAY=5
-migration_ok=0
-attempt=1
-while [ "$attempt" -le "$MIGRATION_ATTEMPTS" ]; do
-    if npx prisma migrate deploy; then
-        migration_ok=1
-        break
-    fi
-    if [ "$attempt" -lt "$MIGRATION_ATTEMPTS" ]; then
-        echo "Migration attempt $attempt/$MIGRATION_ATTEMPTS failed (database may be locked). Retrying in ${MIGRATION_DELAY}s..."
-        sleep "$MIGRATION_DELAY"
-    fi
-    attempt=$((attempt + 1))
-done
+# When something IS pending, retry generously, then refuse to start on failure:
+# starting anyway served 500s against a mismatched schema while /api/health
+# (a raw SELECT 1) stayed green. A failed deploy is recoverable; a silently
+# broken one is not. For a schema-changing deploy on a rolling update: Stop the
+# app in Coolify first, then Deploy.
+echo "Checking for pending database migrations..."
+if npx prisma migrate status > /tmp/migrate-status.txt 2>&1; then
+    echo "Database schema is up to date - no migration needed."
+else
+    # Non-zero = migrations pending, or the check itself failed. Either way try
+    # to apply; a real error is reported by migrate deploy below.
+    cat /tmp/migrate-status.txt
+    echo "Applying pending migrations..."
+    MIGRATION_ATTEMPTS=${MIGRATION_ATTEMPTS:-12}
+    MIGRATION_DELAY=${MIGRATION_DELAY:-5}
+    migration_ok=0
+    attempt=1
+    while [ "$attempt" -le "$MIGRATION_ATTEMPTS" ]; do
+        if npx prisma migrate deploy; then
+            migration_ok=1
+            break
+        fi
+        if [ "$attempt" -lt "$MIGRATION_ATTEMPTS" ]; then
+            echo "Migration attempt $attempt/$MIGRATION_ATTEMPTS failed (database may be locked). Retrying in ${MIGRATION_DELAY}s..."
+            sleep "$MIGRATION_DELAY"
+        fi
+        attempt=$((attempt + 1))
+    done
 
-# Refuse to start on failure. Starting anyway is what turned a failed migration
-# into an outage: the server came up against a schema it did not match and
-# served 500s from every endpoint that touches Entry, while /api/health stayed
-# green because it only runs a raw SELECT 1. A failed deploy is recoverable;
-# a silently broken one is not.
-if [ "$migration_ok" -ne 1 ]; then
-    echo '========================================'
-    echo "FATAL: migrations failed after $MIGRATION_ATTEMPTS attempts."
-    echo 'Refusing to start the server - it would serve errors against a'
-    echo 'mismatched schema. Fix the migration, then redeploy.'
-    echo '========================================'
-    exit 1
+    if [ "$migration_ok" -ne 1 ]; then
+        echo '========================================'
+        echo "FATAL: migrations failed after $MIGRATION_ATTEMPTS attempts."
+        echo "If the errors above say 'database is locked', the OLD container is"
+        echo 'still holding the database. Stop the app in Coolify, then Deploy.'
+        echo 'Refusing to start the server against a mismatched schema.'
+        echo '========================================'
+        exit 1
+    fi
 fi
 
 # Seed default categories (idempotent - skips if already exists)
