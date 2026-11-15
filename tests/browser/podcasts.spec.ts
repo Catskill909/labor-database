@@ -45,7 +45,9 @@ test('Union/Org and Region show in the podcast Tags menu only', async ({ page })
         await page.goto('/');
         await openTab(page, tab);
         await page.getByRole('button', { name: /^Tags/ }).click();
-        return page.locator('div.uppercase.sticky').allTextContents();
+        // Group headings are the menu's fold/unfold buttons; first word = group name.
+        const names = await page.locator('button[aria-expanded] span.flex-1').allTextContents();
+        return names.map(n => n.trim());
     };
     const podcast = await menuHeadings(/Labor Radio\/Podcast/);
     expect(podcast).toEqual(expect.arrayContaining(['Union/Org', 'Region']));
@@ -53,6 +55,28 @@ test('Union/Org and Region show in the podcast Tags menu only', async ({ page })
     expect(films.length).toBeGreaterThan(0);
     expect(films).not.toContain('Union/Org');
     expect(films).not.toContain('Region');
+});
+
+// Grouped Tags menu (Harold, 12 Nov 2026): groups start folded; a group with a
+// ticked tag opens by itself and says so, so a choice is never hidden.
+test('Tags menu: groups fold, and a group with a ticked tag reopens showing it', async ({ page }) => {
+    await page.goto('/');
+    await openTab(page, /Labor Radio\/Podcast/);
+    const tagsButton = page.getByRole('button', { name: /^Tags|tag/ }).first();
+    await tagsButton.click();
+    const region = page.getByRole('button', { name: /^Region/ });
+    await expect(region).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByRole('checkbox')).toHaveCount(0);
+
+    await region.click();
+    await expect(region).toHaveAttribute('aria-expanded', 'true');
+    await page.getByRole('checkbox').first().check();
+
+    await tagsButton.click(); // close
+    await tagsButton.click(); // reopen
+    await expect(page.getByRole('button', { name: /^Region/ })).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByRole('button', { name: /^Region/ })).toContainText('1 selected');
+    await expect(page.getByRole('button', { name: /^Union\/Org/ })).toHaveAttribute('aria-expanded', 'false');
 });
 
 test('contact details never reach the public page, its API or search', async ({ page, request }) => {

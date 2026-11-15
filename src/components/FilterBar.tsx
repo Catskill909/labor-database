@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { SlidersHorizontal, X, Tag, ChevronDown, ArrowUpDown, Check } from 'lucide-react';
+import { SlidersHorizontal, X, Tag, ChevronDown, ChevronRight, ArrowUpDown, Check } from 'lucide-react';
 
 interface TagInfo {
   tag: string;
@@ -193,6 +193,7 @@ function TagFilterDropdown({ category, selectedTags, onChange }: {
   const [open, setOpen] = useState(false);
   const [tags, setTags] = useState<TagInfo[]>([]);
   const [groups, setGroups] = useState<string[]>([]);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -234,10 +235,25 @@ function TagFilterDropdown({ category, selectedTags, onChange }: {
 
   if (tags.length === 0) return null;
 
+  // Groups start folded (Harold, 12 Nov 2026: the list is long and growing);
+  // a group holding a ticked tag opens by itself, so a choice is never hidden.
+  const openMenu = () => {
+    setExpanded(new Set(tags.filter(t => selectedTags.includes(t.tag)).map(t => t.group)));
+    setOpen(true);
+  };
+  const toggleGroup = (group: string) => {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(group)) next.delete(group); else next.add(group);
+      return next;
+    });
+  };
+
   return (
     <div className="relative" ref={dropdownRef}>
       <button
-        onClick={() => setOpen(!open)}
+        onClick={() => (open ? setOpen(false) : openMenu())}
+        aria-expanded={open}
         className={`flex items-center gap-1.5 ${selectClass} ${selectedTags.length > 0 ? 'border-red-500/50 text-white' : ''}`}
       >
         <Tag size={12} />
@@ -260,12 +276,24 @@ function TagFilterDropdown({ category, selectedTags, onChange }: {
           {groups.map(group => {
             const groupTags = tagsByGroup[group];
             if (!groupTags || groupTags.length === 0) return null;
+            const isOpen = expanded.has(group);
+            const ticked = groupTags.filter(t => selectedTags.includes(t.tag)).length;
             return (
               <div key={group}>
-                <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-gray-500 font-medium bg-white/[0.02] sticky top-0">
-                  {group}
-                </div>
-                {groupTags.map(t => (
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group)}
+                  aria-expanded={isOpen}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs uppercase tracking-wider text-gray-300 font-medium bg-white/[0.03] hover:bg-white/[0.07] border-b border-white/5 sticky top-0"
+                >
+                  {isOpen ? <ChevronDown size={12} aria-hidden="true" /> : <ChevronRight size={12} aria-hidden="true" />}
+                  <span className="flex-1 text-left">{group}</span>
+                  {ticked > 0 && (
+                    <span className="normal-case tracking-normal text-[10px] text-red-300 bg-red-500/15 rounded px-1.5">{ticked} selected</span>
+                  )}
+                  <span className="normal-case tracking-normal text-[10px] text-gray-500">{groupTags.length}</span>
+                </button>
+                {isOpen && groupTags.map(t => (
                   <label
                     key={t.tag}
                     className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/5 cursor-pointer text-sm"
