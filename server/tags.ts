@@ -56,6 +56,40 @@ export const TAG_GROUPS = {
     'Working Class',
     'Politics & Elections',
   ],
+  /* Union/Org and Region describe who makes a Labor Radio/Podcast show and
+     where it is from — facts about the show, not subjects. Podcast-only: the
+     picker shows them only when editing a podcast (TagSelector `category`).
+     Lists from LHF, 12 Nov 2026 (Chris's LRPN spreadsheet; Harold's email). */
+  'Union/Org': [
+    'AAUP',
+    'AFT',
+    'BCTGM',
+    'CFMEU',
+    'History Assn',
+    'IAM',
+    'IATSE',
+    'IW',
+    'LCLAA',
+    'LHF',
+    'NALC',
+    'SAG-AFTRA',
+    'State/Local AFL-CIO',
+    'Teamsters',
+    'USW',
+  ],
+  'Region': [
+    'Eastern US',
+    'Western US',
+    'Midwest US',
+    'Southwest US',
+    'Mountain West US',
+    'Europe',
+    'Latin America',
+    'Oceania',
+    'Africa',
+    'North Africa/Middle East',
+    'Asia',
+  ],
 } as const;
 
 // Flat list of all canonical tags
@@ -64,6 +98,16 @@ export const CANONICAL_TAGS: string[] = Object.values(TAG_GROUPS).flat();
 // Curation tags don't count toward the per-entry tag cap — they flag a list,
 // not a subject. The picker (TagSelector.tsx) applies the same rule.
 export const CURATION_TAGS: ReadonlySet<string> = new Set(TAG_GROUPS['Curation']);
+
+// Groups only offered for Labor Radio/Podcast shows.
+export const PODCAST_ONLY_GROUPS = ['Union/Org', 'Region'] as const;
+
+// Tags that never use up one of the 5 subject slots: curation flags plus the
+// podcast facts (a show can be AFT + Eastern US and still carry 5 subjects).
+export const UNCAPPED_TAGS: ReadonlySet<string> = new Set<string>([
+  ...TAG_GROUPS['Curation'],
+  ...PODCAST_ONLY_GROUPS.flatMap(g => [...TAG_GROUPS[g]]),
+]);
 
 // ─── Normalization Map ───────────────────────────────────────────────────────
 // Maps old WordPress/Labor Film Database tags → canonical tag (or null to drop)
@@ -251,11 +295,14 @@ export const TAG_NORMALIZATION: Record<string, string | null> = {
   'labor-awards-watchlist': 'Labor Awards Watchlist',
 };
 
-// Tags that are already canonical — pass through unchanged
+// Tags that are already canonical — pass through unchanged. Unconditional on
+// purpose: a canonical tag must always map to itself, even when an older rule
+// above drops the same name or maps it elsewhere. ('Africa' is dropped above as
+// a too-specific film tag; since 2026-11-15 it is also a canonical Region tag,
+// and the old "only if not already mapped" form would have stripped it from
+// every show on the next bulk normalize.)
 for (const tag of CANONICAL_TAGS) {
-  if (!(tag in TAG_NORMALIZATION)) {
-    TAG_NORMALIZATION[tag] = tag;
-  }
+  TAG_NORMALIZATION[tag] = tag;
 }
 
 // ─── Normalization Function ──────────────────────────────────────────────────
@@ -1011,7 +1058,7 @@ export function mergeTagsWithExisting(
     : [];
 
   const merged = new Set<string>(existing);
-  const subjectCount = () => [...merged].filter(t => !CURATION_TAGS.has(t)).length;
+  const subjectCount = () => [...merged].filter(t => !UNCAPPED_TAGS.has(t)).length;
   for (const tag of newTags) {
     if (subjectCount() >= maxTags) break;
     merged.add(tag);

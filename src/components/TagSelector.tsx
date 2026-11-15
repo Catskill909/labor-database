@@ -3,6 +3,8 @@ import { X } from 'lucide-react';
 interface TagGroup {
   name: string;
   tags: string[];
+  /** Offered only when editing a Labor Radio/Podcast show. */
+  podcastOnly?: boolean;
 }
 
 interface TagSelectorProps {
@@ -10,6 +12,8 @@ interface TagSelectorProps {
   onChange: (tags: string) => void;
   maxTags?: number;
   className?: string;
+  /** The entry's category; 'podcast' adds the Union/Org and Region groups. */
+  category?: string;
 }
 
 const TAG_GROUPS: TagGroup[] = [
@@ -69,16 +73,59 @@ const TAG_GROUPS: TagGroup[] = [
       'Politics & Elections',
     ],
   },
+  {
+    name: 'Union/Org',
+    podcastOnly: true,
+    tags: [
+      'AAUP',
+      'AFT',
+      'BCTGM',
+      'CFMEU',
+      'History Assn',
+      'IAM',
+      'IATSE',
+      'IW',
+      'LCLAA',
+      'LHF',
+      'NALC',
+      'SAG-AFTRA',
+      'State/Local AFL-CIO',
+      'Teamsters',
+      'USW',
+    ],
+  },
+  {
+    name: 'Region',
+    podcastOnly: true,
+    tags: [
+      'Eastern US',
+      'Western US',
+      'Midwest US',
+      'Southwest US',
+      'Mountain West US',
+      'Europe',
+      'Latin America',
+      'Oceania',
+      'Africa',
+      'North Africa/Middle East',
+      'Asia',
+    ],
+  },
 ];
 
-// Curation tags (e.g. Labor Awards Watchlist) mark why an entry is on a list, not
-// what it is about, so they don't use up one of the subject-tag slots.
-const CURATION_TAGS = new Set(TAG_GROUPS.find(g => g.name === 'Curation')?.tags ?? []);
+// Curation tags (e.g. Labor Awards Watchlist) mark why an entry is on a list, and
+// Union/Org and Region are facts about a podcast — none of them are subjects, so
+// they don't use up one of the subject-tag slots. Same rule as UNCAPPED_TAGS in
+// server/tags.ts.
+const UNCAPPED_TAGS = new Set(
+  TAG_GROUPS.filter(g => g.name === 'Curation' || g.podcastOnly).flatMap(g => g.tags),
+);
 
-export default function TagSelector({ value, onChange, maxTags = 5, className = '' }: TagSelectorProps) {
+export default function TagSelector({ value, onChange, maxTags = 5, className = '', category }: TagSelectorProps) {
+  const groups = TAG_GROUPS.filter(g => !g.podcastOnly || category === 'podcast');
   const selectedTags = value ? value.split(',').map(t => t.trim()).filter(Boolean) : [];
-  const subjectCount = selectedTags.filter(t => !CURATION_TAGS.has(t)).length;
-  const isAtCap = (tag: string) => !CURATION_TAGS.has(tag) && subjectCount >= maxTags;
+  const subjectCount = selectedTags.filter(t => !UNCAPPED_TAGS.has(t)).length;
+  const isAtCap = (tag: string) => !UNCAPPED_TAGS.has(tag) && subjectCount >= maxTags;
 
   const toggleTag = (tag: string) => {
     if (selectedTags.includes(tag)) {
@@ -98,7 +145,7 @@ export default function TagSelector({ value, onChange, maxTags = 5, className = 
       {/* Header with explanation */}
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs text-gray-400">
-          Click to select up to {maxTags} subject tags (Curation tags don't count)
+          Click to select up to {maxTags} subject tags ({category === 'podcast' ? "Curation, Union/Org and Region don't count" : "Curation tags don't count"})
         </p>
         {selectedTags.length > 0 && (
           <button
@@ -114,7 +161,7 @@ export default function TagSelector({ value, onChange, maxTags = 5, className = 
 
       {/* All tags grouped - always visible */}
       <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
-        {TAG_GROUPS.map(group => (
+        {groups.map(group => (
           <div key={group.name}>
             <div className="text-[10px] uppercase tracking-wider text-gray-500 font-medium mb-1.5">
               {group.name}

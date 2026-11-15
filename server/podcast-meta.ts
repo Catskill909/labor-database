@@ -5,8 +5,11 @@
 // Public fields live in Entry.metadata (JSON). Contact details live in
 // Entry.privateMetadata, which public endpoints never return.
 
-/** Listening platforms offered in the admin form, in display order. */
+/** Listening platforms offered in the admin form, in display order.
+ *  Stream Live comes first: for a show on air, the live stream is the best
+ *  way in (LHF request, 12 Nov 2026). */
 export const LISTEN_PLATFORMS = [
+  { key: 'streamLive', label: 'Stream Live' },
   { key: 'apple', label: 'Apple Podcasts' },
   { key: 'spotify', label: 'Spotify' },
   { key: 'youtube', label: 'YouTube' },

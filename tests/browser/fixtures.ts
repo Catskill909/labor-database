@@ -109,6 +109,9 @@ async function main() {
             creator: 'Pat Organizer, host',
             description: 'Test fixture podcast about union news.',
             sourceUrl: 'https://example.org/union-hall-radio',
+            // Union/Org + Region only (podcast-only groups): no subject tag, so
+            // the subject-tag counts other tests rely on are unchanged.
+            tags: 'AFT, Eastern US',
             metadata: JSON.stringify({
                 rssUrl: 'https://example.org/feed.xml',
                 location: 'Washington, DC',
@@ -116,6 +119,7 @@ async function main() {
                 status: 'hiatus',
                 badges: ['founder', 'builder'],
                 listenLinks: {
+                    streamLive: 'https://example.org/live',
                     apple: 'https://podcasts.apple.com/us/podcast/test/id1',
                     spotify: '',
                     youtube: 'javascript:window.__pwned=3',

@@ -29,6 +29,32 @@ test('card shows the badges and On Hiatus; popup shows only filled-in, safe link
     await expect(popup.getByRole('button', { name: /Copy RSS feed/ })).toBeVisible();
 });
 
+test('Stream Live is the first listen link in the popup', async ({ page }) => {
+    await page.goto('/');
+    await openTab(page, /Labor Radio\/Podcast/);
+    await page.getByRole('button', { name: /Union Hall Radio/ }).click();
+    const links = dialog(page).getByRole('link', { name: /Stream Live|Apple Podcasts|Station archive/ });
+    await expect(links.first()).toHaveText(/Stream Live/);
+    await expect(links.first()).toHaveAttribute('href', 'https://example.org/live');
+});
+
+// Union/Org and Region are podcast-only groups (15 Nov 2026): they appear in the
+// Radio/Podcast tab's Tags menu, and never in another tab's.
+test('Union/Org and Region show in the podcast Tags menu only', async ({ page }) => {
+    const menuHeadings = async (tab: RegExp) => {
+        await page.goto('/');
+        await openTab(page, tab);
+        await page.getByRole('button', { name: /^Tags/ }).click();
+        return page.locator('div.uppercase.sticky').allTextContents();
+    };
+    const podcast = await menuHeadings(/Labor Radio\/Podcast/);
+    expect(podcast).toEqual(expect.arrayContaining(['Union/Org', 'Region']));
+    const films = await menuHeadings(/Films/);
+    expect(films.length).toBeGreaterThan(0);
+    expect(films).not.toContain('Union/Org');
+    expect(films).not.toContain('Region');
+});
+
 test('contact details never reach the public page, its API or search', async ({ page, request }) => {
     const { podcast } = fixtures();
     await page.goto(`/entry/${podcast}`);

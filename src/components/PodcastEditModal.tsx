@@ -129,7 +129,7 @@ export default function PodcastEditModal({ entry, onClose, onSaved }: {
 
             <div>
               <span className="text-xs text-gray-400 block mb-1">Tags</span>
-              <TagSelector value={tags} onChange={setTags} />
+              <TagSelector value={tags} onChange={setTags} category="podcast" />
             </div>
 
             <PodcastPrivateFields value={priv} onChange={setPriv} />

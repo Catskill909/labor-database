@@ -13,6 +13,14 @@ test('blank, whitespace and missing links are hidden', () => {
   assert.deepEqual(links.map(l => l.key), ['apple']);
 });
 
+test('Stream Live is offered first and shows when filled', () => {
+  assert.equal(LISTEN_PLATFORMS[0].key, 'streamLive');
+  const links = visibleListenLinks({
+    listenLinks: { apple: 'https://podcasts.apple.com/x', streamLive: 'https://kgnu.org/listen' },
+  });
+  assert.deepEqual(links.map(l => [l.key, l.label]), [['streamLive', 'Stream Live'], ['apple', 'Apple Podcasts']]);
+});
+
 test('every named platform shows when filled, in list order', () => {
   const listenLinks = Object.fromEntries(LISTEN_PLATFORMS.map(p => [p.key, `https://${p.key}.example.com/show`]));
   const links = visibleListenLinks({ listenLinks });
