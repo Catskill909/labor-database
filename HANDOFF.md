@@ -12,7 +12,15 @@ Archive" (`lhf-media.supersoul.top`) is a **separate project, tracked elsewhere.
 
 ---
 
-## 🏷️ P9 · PODCAST TAB ROUND 2 — built + tested locally 15 Nov 2026 · NOT deployed · branch `p9-podcast-round2`
+## 🏷️ P9/P10 · PODCAST TAB ROUND 2 + GROUPED TAGS MENU — LIVE 15 Nov 2026 (`224722f`, verified)
+
+**Live:** Union/Org + Region groups, Stream Live, folding Tags menu, startup-migration fix (deploy log ran it).
+**Live data (15 Nov, via `client-data/podcasts-p9/apply-live.py`, run by Paul after a Full Backup):** Union/Org on 25
+shows, Stream Live moved from custom links on 3 (Boiling Point, Labor Express Radio, Labor Exchange), Workers Rising logo.
+Boiling Point was added by LHF. **Only left: Region tags** once LHF answers (Canada? 21 national/online shows?).
+Note: live show titles differ from the import file ("Labor Exchange", not "KGNU Labor Exchange") — match on live names.
+
+### Build notes (originally: built + tested locally, branch `p9-podcast-round2`)
 
 Worktree `~/Desktop/labor-database-p9` (main folder keeps the uncommitted P6 player work). Commit `b90640b`.
 - **Union/Org** (15, Chris's sheet) + **Region** (11, Harold) = podcast-only tag groups in `server/tags.ts`
