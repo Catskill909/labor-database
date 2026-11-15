@@ -14,7 +14,7 @@ Archive" (`lhf-media.supersoul.top`) is a **separate project, tracked elsewhere.
 
 ## 🏷️ P9/P10 · PODCAST TAB ROUND 2 + GROUPED TAGS MENU — LIVE 15 Nov 2026 (`224722f`, verified)
 
-**Live:** Union/Org + Region groups, Stream Live, folding Tags menu, startup-migration fix (app is up; its startup log line "no migration needed" not checked yet — Coolify → Logs).
+**Live:** Union/Org + Region groups, Stream Live, folding Tags menu, startup-migration fix (verified in the live app log 15 Nov: "Database schema is up to date - no migration needed.").
 **Live data (15 Nov, via `client-data/podcasts-p9/apply-live.py`, run by Paul after a Full Backup):** Union/Org on 25
 shows, Stream Live moved from custom links on 3 (Boiling Point, Labor Express Radio, Labor Exchange), Workers Rising logo.
 Boiling Point was added by LHF. **Only left: Region tags** once LHF answers (Canada? 21 national/online shows?).
