@@ -20,6 +20,7 @@
     "backfill:search": "tsx scripts/backfill-search-text.ts",
     "test": "tsx --test server/*.test.ts",
     "check:tags": "tsx scripts/check-tags.ts",
+    "test:entrypoint": "sh scripts/test-entrypoint.sh",
     "test:browser": "playwright test"
   },
   "dependencies": {
