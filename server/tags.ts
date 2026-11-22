@@ -59,16 +59,18 @@ export const TAG_GROUPS = {
   /* Union/Org and Region describe who makes a Labor Radio/Podcast show and
      where it is from — facts about the show, not subjects. Podcast-only: the
      picker shows them only when editing a podcast (TagSelector `category`).
-     Lists from LHF, 12 Nov 2026 (Chris's LRPN spreadsheet; Harold's email). */
+     Lists from LHF, 12 Nov 2026 (Chris's LRPN spreadsheet; Harold's email);
+     19 Nov 2026 (Harold): Canada, National, International added (no "Online"),
+     IW and History Assn spelled out. */
   'Union/Org': [
     'AAUP',
     'AFT',
     'BCTGM',
     'CFMEU',
-    'History Assn',
+    'History Associations',
     'IAM',
     'IATSE',
-    'IW',
+    'Ironworkers',
     'LCLAA',
     'LHF',
     'NALC',
@@ -83,12 +85,15 @@ export const TAG_GROUPS = {
     'Midwest US',
     'Southwest US',
     'Mountain West US',
+    'Canada',
     'Europe',
     'Latin America',
     'Oceania',
     'Africa',
     'North Africa/Middle East',
     'Asia',
+    'National',
+    'International',
   ],
 } as const;
 
@@ -293,6 +298,12 @@ export const TAG_NORMALIZATION: Record<string, string | null> = {
   // canonical tag as itself, and normalizeTags() already retries case-insensitively.
   'festival-watchlist': 'Festival Watchlist',
   'labor-awards-watchlist': 'Labor Awards Watchlist',
+
+  // === RENAMED PODCAST TAGS (19 Nov 2026, LHF asked to spell them out) ===
+  // Shows tagged before the rename keep their tag: the bulk normalize turns the
+  // old name into the new one instead of dropping it as unknown.
+  'IW': 'Ironworkers',
+  'History Assn': 'History Associations',
 };
 
 // Tags that are already canonical — pass through unchanged. Unconditional on

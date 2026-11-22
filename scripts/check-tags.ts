@@ -8,25 +8,24 @@
  *   2. `server/tags.ts` TAG_NORMALIZATION   — must map each tag to ITSELF, or
  *      `normalizeTags()` drops it, and the bulk normalize action then strips it
  *      from every entry carrying it
- *   3. `src/components/TagSelector.tsx`     — a duplicate copy for the picker;
+ *   3. `src/tag-groups.ts`                  — the picker's copy (TagSelector.tsx);
  *      drift here means a tag exists but nobody can select it
  *
  * Run after touching the taxonomy:  npm run check:tags
  * Exits non-zero on any problem, so it can gate a commit.
  */
 
-import { readFileSync } from 'node:fs';
 import { TAG_GROUPS, normalizeTags } from '../server/tags.js';
+import { TAG_GROUPS as PICKER_GROUPS } from '../src/tag-groups.js';
 
 const canonical: string[] = Object.values(TAG_GROUPS).flat();
 
 // A canonical tag must survive its own round trip through normalizeTags.
 const dropped = canonical.filter(t => normalizeTags(t) !== t);
 
-// The picker keeps its own copy; pull the quoted strings out of its tag arrays.
-const ui = readFileSync(new URL('../src/components/TagSelector.tsx', import.meta.url), 'utf8');
-const uiBlock = ui.slice(0, ui.indexOf('export default function'));
-const uiTags = new Set([...uiBlock.matchAll(/^\s+'([^']+)',/gm)].map(m => m[1]));
+// The picker keeps its own copy (plain data since 22 Nov 2026; also checked tag for
+// tag, in order, by server/tags.test.ts).
+const uiTags = new Set(PICKER_GROUPS.flatMap(g => g.tags));
 
 const missingFromUi = canonical.filter(t => !uiTags.has(t));
 const extraInUi = [...uiTags].filter(t => !canonical.includes(t));

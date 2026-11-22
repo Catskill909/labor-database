@@ -1,11 +1,5 @@
 import { X } from 'lucide-react';
-
-interface TagGroup {
-  name: string;
-  tags: string[];
-  /** Offered only when editing a Labor Radio/Podcast show. */
-  podcastOnly?: boolean;
-}
+import { TAG_GROUPS } from '../tag-groups';
 
 interface TagSelectorProps {
   value: string;
@@ -16,102 +10,6 @@ interface TagSelectorProps {
   category?: string;
 }
 
-const TAG_GROUPS: TagGroup[] = [
-  {
-    name: 'Theme',
-    tags: [
-      'Strikes & Lockouts',
-      'Organizing',
-      'Collective Bargaining',
-      'Labor Law & Legislation',
-      'Wages & Benefits',
-      'Working Conditions',
-      'Worker Safety & Health',
-      'Child Labor',
-      'Unemployment',
-      'Automation & Technology',
-      'Globalization & Outsourcing',
-      'Labor Culture & Arts',
-      'International Solidarity',
-    ],
-  },
-  {
-    name: 'Industry',
-    tags: [
-      'Mining',
-      'Steel & Manufacturing',
-      'Textiles & Garment',
-      'Agriculture & Farm Work',
-      'Auto & Transportation',
-      'Construction',
-      'Public Sector',
-      'Education & Teachers',
-      'Healthcare',
-      'Entertainment & Media',
-      'Service & Retail',
-      'Maritime & Dockworkers',
-      'Domestic Workers',
-    ],
-  },
-  {
-    name: 'Curation',
-    tags: [
-      'Festival Watchlist',
-      'Labor Awards Watchlist',
-    ],
-  },
-  {
-    name: 'Social',
-    tags: [
-      'Civil Rights & Race',
-      'Women & Gender',
-      'Immigration',
-      'War & Military',
-      'Socialism & Left Politics',
-      'Environment',
-      'Working Class',
-      'Politics & Elections',
-    ],
-  },
-  {
-    name: 'Union/Org',
-    podcastOnly: true,
-    tags: [
-      'AAUP',
-      'AFT',
-      'BCTGM',
-      'CFMEU',
-      'History Assn',
-      'IAM',
-      'IATSE',
-      'IW',
-      'LCLAA',
-      'LHF',
-      'NALC',
-      'SAG-AFTRA',
-      'State/Local AFL-CIO',
-      'Teamsters',
-      'USW',
-    ],
-  },
-  {
-    name: 'Region',
-    podcastOnly: true,
-    tags: [
-      'Eastern US',
-      'Western US',
-      'Midwest US',
-      'Southwest US',
-      'Mountain West US',
-      'Europe',
-      'Latin America',
-      'Oceania',
-      'Africa',
-      'North Africa/Middle East',
-      'Asia',
-    ],
-  },
-];
 
 // Curation tags (e.g. Labor Awards Watchlist) mark why an entry is on a list, and
 // Union/Org and Region are facts about a podcast — none of them are subjects, so

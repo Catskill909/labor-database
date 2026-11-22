@@ -12,6 +12,20 @@ Archive" (`lhf-media.supersoul.top`) is a **separate project, tracked elsewhere.
 
 ---
 
+## 🗺️ P11 · REGION TAGS (LHF's answers, 19 Nov 2026) — branch `p11-regions`, built + tested 22 Nov
+
+LHF (Harold, with Chris and Patrick, email 19 Nov) answered the region questions:
+- **Region list** gains **Canada**, **National**, **International** (no "Online").
+- **Union/Org** names spelled out: `IW` → **Ironworkers**, `History Assn` → **History Associations**.
+  The old names map to the new ones in `TAG_NORMALIZATION`, so a bulk normalize renames instead of dropping them.
+- **Picker list moved to `src/tag-groups.ts`** (plain data; `TagSelector.tsx` imports it). New test in
+  `server/tags.test.ts`: picker groups must equal `server/tags.ts` tag for tag, in order. It loads the file at run
+  time because the server tsconfig `rootDir` is `server/`. `scripts/check-tags.ts` now imports it too.
+- Tests 22 Nov: `npm test` 170 ✓, `npm run test:browser` 28 ✓, `check:tags` ✓, tsc ✓, `npm run build` ✓.
+- **Live data after deploy:** `client-data/podcasts-p9/apply-regions-live.py` (local, git-ignored). Matches by live
+  **id + title**, all 51 shows: 21 National, 6 International, 3 Canada, 21 geographic (LHF's 6 changes applied);
+  6 renames. Stops if a show already has a different region. Full Backup ZIP first.
+
 ## 🏷️ P9/P10 · PODCAST TAB ROUND 2 + GROUPED TAGS MENU — LIVE 15 Nov 2026 (`224722f`, verified)
 
 **Live:** Union/Org + Region groups, Stream Live, folding Tags menu, startup-migration fix (verified in the live app log 15 Nov: "Database schema is up to date - no migration needed.").
