@@ -5,14 +5,14 @@ Read this first, then `CLAUDE.md` for the hard project rules.
 **What the app does**, for the client, LHF editors and developers: `FEATURES.md`
 — update it when a feature ships.
 
-**Last updated:** 8 November 2026
+**Last updated:** 22 November 2026
 **Branch:** `main` · **Production:** https://labor-database.supersoul.top
 **Scope:** this repo only. The Digital Asset Manager / "Labor Heritage Media
 Archive" (`lhf-media.supersoul.top`) is a **separate project, tracked elsewhere.**
 
 ---
 
-## 🗺️ P11 · REGION TAGS (LHF's answers, 19 Nov 2026) — branch `p11-regions`, built + tested 22 Nov
+## 🗺️ P11 · REGION TAGS (LHF's answers, 19 Nov 2026) — LIVE 22 Nov 2026 (`9dba45e`, verified)
 
 LHF (Harold, with Chris and Patrick, email 19 Nov) answered the region questions:
 - **Region list** gains **Canada**, **National**, **International** (no "Online").
@@ -25,6 +25,10 @@ LHF (Harold, with Chris and Patrick, email 19 Nov) answered the region questions
 - **Live data after deploy:** `client-data/podcasts-p9/apply-regions-live.py` (local, git-ignored). Matches by live
   **id + title**, all 51 shows: 21 National, 6 International, 3 Canada, 21 geographic (LHF's 6 changes applied);
   6 renames. Stops if a show already has a different region. Full Backup ZIP first.
+- **Done 22 Nov:** Full Backup → deploy (first build failed on an npm download, `ECONNRESET`; the live version kept
+  running; the second build worked) → script run by Paul, 51 shows → checked live: every show has exactly its
+  region and all earlier tags, no old names, no private fields public. Totals: National 21, International 6,
+  Canada 3, Eastern US 7, Midwest 5, Western 3, Oceania 3, Mountain West 2, Southwest 1.
 
 ## 🏷️ P9/P10 · PODCAST TAB ROUND 2 + GROUPED TAGS MENU — LIVE 15 Nov 2026 (`224722f`, verified)
 
